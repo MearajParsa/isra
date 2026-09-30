@@ -54,7 +54,8 @@
 2. RTL فارسی؛ `dir="rtl"` ریشه؛ بدون i18n؛ فونت YekanBakh.
 3. در `web-main` مرز واضح بین فضای کاربر (low) و عملیات جلسه (mid)؛ توکن یکسان، پیشوند/base متفاوت.
 4. `web-admin` جدا منتشر می‌شود؛ کد ادمین را داخل `web-main` قاطی نکن.
-5. PWA: قابل نصب؛ برای iOS از Add to Home Screen استفاده می‌شود.
+5. PWA: **هر دو اپ وب** (`web-main` و `web-admin`) باید PWA قابل نصب باشند (manifest، service worker، آیکون‌ها، حالت offline پایه) تا روی موبایل اجرا شوند؛ برای iOS از Add to Home Screen استفاده می‌شود. (تصمیم مالک — ۱۴۰۵/۰۷/۰۸)
+   - عملکرد و انیمیشن: سرعت بارگذاری اولویت است (هدف: Lighthouse ≥ ۹۰، LCP < ۲٫۵s). انیمیشن ساده با CSS/ترنزیشن Svelte؛ انیمیشن پیچیده با GSAP به‌صورت lazy؛ سه‌بعدی فقط محدود و lazy؛ احترام به `prefers-reduced-motion`. طراحی UI/UX وب طبق طرح کلی مالک در `design/` (صفحات بدون design با brief مالک و `THEME_TOKENS` — بعد از موجودی UI طبق `10`).
 6. کلید Map.ir در فرانت نگذار.
 7. موجودی UI طبق `10-ui-discovery-rules.md` قبل از design/کد.
 
