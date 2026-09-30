@@ -50,6 +50,7 @@
 | [11-context-and-reading.md](./11-context-and-reading.md) | خواندن تدریجی، سقف فایل، working memory، کارstream |
 | [12-bootstrap.md](./12-bootstrap.md) | کارstream بوت‌استرپ: AI اسکلت مونوریپو را تعاملی می‌سازد |
 | [13-handoff.md](./13-handoff.md) | تداوم چند-AI؛ STATUS.md؛ تحویل جلسه؛ عدم تکیه به chat |
+| [14-cloud-credits-plan.md](./14-cloud-credits-plan.md) | برنامهٔ اجرای فرانت در cloud با اعتبار هدیه؛ بقیه محلی (نه قفل) |
 | [STATUS.md](./STATUS.md) | وضعیت زندهٔ کارstream (ایجاد/به‌روز توسط AI — ببین 13) |
 | [THEME_TOKENS.md](./THEME_TOKENS.md) | توکن‌های تم (رنگ، تایپ، فاصله) |
 

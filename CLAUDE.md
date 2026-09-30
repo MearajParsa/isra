@@ -32,6 +32,12 @@ Redis، GraphQL، API Gateway، MinIO، message broker، Docker اجباری، i
 - هر کارstream با `pnpm turbo lint typecheck test` سبز تمام شود (پس از bootstrap).
 - قبل از merge بخش‌های حساس (auth/JWT/OTP): `/security-review` و `/code-review`.
 
+## Cloud در برابر محلی (`docs-v2/14-cloud-credits-plan.md`)
+- فرانت (`web-main`, `web-admin`) در cloud session؛ بک‌اند و Android محلی.
+- جلسهٔ cloud فقط در `apps/web-*` و `packages/api-types` کار کند، روی branch جدا و با PR؛ به `services/` و `apps/android-*` دست نزند.
+- فرانت روی mock بر پایهٔ قرارداد قفل‌شده ساخته می‌شود؛ بدون design متناظر در ریپو، UI نساز.
+- بعد از هر task: `STATUS.md` به‌روز شود.
+
 ## زبان و صرفه‌جویی توکن
 - توضیحات و docs فارسی؛ شناسه‌های فنی (مسیر، کلید permission، نام کد) انگلیسی.
 - پاسخ‌ها کوتاه؛ فایل‌های تغییرنیافته و قفل‌های خوانده‌شده را دوباره نخوان.

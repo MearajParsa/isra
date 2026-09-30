@@ -15,7 +15,12 @@
 
 ## بعدی (Next)
 1. وقتی مالک «شروع پروژه / bootstrap» بگوید → کارstream `12-bootstrap.md`
-2. پس از اسکلت → معمولاً کارstream API per `11`
+2. مالک ریپوی GitHub private می‌سازد و push می‌کند (پیش‌نیاز cloud — `14-cloud-credits-plan.md`)
+3. کارstream API: فقط پیش‌نویس قرارداد auth + اسکرین‌های وب → قفل مالک
+4. موجودی UI برای web-main/web-admin → مالک design را commit می‌کند
+5. فرانت (web-main/web-admin) در cloud با اعتبار هدیه — **قبل از ۱۴ آبان ۱۴۰۵**؛ بک‌اند/Android محلی
+
+توجه: `14-cloud-credits-plan.md` برنامهٔ اجرایی است نه قفل. git محلی هست (commit اولیه)، remote هنوز نیست.
 
 ## قفل‌های تازه / پیش‌نویس در انتظار تأیید
 - قفل #35 (تداوم چند-AI) در `00-locks.md` ثبت شد
