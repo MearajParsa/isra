@@ -10,6 +10,7 @@
 
 ## در حال انجام (In progress)
 - کارstream فعال: API — auth + low برای web-main (فقط پیش‌نویس؛ mid/high/admin خارج از scope). پیش‌نویس: `docs-v2/15-api-low-web-main-draft.md` — منتظر قفل مالک (Q1–Q8 در §۹)
+- موجودی UI (فقط `web-main` بخش low): پیش‌نویس `docs-v2/16-ui-inventory-web-main-low-draft.md` — منتظر پاسخ سؤالات §و و سپس design مالک؛ کد UI زده نشده
 - کد PWA هنوز در اسکلت وب‌ها اضافه نشده (کار فرانت)
 
 ## بعدی (Next)
