@@ -16,6 +16,24 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # تست‌های integration/e2e روی MySQL واقعی (بدون Docker محلی؛ فقط service کانتینر CI)
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: schema_low_test
+          MYSQL_USER: isra_low
+          MYSQL_PASSWORD: isra_low_dev
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      TEST_DB_HOST: 127.0.0.1
+      TEST_DB_USER: isra_low
+      TEST_DB_PASSWORD: isra_low_dev
+      TEST_DB_NAME: schema_low_test
     steps:
       - uses: actions/checkout@v4
         with:

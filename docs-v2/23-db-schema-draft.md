@@ -73,3 +73,17 @@
 | `auth_sessions` منقضی/revoked | حذف پس از ۳۰ روز |
 | `inbox_messages` | نگهداری ۱ سال (قابل تنظیم) |
 | `audit_logs`, `point_ledger`, `badge_awards` | دائمی (append-only)، آرشیو سالانه |
+
+## پیاده‌سازی `schema_low` — انحراف‌ها از پیش‌نویس بالا (۱۴۰۵/۰۷/۱۰)
+migration `1727700000000-InitSchema` (MySQL ۸ و MariaDB سازگار؛ collation `utf8mb4_unicode_ci`). تفاوت‌ها:
+| پیش‌نویس | پیاده‌سازی | دلیل |
+|----------|-----------|------|
+| `rate_limit_counters(key,count)` | `counter_key`, `hits` | `key`/`count` کلمهٔ رزرو |
+| `auth_sessions.family_id` | حذف؛ family = خود نشست | هر نشست یک زنجیرهٔ refresh دارد؛ reuse ⇒ revoke همان نشست |
+| `refresh_tokens.used_at` | فقط `rotated_at` | همان معنا (reuse = `rotated_at IS NOT NULL`) |
+| — | `auth_sessions.otp_at`, `client_id` | معافیت step-up تا ۵ دقیقه پس از OTP؛ تفکیک وب/اندروید |
+| `devices` | ساخته نشد | `device_id` روی `auth_sessions`؛ یک نشست فعال per دستگاه |
+| `idempotency_keys` | ساخته نشد | endpointهای low همه idempotent طبیعی‌اند (`idempotency: 'natural'`) |
+| `points_cache` | cache حافظه‌ای ۱۵s + stale-if-error | بدون نیاز به persist |
+| `user_claims` | **جدید** | claim نقش/grant همگام‌شده از high برای JWT (`perm_ver` فقط رو‌به‌جلو) |
+ارسال OTP همگام با timeout (`SMS_TIMEOUT_MS`) است، نه از طریق outbox: کاربر باید خطای ارسال را فوراً ببیند (`AUTH_OTP_SEND_FAILED`).

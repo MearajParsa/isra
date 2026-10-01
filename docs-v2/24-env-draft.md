@@ -25,7 +25,7 @@
 | `JWT_PRIVATE_KEY_PEM` (یا مسیر فایل) / `JWT_KEY_ID` | RS256؛ **فقط در low**؛ چرخش: دو کلید همزمان در JWKS |
 | `ACCESS_TTL_SEC=900` / `REFRESH_TTL_SEC=1209600` | قفل |
 | `OTP_PEPPER` | ≥ ۳۲ بایت؛ HMAC کد OTP |
-| `PASSWORD_PEPPER` | اختیاری؛ argon2id: `ARGON2_MEMORY_KIB=65536 ARGON2_TIME=3 ARGON2_PARALLELISM=1`، `HASH_CONCURRENCY=4` |
+| `PASSWORD_PEPPER` | **production الزامی**؛ argon2id: `ARGON2_MEMORY_KIB=65536 ARGON2_TIME=3 ARGON2_PARALLELISM=1`، `HASH_CONCURRENCY=4` |
 | `FARAZ_API_KEY` / `FARAZ_SENDER` / `FARAZ_PATTERN_CODE` | ارائه‌دهندهٔ SMS؛ timeout ۳ث، circuit-breaker |
 | `SMS_DAILY_BUDGET` | سقف روزانه (ضد SMS-pumping) |
 | `OTP_PHONE_PER_HOUR=5` `OTP_IP_PER_HOUR=20` | قابل تنظیم |
@@ -54,3 +54,15 @@
 |-------|-------|
 | `PUBLIC_API_BASE` | `https://api.israapp.ir` (dev: `http://localhost:3001`) — **هیچ secret/کلیدی در متغیرهای `PUBLIC_*` نیست** |
 | `PUBLIC_USE_MOCK` | `true` تا آماده‌شدن بک‌اند؛ در production همیشه `false` |
+
+## افزوده‌های پیاده‌سازی api-low (۱۴۰۵/۰۷/۱۰)
+| متغیر | توضیح |
+|-------|-------|
+| `SMS_PROVIDER` | `faraz` (production) \| `console` (توسعه) \| `capture` (تست)؛ در production فقط `faraz` |
+| `SMS_DAILY_BUDGET` | سقف روزانهٔ پیامک (ضد SMS-pumping)؛ پیش‌فرض ۵۰۰۰ |
+| `TRUST_PROXY` | تعداد hopهای reverse-proxy مورد اعتماد برای IP کلاینت (۰ = بدون اعتماد به `X-Forwarded-For`)؛ باید با زیرساخت یکی باشد وگرنه rate-limit دور زده/مسدود می‌شود |
+| `DB_QUERY_TIMEOUT_MS`, `DB_POOL_MAX` | تایم‌اوت و اندازهٔ pool |
+| `REFRESH_GRACE_SEC` | پنجرهٔ grace وب برای مسابقهٔ چند-tab (پیش‌فرض ۱۰) |
+| `OUTBOX_ENABLED/OUTBOX_POLL_MS`, `MAINTENANCE_ENABLED` | worker outbox و job پاکسازی |
+| `INTERNAL_URL_MID/HIGH`, `INTERNAL_TIMEOUT_MS`, `INTERNAL_SHARED_SECRET` | internal REST؛ `INTERNAL_URL_MID` در production الزامی |
+نمونه: `services/api-low/.env.example`.
