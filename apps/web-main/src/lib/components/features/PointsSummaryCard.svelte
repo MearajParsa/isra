@@ -71,7 +71,7 @@
   }
   .num strong {
     font-size: var(--fs-xxl);
-    font-weight: 900;
+    font-weight: 700;
   }
   .lbl,
   .hint {
@@ -88,7 +88,7 @@
     display: block;
     height: 100%;
     border-radius: inherit;
-    background: var(--color-accent-warm);
+    background: var(--color-turquoise);
     transition: width 500ms var(--ease);
   }
   :global(.go) {

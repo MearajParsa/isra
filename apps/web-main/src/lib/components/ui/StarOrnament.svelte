@@ -6,7 +6,7 @@
 
 <svg class="orn" width={size} height={size} viewBox="-100 -100 200 200" aria-hidden="true" focusable="false">
   {#each rings as r, i (i)}
-    <g class="ring r{i}" fill="none" stroke="var(--color-accent-warm)" stroke-width={i === 0 ? 0.7 : 0.9} opacity={0.9 - i * 0.18}>
+    <g class="ring r{i}" fill="none" stroke={i < 2 ? 'var(--color-accent-warm)' : 'var(--color-turquoise)'} stroke-width={i === 0 ? 0.7 : 0.9} opacity={0.9 - i * 0.18}>
       <rect x={-60 * r} y={-60 * r} width={120 * r} height={120 * r} />
       <rect x={-60 * r} y={-60 * r} width={120 * r} height={120 * r} transform="rotate(45)" />
     </g>

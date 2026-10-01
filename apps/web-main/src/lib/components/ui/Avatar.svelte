@@ -24,7 +24,7 @@
     border-radius: 50%;
     background: var(--color-secondary);
     color: var(--color-primary);
-    font-weight: 900;
+    font-weight: 700;
     overflow: hidden;
   }
   img {

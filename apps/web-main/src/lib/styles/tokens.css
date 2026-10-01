@@ -13,13 +13,6 @@
   font-style: normal;
   font-display: swap;
 }
-@font-face {
-  font-family: 'Yekan Bakh FaNum';
-  src: url('/fonts/YekanBakhFaNum-ExtraBlack.woff2') format('woff2');
-  font-weight: 900;
-  font-style: normal;
-  font-display: swap;
-}
 
 :root {
   --color-primary: #1c0e44;
@@ -39,6 +32,10 @@
   --color-warning: #fdbf8a;
   --color-scrim: #1c0e4480;
   --color-card: #ffffff;
+  /* پالت تکمیلی مالک */
+  --color-neutral: #f2ece7;
+  --color-turquoise: #2dd2c7;
+  --color-gray: #aca8a5;
 
   /* مشتق‌ها (فقط ترکیب توکن‌ها) */
   --color-primary-hover: color-mix(in srgb, var(--color-primary) 88%, white);

@@ -17,6 +17,7 @@
   - تأیید‌نشده: service worker/نصب PWA در مرورگر واقعی (فقط build تست شد)؛ Lighthouse اندازه‌گیری نشد.
 
 - **تصمیم مالک (۱۴۰۵/۰۷/۰۹):** همهٔ سؤال‌های باز (`15` §۹ و `16` §و) به AI واگذار شد؛ پاسخ‌ها در همان اسناد ثبت شد. `15` اکنون «قفل مشروط» است.
+- **بازبینی مالک (۱۴۰۵/۰۷/۰۹):** لوگوی رسمی `design/logo.svg` جایگزین نشان قبلی شد (هدر/فوتر/آیکون‌های PWA/favicon؛ `scripts/gen-icons.mjs`)؛ ExtraBlack حذف و فقط Regular/Bold؛ پالت تکمیلی `#F2ECE7` `#2DD2C7` `#ACA8A5` در `THEME_TOKENS.md` و `tokens.css`.
 - **اجرای محلی web-main:** `git checkout claude/exciting-pasteur-ksk14u` ← `pnpm install` ← `pnpm --filter @isra/web-main dev` ← http://localhost:5173 (PWA: `build` سپس `preview`).
 
 ## بعدی (Next)

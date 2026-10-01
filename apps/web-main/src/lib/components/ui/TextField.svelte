@@ -114,7 +114,7 @@
     text-align: right;
   }
   input::placeholder {
-    color: color-mix(in srgb, var(--color-muted) 70%, white);
+    color: var(--color-gray);
   }
   input:hover:not(:disabled) {
     border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-outline));
@@ -125,7 +125,7 @@
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
   }
   input:disabled {
-    background: var(--color-secondary);
+    background: var(--color-neutral);
     color: var(--color-muted);
   }
   .invalid input {

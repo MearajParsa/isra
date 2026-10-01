@@ -364,7 +364,7 @@
 
   .steps-sec {
     margin-top: var(--space-2xl);
-    background: var(--color-secondary);
+    background: var(--color-neutral);
     padding-bottom: var(--space-2xl);
   }
   .steps {
@@ -386,7 +386,7 @@
     border-radius: 50%;
     background: var(--color-primary);
     color: var(--color-accent-warm);
-    font-weight: 900;
+    font-weight: 700;
   }
   @media (min-width: 768px) {
     .steps {

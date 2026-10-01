@@ -6,9 +6,8 @@
 <footer class="foot">
   <div class="container inner">
     <div class="brand">
-      <LogoMark size={40} tone="light" />
+      <LogoMark height={64} tone="light" />
       <div>
-        <strong>اسراء</strong>
         <p>پلتفرم جلسات قرآن؛ با هم بخوانیم، با هم پیش برویم.</p>
       </div>
     </div>
@@ -36,9 +35,6 @@
     display: flex;
     align-items: center;
     gap: var(--space-md);
-  }
-  .brand strong {
-    font-size: var(--fs-lg);
   }
   .brand p {
     color: color-mix(in srgb, var(--color-on-primary) 75%, transparent);

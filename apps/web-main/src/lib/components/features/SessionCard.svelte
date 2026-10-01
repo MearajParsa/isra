@@ -53,7 +53,7 @@
     border-color: color-mix(in srgb, var(--color-primary) 30%, var(--color-outline));
   }
   .ended {
-    background: color-mix(in srgb, var(--color-card) 60%, var(--color-surface));
+    background: var(--color-neutral);
   }
   .ended h3 {
     color: var(--color-muted);

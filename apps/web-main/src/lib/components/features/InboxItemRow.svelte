@@ -94,7 +94,7 @@
     font-weight: 700;
   }
   .unread .title {
-    font-weight: 900;
+    font-weight: 700;
   }
   .time {
     flex: none;

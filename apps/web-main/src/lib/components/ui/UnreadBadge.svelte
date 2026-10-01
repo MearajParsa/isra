@@ -23,7 +23,7 @@
     background: var(--color-accent-warm);
     color: var(--color-primary);
     font-size: 0.7rem;
-    font-weight: 900;
+    font-weight: 700;
     line-height: 1;
   }
   .dot {

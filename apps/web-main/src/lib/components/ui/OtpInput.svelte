@@ -127,7 +127,7 @@
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
   }
   .cell:disabled {
-    background: var(--color-secondary);
+    background: var(--color-neutral);
     color: var(--color-muted);
   }
   .invalid .cell {

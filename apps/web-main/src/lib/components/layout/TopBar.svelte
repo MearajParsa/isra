@@ -19,8 +19,7 @@
 <header class="bar">
   <div class="container inner">
     <a class="brand" href="/" aria-label="اسراء — صفحهٔ اول">
-      <LogoMark size={36} />
-      <span class="name">اسراء</span>
+      <LogoMark height={44} />
     </a>
 
     <nav class="desktop" aria-label="ناوبری اصلی">
@@ -68,11 +67,6 @@
     gap: 10px;
     color: var(--color-primary);
     text-decoration: none;
-  }
-  .name {
-    font-weight: 900;
-    font-size: var(--fs-xl);
-    line-height: 1;
   }
   .desktop {
     display: none;

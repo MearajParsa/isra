@@ -10,7 +10,7 @@
 
 {#if pwa.visible}
   <div class="install">
-    <LogoMark size={40} />
+    <span class="tile"><LogoMark height={26} tone="light" /></span>
     <div class="txt">
       <strong>اسراء را روی گوشی نصب کنید</strong>
       <span class="muted">دسترسی سریع‌تر، بدون نیاز به مرورگر.</span>
@@ -49,6 +49,15 @@
     border: 1px solid var(--color-outline);
     border-radius: var(--radius-lg);
     box-shadow: var(--elev-1);
+  }
+  .tile {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 52px;
+    height: 52px;
+    border-radius: var(--radius-md);
+    background: var(--color-primary);
   }
   .txt {
     display: grid;

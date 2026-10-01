@@ -55,8 +55,7 @@
 {#if isAuthRoute}
   <header class="auth-bar">
     <a class="brand" href="/" aria-label="اسراء — صفحهٔ اول">
-      <LogoMark size={36} />
-      <span>اسراء</span>
+      <LogoMark height={64} />
     </a>
   </header>
 {:else}
@@ -99,8 +98,6 @@
     gap: 10px;
     color: var(--color-primary);
     text-decoration: none;
-    font-weight: 900;
-    font-size: var(--fs-xl);
   }
   .progress {
     position: fixed;

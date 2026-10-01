@@ -38,7 +38,7 @@
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: var(--color-accent-warm);
+    background: var(--color-turquoise);
     animation: pulse 1.6s ease-in-out infinite;
   }
   @keyframes pulse {

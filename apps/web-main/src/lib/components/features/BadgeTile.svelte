@@ -24,7 +24,7 @@
     gap: 4px;
     padding: var(--space-lg) var(--space-md);
     background: var(--color-card);
-    border: 1.5px dashed var(--color-outline);
+    border: 1.5px dashed var(--color-gray);
     border-radius: var(--radius-lg);
     text-align: center;
     color: var(--color-muted);

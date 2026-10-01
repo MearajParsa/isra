@@ -14,9 +14,9 @@
     display: block;
     background: linear-gradient(
       90deg,
-      var(--color-secondary) 0%,
-      color-mix(in srgb, var(--color-secondary) 55%, white) 50%,
-      var(--color-secondary) 100%
+      var(--color-neutral) 0%,
+      color-mix(in srgb, var(--color-neutral) 50%, white) 50%,
+      var(--color-neutral) 100%
     );
     background-size: 200% 100%;
     animation: sh 1.4s ease-in-out infinite;
