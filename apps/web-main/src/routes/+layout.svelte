@@ -14,6 +14,7 @@
   import AuthGateSheet from '$lib/components/features/AuthGateSheet.svelte';
   import StepUpSheet from '$lib/components/features/StepUpSheet.svelte';
   import LogoMark from '$lib/components/ui/LogoMark.svelte';
+  import { toasts } from '$lib/stores/toast.svelte';
 
   let { children } = $props();
 
@@ -22,6 +23,15 @@
   onMount(() => {
     markReady();
     const stops = [net.start(), pwa.start()];
+    if ('serviceWorker' in navigator) {
+      // نسخهٔ جدید service worker فعال شد (اعلان Q12)
+      const hadController = Boolean(navigator.serviceWorker.controller);
+      const onChange = () => {
+        if (hadController) toasts.info('نسخهٔ جدید اسراء آماده است؛ صفحه را دوباره بارگذاری کنید.');
+      };
+      navigator.serviceWorker.addEventListener('controllerchange', onChange);
+      stops.push(() => navigator.serviceWorker.removeEventListener('controllerchange', onChange));
+    }
     void auth.init();
     return () => stops.forEach((s) => s());
   });
