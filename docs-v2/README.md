@@ -51,6 +51,10 @@
 | [12-bootstrap.md](./12-bootstrap.md) | کارstream بوت‌استرپ: AI اسکلت مونوریپو را تعاملی می‌سازد |
 | [13-handoff.md](./13-handoff.md) | تداوم چند-AI؛ STATUS.md؛ تحویل جلسه؛ عدم تکیه به chat |
 | [14-cloud-credits-plan.md](./14-cloud-credits-plan.md) | برنامهٔ اجرای فرانت در cloud با اعتبار هدیه؛ بقیه محلی (نه قفل) |
+| [15](./15-api-low-web-main-draft.md) · [18](./18-api-mid-web-main-draft.md) · [20](./20-api-high-web-admin-draft.md) | قراردادهای API (low/mid/high) — قفل مشروط؛ ماشین‌خوان در `packages/api-types` |
+| [16](./16-ui-inventory-web-main-low-draft.md) · [19](./19-ui-inventory-web-main-mid-draft.md) · [21](./21-ui-inventory-web-admin-draft.md) | موجودی UI (web-main low/mid، web-admin) |
+| [22-api-engineering-standards.md](./22-api-engineering-standards.md) | امنیت، پرفورمنس (SLO)، نسخه‌گذاری، تست، CI |
+| [23-db-schema-draft.md](./23-db-schema-draft.md) · [24-env-draft.md](./24-env-draft.md) | schema DB با ایندکس‌ها، پیکربندی env |
 | [STATUS.md](./STATUS.md) | وضعیت زندهٔ کارstream (ایجاد/به‌روز توسط AI — ببین 13) |
 | [THEME_TOKENS.md](./THEME_TOKENS.md) | توکن‌های تم (رنگ، تایپ، فاصله) |
 

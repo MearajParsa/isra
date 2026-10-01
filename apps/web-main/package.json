@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "@isra/api-types": "workspace:*",
     "@sveltejs/adapter-auto": "^7.0.1",
     "@sveltejs/kit": "^2.70.3",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",

@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # برای openapi:breaking (مقایسه با master)
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: lint + typecheck + test + build
+        run: pnpm turbo lint typecheck test build
+      - name: OpenAPI به‌روز است؟ (drift)
+        run: pnpm --filter @isra/api-types openapi:check
+      - name: تغییر ناسازگار نسبت به master؟
+        run: pnpm --filter @isra/api-types openapi:breaking -- origin/master
+      - name: audit وابستگی‌ها (high+)
+        run: pnpm audit --prod --audit-level high

@@ -1,6 +1,40 @@
 {
   "name": "@isra/api-types",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
-  "description": "placeholder"
+  "description": "قرارداد API اسراء: schemaهای zod (منبع حقیقت)، نوع‌های TypeScript و OpenAPI 3.1 برای api-low/mid/high",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./low": "./src/low/index.ts",
+    "./mid": "./src/mid/index.ts",
+    "./high": "./src/high/index.ts",
+    "./core": "./src/core/index.ts",
+    "./openapi/*": "./openapi/*"
+  },
+  "files": [
+    "src",
+    "openapi",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "openapi": "tsx scripts/build-openapi.ts",
+    "openapi:check": "tsx scripts/build-openapi.ts --check",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsx scripts/build-openapi.ts --check",
+    "openapi:breaking": "tsx scripts/breaking-changes.ts"
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@apidevtools/swagger-parser": "^13.1.0",
+    "@types/node": "^26.6.3",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.2"
+  }
 }
