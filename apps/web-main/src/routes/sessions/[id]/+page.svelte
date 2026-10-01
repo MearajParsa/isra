@@ -1,5 +1,11 @@
 <script lang="ts">
+  import { midApi } from '$lib/api';
+  import type { SessionMe } from '$lib/api/mid-types';
   import { auth } from '$lib/auth/auth.svelte';
+  import { toasts } from '$lib/stores/toast.svelte';
+  import { errorMessage } from '$lib/utils/errors';
+  import { Resource } from '$lib/utils/resource.svelte';
+  import MembershipPanel from '$lib/components/features/MembershipPanel.svelte';
   import { gate } from '$lib/stores/gate.svelte';
   import { formatDateTime } from '$lib/utils/format';
   import PageHeader from '$lib/components/ui/PageHeader.svelte';
@@ -12,6 +18,26 @@
 
   let { data } = $props();
   const s = $derived(data.session);
+
+  const mine = new Resource<SessionMe>();
+  let requesting = $state(false);
+  const loadMine = (silent = false) => mine.load(() => auth.withAuth((t) => midApi.sessions.me(t, s.id)), silent);
+  $effect(() => {
+    if (auth.status === 'member') void loadMine();
+  });
+
+  async function requestMembership() {
+    requesting = true;
+    try {
+      await auth.withAuth((t) => midApi.members.request(t, s.id));
+      toasts.success('درخواست عضویت ثبت شد.');
+      await loadMine(true);
+    } catch (e) {
+      toasts.error(errorMessage(e));
+    } finally {
+      requesting = false;
+    }
+  }
 </script>
 
 <svelte:head>
@@ -46,9 +72,14 @@
           <NoticeBanner tone="info">این جلسه پایان یافته است. از بخش «جلسات» سراغ جلسهٔ دیگری بروید.</NoticeBanner>
           <Button href="/sessions" variant="secondary" full>مشاهدهٔ جلسات دیگر</Button>
         {:else if auth.status === 'member'}
-          <NoticeBanner tone="info">
-            عضویت، حضور و نوبت قرائت در بخش جلسهٔ زنده انجام می‌شود؛ این بخش به‌زودی فعال می‌شود.
-          </NoticeBanner>
+          {#if mine.status === 'ready' && mine.data}
+            <MembershipPanel sessionId={s.id} status={s.status} me={mine.data} busy={requesting} onrequest={requestMembership} />
+          {:else if mine.status === 'error'}
+            <NoticeBanner tone="error" role="alert">{mine.error}</NoticeBanner>
+            <Button variant="secondary" full onclick={() => loadMine()}>تلاش دوباره</Button>
+          {:else}
+            <Button full loading disabled>در حال بررسی عضویت…</Button>
+          {/if}
         {:else}
           <p class="muted small">برای عضویت در این جلسه باید وارد حساب خود شوید.</p>
           <Button

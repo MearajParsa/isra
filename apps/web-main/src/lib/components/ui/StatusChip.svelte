@@ -1,13 +1,13 @@
 <script lang="ts">
-  import type { SessionStatus } from '$lib/api/types';
-  import { statusLabel } from '$lib/utils/format';
+  import type { SessionState } from '$lib/api/mid-types';
+  import { sessionStateLabel } from '$lib/utils/format';
 
-  let { status }: { status: SessionStatus } = $props();
+  let { status }: { status: SessionState } = $props();
 </script>
 
 <span class="chip {status}">
   {#if status === 'started'}<span class="dot" aria-hidden="true"></span>{/if}
-  {statusLabel[status]}
+  {sessionStateLabel[status]}
 </span>
 
 <style>
@@ -21,6 +21,11 @@
     font-weight: 700;
     line-height: 1.8;
     white-space: nowrap;
+  }
+  .draft {
+    background: var(--color-neutral);
+    color: var(--color-muted);
+    border: 1px dashed var(--color-gray);
   }
   .scheduled {
     background: var(--color-primary-tint);

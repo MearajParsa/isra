@@ -1,4 +1,5 @@
 import type { SessionSchedule, SessionStatus } from '$lib/api/types';
+import type { SessionState } from '$lib/api/mid-types';
 
 const TZ = 'Asia/Tehran';
 
@@ -93,4 +94,36 @@ export function formatCountdown(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = sec % 60;
   return `${numFmt.format(m)}:${numFmt.format(s).padStart(2, '۰')}`;
+}
+
+export const sessionStateLabel: Record<SessionState, string> = {
+  draft: 'پیش‌نویس',
+  scheduled: 'پیش‌رو',
+  started: 'در حال برگزاری',
+  ended: 'پایان‌یافته'
+};
+
+/** مقدار input[type=datetime-local] (YYYY-MM-DDTHH:mm) ← ISO، به وقت تهران */
+export function toTehranInput(iso: string): string {
+  const p = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23'
+  })
+    .formatToParts(new Date(iso))
+    .reduce<Record<string, string>>((a, x) => ((a[x.type] = x.value), a), {});
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
+export const toTehranDateInput = (iso: string) => toTehranInput(iso).slice(0, 10);
+
+/** input (وقت تهران، بدون DST) ← ISO؛ ناقص ⇒ '' */
+export function fromTehranInput(value: string): string {
+  if (!value) return '';
+  const v = value.length === 10 ? `${value}T00:00` : value;
+  const d = new Date(`${v}:00+03:30`);
+  return Number.isNaN(d.getTime()) ? '' : d.toISOString();
 }

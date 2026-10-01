@@ -19,3 +19,18 @@ describe('format', () => {
     expect(label).toContain('۱۸:۰۰');
   });
 });
+
+import { fromTehranInput, toTehranDateInput, toTehranInput } from './format';
+
+describe('ورودی تاریخ به وقت تهران', () => {
+  it('رفت‌وبرگشت', () => {
+    expect(fromTehranInput('2026-10-03T09:00')).toBe('2026-10-03T05:30:00.000Z');
+    expect(toTehranInput('2026-10-03T05:30:00.000Z')).toBe('2026-10-03T09:00');
+    expect(toTehranDateInput('2026-10-03T05:30:00.000Z')).toBe('2026-10-03');
+    expect(fromTehranInput('2026-10-03')).toBe('2026-10-02T20:30:00.000Z');
+  });
+  it('ورودی ناقص', () => {
+    expect(fromTehranInput('')).toBe('');
+    expect(fromTehranInput('abc')).toBe('');
+  });
+});

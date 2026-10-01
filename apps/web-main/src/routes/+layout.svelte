@@ -15,6 +15,7 @@
   import StepUpSheet from '$lib/components/features/StepUpSheet.svelte';
   import LogoMark from '$lib/components/ui/LogoMark.svelte';
   import { toasts } from '$lib/stores/toast.svelte';
+  import { caps } from '$lib/stores/caps.svelte';
 
   let { children } = $props();
 
@@ -34,6 +35,11 @@
     }
     void auth.init();
     return () => stops.forEach((s) => s());
+  });
+
+  $effect(() => {
+    if (auth.status === 'member') void caps.load();
+    else caps.reset();
   });
 
   // شمارندهٔ اینباکس: poll سبک وقتی tab دیده می‌شود

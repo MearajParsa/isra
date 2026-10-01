@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { auth } from '$lib/auth/auth.svelte';
+  import { caps } from '$lib/stores/caps.svelte';
   import { toasts } from '$lib/stores/toast.svelte';
   import { formatPhone } from '$lib/utils/phone';
   import Avatar from '$lib/components/ui/Avatar.svelte';
@@ -11,6 +12,10 @@
   let confirmLogout = $state(false);
 
   const items = $derived<{ href: string; icon: IconName; title: string; text: string }[]>([
+    { href: '/points', icon: 'award', title: 'امتیاز و نشان‌ها', text: 'امتیاز حضور و ارزیابی‌های شما' },
+    ...(caps.canManage
+      ? [{ href: '/manage', icon: 'shield' as const, title: 'مدیریت جلسه', text: 'ساخت جلسه، عضویت‌ها و پنل کادر' }]
+      : []),
     { href: '/account/profile', icon: 'user', title: 'پروفایل', text: 'نام و نام خانوادگی' },
     {
       href: '/account/password',

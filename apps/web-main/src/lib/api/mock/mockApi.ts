@@ -20,8 +20,10 @@ import {
   type PointsSummary,
   type PublicSession
 } from '../types';
-import { getScenario, isReady } from './control';
-import { seedInbox, seedSessions } from './seed';
+import { getScenario } from './control';
+import { pointsLedgerTotal, publicSessions } from './midMock';
+import { seedInbox } from './seed';
+import { dataGuard, enter, latency, setUserLookup, tokens, uid } from './shared';
 
 const OTP_CODE = '12345';
 const OTP_TTL = 120;
@@ -60,11 +62,6 @@ interface Challenge {
   attempts: number;
   userId?: string;
 }
-
-const uid = () =>
-  typeof crypto !== 'undefined' && 'randomUUID' in crypto
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 function seedPersisted(): Persisted {
   const now = Date.now();
@@ -107,7 +104,6 @@ function seedPersisted(): Persisted {
 function createMockApi(): LowApi {
   let state: Persisted | null = null;
   const challenges = new Map<string, Challenge>();
-  const tokens = new Map<string, { sessionId: string; userId: string; exp: number }>();
   const stepUps = new Map<string, { sessionId: string; exp: number }>();
   const lastOtpRequest = new Map<string, number>();
   const otpCount = new Map<string, number>();
@@ -128,6 +124,8 @@ function createMockApi(): LowApi {
     state = loaded ?? seedPersisted();
     return state;
   }
+  setUserLookup((id) => load().users.find((u) => u.id === id));
+
   function save() {
     if (typeof localStorage === 'undefined' || !state) return;
     try {
@@ -135,28 +133,6 @@ function createMockApi(): LowApi {
     } catch {
       /* ignore */
     }
-  }
-
-  async function latency(): Promise<void> {
-    if (typeof window === 'undefined') return;
-    const slow = getScenario() === 'slow';
-    if (!slow && !isReady()) return;
-    const ms = slow ? 2600 : 180 + Math.random() * 320;
-    await new Promise((r) => setTimeout(r, ms));
-  }
-
-  /** همهٔ فراخوانی‌ها: تأخیر + سناریوهای شبکه/نگهداری */
-  async function enter(): Promise<void> {
-    await latency();
-    const sc = getScenario();
-    if (sc === 'offline') throw new ApiError('NETWORK_ERROR', 'اتصال برقرار نشد. اینترنت خود را بررسی کنید.', 0);
-    if (sc === 'maintenance')
-      throw new ApiError('SERVICE_UNAVAILABLE', 'سرویس در حال نگهداری است. کمی بعد دوباره امتحان کنید.', 503);
-  }
-  /** فراخوانی‌های دادهٔ غیر-auth: سناریوی خطای سرور */
-  function dataGuard() {
-    if (getScenario() === 'error')
-      throw new ApiError('INTERNAL_ERROR', 'مشکلی در سرور پیش آمد. دوباره تلاش کنید.', 500);
   }
 
   function authz(accessToken: string) {
@@ -471,8 +447,8 @@ function createMockApi(): LowApi {
       async points(accessToken) {
         await enter();
         dataGuard();
-        authz(accessToken);
-        const total = getScenario() === 'empty' ? 0 : 120;
+        const { user } = authz(accessToken);
+        const total = getScenario() === 'empty' ? 0 : 120 + pointsLedgerTotal(user.id);
         const summary: PointsSummary = {
           total,
           badges: [50, 150, 300, 500].map((t) => ({
@@ -489,7 +465,7 @@ function createMockApi(): LowApi {
       async listSessions(q = {}) {
         await enter();
         dataGuard();
-        let all: PublicSession[] = getScenario() === 'empty' ? [] : seedSessions();
+        let all: PublicSession[] = getScenario() === 'empty' ? [] : publicSessions();
         if (q.status) all = all.filter((s) => s.status === q.status);
         const order = { started: 0, scheduled: 1, ended: 2 } as const;
         all.sort(
@@ -503,7 +479,7 @@ function createMockApi(): LowApi {
       async getSession(id) {
         await enter();
         dataGuard();
-        const s = seedSessions().find((x) => x.id === id);
+        const s = publicSessions().find((x) => x.id === id);
         if (!s) throw new ApiError('NOT_FOUND', 'این جلسه پیدا نشد.', 404);
         return s;
       }

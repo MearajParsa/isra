@@ -1,14 +1,15 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { auth } from '$lib/auth/auth.svelte';
-  import { guestNav, memberNav } from '$lib/nav';
+  import { guestNav, memberDesktopNav } from '$lib/nav';
+  import { caps } from '$lib/stores/caps.svelte';
   import LogoMark from '$lib/components/ui/LogoMark.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import UnreadBadge from '$lib/components/ui/UnreadBadge.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
 
-  const items = $derived(auth.status === 'member' ? memberNav : guestNav);
+  const items = $derived(auth.status === 'member' ? memberDesktopNav(caps.canManage) : guestNav);
   const loginHref = $derived(
     page.url.pathname.startsWith('/auth')
       ? '/auth/phone'

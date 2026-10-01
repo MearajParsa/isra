@@ -19,6 +19,7 @@ export type ApiErrorCode =
   | 'RATE_LIMITED'
   | 'NOT_FOUND'
   | 'CONFLICT'
+  | 'SESSION_INVALID_TRANSITION'
   | 'INTERNAL_ERROR'
   | 'SERVICE_UNAVAILABLE'
   /** فقط سمت کلاینت: قطع شبکه */

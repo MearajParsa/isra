@@ -18,6 +18,10 @@
 
 - **تصمیم مالک (۱۴۰۵/۰۷/۰۹):** همهٔ سؤال‌های باز (`15` §۹ و `16` §و) به AI واگذار شد؛ پاسخ‌ها در همان اسناد ثبت شد. `15` اکنون «قفل مشروط» است.
 - **بازبینی مالک (۱۴۰۵/۰۷/۰۹):** لوگوی رسمی `design/logo.svg` جایگزین نشان قبلی شد (هدر/فوتر/آیکون‌های PWA/favicon؛ `scripts/gen-icons.mjs`)؛ ExtraBlack حذف و فقط Regular/Bold؛ پالت تکمیلی `#F2ECE7` `#2DD2C7` `#ACA8A5` در `THEME_TOKENS.md` و `tokens.css`.
+- **بخش mid در `web-main` ساخته شد (۱۴۰۵/۰۷/۰۹):** قرارداد `docs-v2/18-api-mid-web-main-draft.md` + موجودی `19-ui-inventory-web-main-mid-draft.md` (قفل مشروط به واگذاری مالک). UI روی mock (`apps/web-main/src/lib/api/mock/midMock.ts` + `midRules.ts`): جلسه‌های من، درخواست عضویت روی جزئیات جلسه، اتاق جلسه (حضور +۵ یک‌بار، صف، نمای قرآن‌آموز/کادر، ارزیابی وزنی)، مدیریت (ساخت/ویرایش/چرخهٔ حیات رو‌به‌جلو، تأیید عضویت، نقش‌ها). realtime در mock = BroadcastChannel بین tabها + ربات نمونه در جلسهٔ s5. ۷۰ تست واحد (ماتریس نقش، manager تنها ارزیابی ندارد، +۵ یک‌بار، lifecycle).
+  - کاربر نمونه `09121234567`/`isra1234`: s1 manager · s2 manager+teacher (جاری) · s3 supporter · s4/s5 student · s6 pending · s10 teacher. کاربران جدید فقط student‌اند (`0912…` اجازهٔ ساخت جلسه دارد).
+  - فرض‌ها: تاریخ فرم = ورودی native + پیش‌نمایش فارسی (انتخابگر جلالی بعداً)؛ ویرایش ارزیابی نیست؛ امتیاز ارزیابی = round(score/10) (باید با mid/high قفل شود)؛ تب پایین: خانه/جلسات/جلسه‌های من/اینباکس/حساب («امتیاز» و «مدیریت» در نوار دسکتاپ و حساب).
+  - **بعدی پیشنهادی:** `web-admin` (high) یا اتصال به بک‌اند واقعی؛ تأیید نشده: Socket.IO واقعی، مقیاس پایگاه‌داده.
 - **اجرای محلی web-main:** `git checkout claude/exciting-pasteur-ksk14u` ← `pnpm install` ← `pnpm --filter @isra/web-main dev` ← http://localhost:5173 (PWA: `build` سپس `preview`).
 
 ## بعدی (Next)

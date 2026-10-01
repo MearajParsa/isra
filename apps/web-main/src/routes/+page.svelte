@@ -2,6 +2,8 @@
   import { goto, invalidateAll } from '$app/navigation';
   import { api } from '$lib/api';
   import type { InboxItem, PointsSummary } from '$lib/api/types';
+  import { midApi } from '$lib/api';
+  import type { MySessionItem } from '$lib/api/mid-types';
   import { auth } from '$lib/auth/auth.svelte';
   import { Resource } from '$lib/utils/resource.svelte';
   import { formatDate, formatNumber } from '$lib/utils/format';
@@ -55,15 +57,18 @@
 
   const points = new Resource<PointsSummary>();
   const inbox = new Resource<InboxItem[]>();
+  const mine = new Resource<MySessionItem[]>();
 
   $effect(() => {
     if (auth.status === 'member') {
       void points.load(() => auth.withAuth((t) => api.me.points(t)));
       void inbox.load(async () => (await auth.withAuth((t) => api.me.inbox(t, { pageSize: 3 }))).items);
+      void mine.load(() => auth.withAuth((t) => midApi.me.sessions(t, 'all')));
     }
   });
 
   const isMember = $derived(auth.status === 'member');
+  const liveNow = $derived((mine.data ?? []).filter((i) => i.session.status === 'started' && i.membership === 'approved'));
   const today = formatDate(new Date().toISOString());
 </script>
 
@@ -111,6 +116,21 @@
       <h1>سلام{auth.me?.profile.firstName ? `، ${auth.me.profile.firstName}` : ''}</h1>
       <p class="muted">خوش آمدید؛ این هم خلاصهٔ امروز شما.</p>
     </div>
+
+    {#if liveNow.length > 0}
+      <ul class="livenow">
+        {#each liveNow as i (i.session.id)}
+          <li class="live-card">
+            <span class="pulse" aria-hidden="true"></span>
+            <div class="lt">
+              <strong>{i.session.title}</strong>
+              <span class="muted">اکنون در حال برگزاری است</span>
+            </div>
+            <Button size="sm" variant="warm" href={`/sessions/${i.session.id}/live`}>ورود به اتاق</Button>
+          </li>
+        {/each}
+      </ul>
+    {/if}
 
     <div class="cols">
       <div class="col">
@@ -423,6 +443,41 @@
   }
   .greet {
     margin-bottom: var(--space-lg);
+  }
+  .livenow {
+    display: grid;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-lg);
+  }
+  .live-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-md) var(--space-lg);
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    border-radius: var(--radius-lg);
+  }
+  .live-card .muted {
+    color: color-mix(in srgb, var(--color-on-primary) 70%, transparent);
+    font-size: var(--fs-sm);
+  }
+  .lt {
+    display: grid;
+    flex: 1;
+    min-width: 0;
+  }
+  .pulse {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--color-turquoise);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    50% {
+      opacity: 0.35;
+    }
   }
   .cols {
     display: grid;
