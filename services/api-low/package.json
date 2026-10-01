@@ -4,15 +4,15 @@
   "private": true,
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "start": "node dist/main.js",
-    "dev": "tsx watch src/main.ts",
+    "start": "node --env-file-if-exists=.env.local dist/main.js",
+    "dev": "node --env-file-if-exists=.env.local --watch -r @swc-node/register src/main.ts",
     "lint": "tsc --noEmit -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:cov": "vitest run --coverage",
-    "migration:run": "tsx node_modules/typeorm/cli.js migration:run -d src/db/data-source.cli.ts",
-    "migration:revert": "tsx node_modules/typeorm/cli.js migration:revert -d src/db/data-source.cli.ts",
-    "migration:show": "tsx node_modules/typeorm/cli.js migration:show -d src/db/data-source.cli.ts"
+    "migration:run": "tsx --env-file-if-exists=.env.local node_modules/typeorm/cli.js migration:run -d src/db/data-source.cli.ts",
+    "migration:revert": "tsx --env-file-if-exists=.env.local node_modules/typeorm/cli.js migration:revert -d src/db/data-source.cli.ts",
+    "migration:show": "tsx --env-file-if-exists=.env.local node_modules/typeorm/cli.js migration:show -d src/db/data-source.cli.ts"
   },
   "dependencies": {
     "@isra/api-types": "workspace:*",
@@ -36,6 +36,7 @@
   },
   "devDependencies": {
     "@nestjs/schematics": "^12.0.6",
+    "@swc-node/register": "^1.12.1",
     "@swc/core": "^1.16.13",
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.6",

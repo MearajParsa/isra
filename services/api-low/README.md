@@ -5,18 +5,19 @@ NestJS 12 + TypeORM + MySQL (`schema_low`). مسئول: OTP (Faraz)، JWT RS256 
 مستندات: `docs-v2/15`، `22` (استاندارد امنیت/SLO)، `23` (DB)، `24` (env).
 
 ## اجرای محلی (بدون Docker)
+پیش‌نیاز: Node 22 (≥22.9)، pnpm، MySQL 8 (ویندوز: MySQL Installer یا XAMPP/Laragon).
 ```bash
-# ۱) MySQL ۸ محلی + schema و کاربر
-mysql -uroot -e "CREATE DATABASE schema_low CHARACTER SET utf8mb4; CREATE DATABASE schema_low_test CHARACTER SET utf8mb4;
-  CREATE USER 'isra_low'@'127.0.0.1' IDENTIFIED BY 'isra_low_dev';
-  GRANT ALL ON schema_low.* TO 'isra_low'@'127.0.0.1'; GRANT ALL ON schema_low_test.* TO 'isra_low'@'127.0.0.1';"
-# ۲) env
-cp services/api-low/.env.example services/api-low/.env.local   # مقادیر را اصلاح کنید؛ export یا dotenv
-# ۳) اجرا
+# ۱) یک‌بار: ساخت دیتابیس و کاربر محلی (با root)
+mysql -uroot -p < services/api-low/scripts/local-db.sql
+# ۲) env محلی (commit نمی‌شود؛ dev/start/migration خودکار می‌خوانند)
+cp services/api-low/.env.example services/api-low/.env.local        # ویندوز: copy
+# ۳) از ریشهٔ ریپو
+pnpm install
 pnpm --filter @isra/api-low migration:run
-pnpm --filter @isra/api-low dev          # http://localhost:3001 — Swagger: /c/docs (فقط SWAGGER_ENABLED=true و غیر production)
+pnpm --filter @isra/api-low dev        # http://localhost:3001  — Swagger: http://localhost:3001/c/docs
 ```
-در توسعه `SMS_PROVIDER=console` کد OTP را در لاگ چاپ می‌کند؛ کلید JWT خالی ⇒ کلید موقت (با ری‌استارت توکن‌ها باطل می‌شوند).
+در توسعه `SMS_PROVIDER=console`: کد OTP در ترمینال api-low چاپ می‌شود (پیامک واقعی نمی‌رود). کلید JWT خالی ⇒ کلید موقت.
+بررسی سریع: `curl http://localhost:3001/c/health/ready` و `curl -XPOST http://localhost:3001/c/v1/auth/otp/request -H "content-type: application/json" -H "X-Isra-Client: web-main" -d "{\"phone\":\"09121234567\"}"`.
 
 ## تست
 ```bash
