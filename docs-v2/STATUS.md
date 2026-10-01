@@ -11,11 +11,14 @@
 ## در حال انجام (In progress)
 - کارstream فعال: API — auth + low برای web-main (فقط پیش‌نویس؛ mid/high/admin خارج از scope). پیش‌نویس: `docs-v2/15-api-low-web-main-draft.md` — منتظر قفل مالک (Q1–Q8 در §۹)
 - موجودی UI (فقط `web-main` بخش low): پیش‌نویس `docs-v2/16-ui-inventory-web-main-low-draft.md` — Q1=بله(mock)، Q2/Q10 تصمیم AI در §ح؛ منتظر تأیید §ح، سؤالات Q4–Q9/Q12 و design مالک؛ کد UI زده نشده. فونت‌ها در `design/fonts` آمدند (YekanBakhFaNum؛ نکات در §ح-۴)
-- کد PWA هنوز در اسکلت وب‌ها اضافه نشده (کار فرانت)
+- **UI `web-main` (بخش low) ساخته شد** — تصمیم مالک: طراحی و ساخت صفحات وب توسط AI (brief صریح؛ بدون دارایی `design/low`). روی mock قرارداد پیش‌نویس `15` (قفل‌نشده؛ لایهٔ `apps/web-main/src/lib/api` با نقطهٔ تعویض `api/index.ts`). پوشش: خانه (guest=landing SSR / member=داشبورد)، جلسات + جزئیات، ورود (OTP/رمز/فراموشی/onboarding)، step-up، gate، حساب/پروفایل/رمز/نشست‌ها، اینباکس، امتیاز، حالت‌های خطا/آفلاین/۴۰۴، PWA (manifest + service worker + offline.html + نوار نصب). **ساخته نشد:** `low_map` (Q4)، `low_quran` + تب مصحف (Q6)، آواتار (Q5)، بخش mid. `pnpm turbo lint typecheck test build --filter=@isra/web-main` سبز؛ ۳۶ تست واحد.
+  - mock: OTP همیشه `12345`؛ کاربر موجود `09121234567`/رمز `isra1234`؛ `...0000`=RATE_LIMITED؛ `...1111`=ارسال ناموفق؛ سناریو با `?mock=error|empty|slow|offline|maintenance|off`.
+  - فرض‌های ثبت‌شده: step-up برای تعیین رمز مگر OTP کمتر از ۵ دقیقه پیش (Q8)؛ ارقام فارسی توسط فونت FaNum؛ دکمهٔ «عضویت» در جزئیات جلسهٔ member فقط اعلان «به‌زودی» است (mid).
+  - تأیید‌نشده: service worker/نصب PWA در مرورگر واقعی (فقط build تست شد)؛ Lighthouse اندازه‌گیری نشد.
 
 ## بعدی (Next)
 1. کارstream API: پیش‌نویس قرارداد auth + اسکرین‌های وب (`07`,`05`,`06`) → قفل مالک
-2. مالک: طراحی‌ها (PNG/SVG + XD) و فونت YekanBakh را در `design/` بگذارد و commit/push کند
+2. مالک: ظاهر ساخته‌شدهٔ `web-main` را بازبینی کند (طراحی توسط AI)؛ در صورت نیاز طراحی‌های خودش را در `design/low/` بگذارد. فونت YekanBakhFaNum گذاشته شد
 3. موجودی UI برای `web-main` و `web-admin` طبق `10`
 4. فرانت وب در cloud با اعتبار هدیه — **قبل از ۱۴ آبان ۱۴۰۵** (`14-cloud-credits-plan.md`)؛ بک‌اند و Android محلی
 
