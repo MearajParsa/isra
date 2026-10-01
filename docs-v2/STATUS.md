@@ -9,7 +9,7 @@
 - تصمیم مالک ثبت شد در `04-platforms.md`: هر دو وب (`web-main`, `web-admin`) باید PWA باشند + اهداف عملکرد/انیمیشن
 
 ## در حال انجام (In progress)
-- کارstream فعال: هیچ (منتظر دستور مالک — پیشنهاد: API/auth draft)
+- کارstream فعال: API — auth + low برای web-main (فقط پیش‌نویس؛ mid/high/admin خارج از scope). پیش‌نویس: `docs-v2/15-api-low-web-main-draft.md` — منتظر قفل مالک (Q1–Q8 در §۹)
 - کد PWA هنوز در اسکلت وب‌ها اضافه نشده (کار فرانت)
 
 ## بعدی (Next)
@@ -36,4 +36,4 @@
 | handoff | `docs-v2/13-handoff.md` |
 | برنامهٔ cloud | `docs-v2/14-cloud-credits-plan.md` |
 | ماژول/فایل فعال | — |
-| پیش‌نویس API/schema | — |
+| پیش‌نویس API/schema | `docs-v2/15-api-low-web-main-draft.md` (auth + low/web-main؛ schema DB و env هنوز نه) |
