@@ -2,10 +2,17 @@
 <html lang="fa" dir="rtl">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#1C0E44" />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" href="%sveltekit.assets%/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="%sveltekit.assets%/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="%sveltekit.assets%/manifest.webmanifest" />
+    <link rel="preload" href="%sveltekit.assets%/fonts/YekanBakhFaNum-Regular.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="%sveltekit.assets%/fonts/YekanBakhFaNum-Bold.woff2" as="font" type="font/woff2" crossorigin />
     %sveltekit.head%
   </head>
-  <body>
-    <div>%sveltekit.body%</div>
+  <body data-sveltekit-preload-data="hover">
+    <div style="display: contents">%sveltekit.body%</div>
   </body>
 </html>

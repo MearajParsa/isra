@@ -22,6 +22,9 @@
   - کاربر نمونه `09121234567`/`isra1234`: s1 manager · s2 manager+teacher (جاری) · s3 supporter · s4/s5 student · s6 pending · s10 teacher. کاربران جدید فقط student‌اند (`0912…` اجازهٔ ساخت جلسه دارد).
   - فرض‌ها: تاریخ فرم = ورودی native + پیش‌نمایش فارسی (انتخابگر جلالی بعداً)؛ ویرایش ارزیابی نیست؛ امتیاز ارزیابی = round(score/10) (باید با mid/high قفل شود)؛ تب پایین: خانه/جلسات/جلسه‌های من/اینباکس/حساب («امتیاز» و «مدیریت» در نوار دسکتاپ و حساب).
   - **بعدی پیشنهادی:** `web-admin` (high) یا اتصال به بک‌اند واقعی؛ تأیید نشده: Socket.IO واقعی، مقیاس پایگاه‌داده.
+- **`web-admin` (high) ساخته شد (۱۴۰۵/۰۷/۰۹):** قرارداد `20-api-high-web-admin-draft.md` + موجودی `21-ui-inventory-web-admin-draft.md` (قفل مشروط به واگذاری مالک). صفحات: ورود (OTP/رمز، فقط دارندگان نقش سیستم)، نمای کلی، کاربران (جست‌وجو/فیلتر/صفحه‌بندی) + جزئیات (نقش‌ها و grant با step-up)، نقش‌ها و مجوزها (ماتریس با قفل‌ها)، تنظیمات (وزن ارزیابی جمع ۱۰۰، آستانهٔ نشان، پرچم‌ها، نسخه‌بندی)، گزارش‌ها (audit)، PWA. mock در `apps/web-admin/src/lib/api/mock` (کاربران نمونه رمز `isra1234`: `09121234567` مدیر کل · `09123333333` توسعه‌دهنده · `09125555555` بدون نقش؛ OTP `12345`). ۴۸ تست واحد. اجرا: `pnpm --filter @isra/web-admin dev` (پورت ۵۱۷۴).
+  - تصمیم‌ها (واگذارشده): grant مستقیم `session.create` per user؛ وزن جدید فقط برای ارزیابی‌های بعدی؛ پرچم‌ها `maintenance_mode`/`registration_open`؛ قفل آخرین دارندهٔ هر نقش؛ تغییر نقش developer فقط با developer؛ cookie refresh ادمین جدا.
+  - **بدهی فنی:** primitives UI، tokens، stores و auth بین `web-main` و `web-admin` کپی‌اند (قاعدهٔ «بدون god-library»)؛ پس از تثبیت، استخراج `packages/ui` را بررسی کنید (نیاز به تأیید مالک).
 - **اجرای محلی web-main:** `git checkout claude/exciting-pasteur-ksk14u` ← `pnpm install` ← `pnpm --filter @isra/web-main dev` ← http://localhost:5173 (PWA: `build` سپس `preview`).
 
 ## بعدی (Next)
