@@ -4,19 +4,20 @@
 
 - **scope:** فقط `web-main`، بخش low (فضای کاربر). خارج: بخش mid در `web-main`، `web-admin`، `android-*`.
 - **منابع پیموده‌شده:** `03` (۱،۶،۷،۸،۱۰)، `06-domains/low.md`، `04` (قواعد وب و PWA)، `05`، قفل Guest (#20)، قرارداد API پیش‌نویس (`15`، شناسه‌های L-xx).
-- **وضعیت design:** `design/low/`، `design/components/` و `design/fonts/` همه **خالی‌اند** ⇒ هیچ‌کدام از ردیف‌ها هنوز قابل کد نیست.
-- ستون «وضعیت»: **هسته** = مستقیم از docs/قرارداد؛ **مشروط** = وجودش به پاسخ سؤال باز (§۶) بستگی دارد، تا آن موقع design نخواهد.
+- **وضعیت design:** `design/fonts/` پر شده (YekanBakhFaNum: Light/Regular/Bold/ExtraBlack + woff2/woff/ttf/otf، و دو فونت قرآنی `ArabQuranIslamic.ttf`, `hejaz.ttf`). `design/low/` و `design/components/` هنوز **خالی‌اند** ⇒ هیچ ردیفی هنوز قابل کد نیست.
+- **تصمیم‌های مالک (نوبت دوم):** Q1 = بله (با mock)، Q2 و Q10 = به تصمیم AI سپرده شد؛ جزئیات در §ح.
+- ستون «وضعیت»: **هسته** = مستقیم از docs/قرارداد؛ **مشروط** = وجودش به پاسخ سؤال باز (§و) بستگی دارد، تا آن موقع design نخواهد.
 
 ## الف) اسکرین‌ها
 
-نقش‌ها در low فقط `guest` و `member` است (نقش‌های جلسه/سیستم اسکرین low را عوض نمی‌کنند). حالت‌های سراسری (loading/error/offline) در هر ردیف نیامده مگر اختصاصی باشد؛ جدول §۴ را ببین — برای هر اسکرین دارای دادهٔ سرور فرض‌شان `default, loading, error, offline` است.
+نقش‌ها در low فقط `guest` و `member` است (نقش‌های جلسه/سیستم اسکرین low را عوض نمی‌کنند). حالت‌های سراسری (loading/error/offline) در هر ردیف نیامده مگر اختصاصی باشد؛ برای هر اسکرین دارای دادهٔ سرور فرض‌شان `default, loading, error, offline` است.
 
 ### الف-۱) پوسته و ورودی
 
 | screen_id | عنوان فارسی | نقش‌ها | حالت‌ها | کامپوننت‌های کلیدی | وضعیت | یادداشت |
 |-----------|-------------|--------|---------|---------------------|:-----:|---------|
-| `low_shell` | چارچوب برنامه (هدر + ناوبری) | guest, member | guest، member، badge نخوانده‌ها، حالت دسکتاپ/موبایل | `comp_top_bar`, `comp_nav`, `comp_unread_badge`, `comp_avatar` | هسته | مرز با بخش mid در همین shell باید روشن شود (Q10) |
-| `low_home` | خانه | guest, member | default, loading, empty, error, offline | `comp_points_summary_card`, `comp_guest_cta_banner`, `comp_empty_state`, `comp_skeleton` | هسته (محتوا مشروط) | محتوای دقیق نیازمند brief (Q2). حداقل: خلاصهٔ امتیاز، اینباکس، دعوت به ورود برای guest |
+| `low_shell` | چارچوب برنامه (هدر + ناوبری) | guest, member | guest، member، badge نخوانده‌ها، موبایل/دسکتاپ، دارای/بدون ورودی «مدیریت جلسه» | `comp_top_bar`, `comp_nav`, `comp_unread_badge`, `comp_avatar` | هسته | ساختار ناوبری و مرز با mid: §ح-۲ (Q10 تصمیم‌گرفته‌شده) |
+| `low_home` | صفحهٔ اول (معرفی برای guest / داشبورد برای عضو) | guest, member | guest، member، loading، empty، error، offline | `comp_hero`, `comp_feature_card`, `comp_steps`, `comp_session_card`, `comp_points_summary_card`, `comp_guest_cta_banner`, `comp_empty_state`, `comp_skeleton`, `comp_footer` | هسته | بخش‌بندی و محتوا: §ح-۱ (Q2 تصمیم‌گرفته‌شده). یک مسیر `/` با دو نسخه؛ نسخهٔ guest باید SSR باشد (SEO) |
 | `low_pwa_install` | نصب برنامه (PWA) | guest, member | نصب مستقیم (Chromium)، راهنمای Add to Home Screen (iOS)، رد شد | `comp_pwa_install_banner`, `comp_bottom_sheet` | هسته | قفل PWA در `04`؛ iOS فقط راهنمای دستی |
 
 ### الف-۲) ورود و ثبت‌نام (L-01…L-07)
@@ -47,8 +48,8 @@
 |-----------|-------------|--------|---------|---------------------|:-----:|---------|
 | `low_inbox` | اینباکس | member (guest ← `low_auth_gate`) | default، loading، empty، error، offline، فقط نخوانده‌ها، «خواندن همه» | `comp_inbox_item`, `comp_unread_badge`, `comp_empty_state`, `comp_pagination` | هسته | L-17…L-20؛ poll؛ انواع `kind` (عضویت/نوبت/ارزیابی/سیستم) در mid/high تعیین می‌شود؛ جزئیات پیام/deep-link Q9 |
 | `low_points` | امتیاز و نشان‌ها | member (guest ← gate) | default، loading، empty (بدون امتیاز)، error، نشان کسب‌شده/قفل‌شده | `comp_points_summary_card`, `comp_badge_tile`, `comp_empty_state` | هسته (API رزرو) | آستانه‌ها ۵۰/۱۵۰/۳۰۰/۵۰۰؛ نشان با افت امتیاز باطل نمی‌شود؛ داده از `/me/points` — قرارداد پس از mid |
-| `low_sessions_browse` | مرور جلسات | guest, member | default، loading، empty، error، offline | `comp_list_item`, `comp_empty_state` | مشروط (Q1) | محتوای عمومی قابل‌مرور guest؛ منبع API در `/public/*` یا aggregate low هنوز تعریف نشده |
-| `low_session_detail` | جزئیات جلسه (نمای قرآن‌آموز) | guest, member | default، error؛ اقدام عضویت/حضور ← gated برای guest | `comp_guest_cta_banner` | مشروط (Q1) | اقدام‌های نیازمند mid (عضویت، حضور، صف) در بخش mid web-main‌اند؛ مرز در Q1 |
+| `low_sessions_browse` | مرور جلسات | guest, member | default، loading، empty (بدون جلسه)، error، offline، فیلتر وضعیت (پیش‌رو/در حال برگزاری/پایان‌یافته)، بارگذاری بیشتر | `comp_session_card`, `comp_filter_chips`, `comp_pagination`, `comp_empty_state`, `comp_skeleton` | هسته (دادهٔ mock) | Q1 = بله. دادهٔ mock بر پایهٔ L-30 (`15` §۴-ب)؛ فقط جلسات `scheduled/started/ended` — `draft` عمومی نیست |
+| `low_session_detail` | جزئیات جلسه | guest, member | default، loading، error، not-found؛ وضعیت `scheduled/started/ended`؛ guest (CTA ورود)، member (CTA ورود به بخش جلسه) | `comp_session_status_chip`, `comp_schedule_info`, `comp_guest_cta_banner`, `comp_primary_button` | هسته (دادهٔ mock) | Q1 = بله. L-31. اقدام‌های عضویت/حضور/صف **خارج از این scope** (mid)؛ دکمهٔ member فقط به مسیر بخش mid لینک می‌دهد (مقصد در موجودی mid) |
 | `low_map` | نقشهٔ کاربر | guest, member | default، error، offline | — | مشروط (Q4) | proxy سرور `/c/v1/maps/*`؛ کاربرد نقشه در low در docs روشن نیست |
 | `low_quran` | مصحف (PDF محلی) | guest, member | default، loading، error، offline | — | مشروط (Q6) | `03` §۸: متن PDF محلی در کلاینت، بدون صوت و بدون متن از سرور؛ وب/PWA و حجم PDF نیازمند brief |
 
@@ -93,7 +94,15 @@
 | `comp_skeleton` | اسکلت بارگذاری | کارت، ردیف، متن | همهٔ صفحات دادهٔ سرور | … |
 | `comp_offline_banner` | نوار آفلاین | نمایش/پنهان | `low_shell` | … |
 | `comp_pwa_install_banner` | نوار نصب PWA | Chromium، iOS (راهنما) | `low_pwa_install` | … |
-| `comp_pagination` | صفحه‌بندی/بارگذاری بیشتر | دکمه یا infinite، پایان لیست | `low_inbox` | … |
+| `comp_pagination` | صفحه‌بندی/بارگذاری بیشتر | دکمه یا infinite، پایان لیست | `low_inbox`, `low_sessions_browse` | … |
+| `comp_hero` | بخش معرفی (hero) | guest (با CTA)، member (سلام) | `low_home` | … |
+| `comp_feature_card` | کارت امکانات | default | `low_home` | … |
+| `comp_steps` | مراحل «چطور کار می‌کند» | ۳ گام | `low_home` | … |
+| `comp_session_card` | کارت جلسه | `scheduled`, `started`, `ended`؛ loading | `low_home`, `low_sessions_browse` | … |
+| `comp_session_status_chip` | چیپ وضعیت جلسه | `scheduled`, `started`, `ended` | `low_session_detail`, `comp_session_card` | … |
+| `comp_schedule_info` | نمایش زمان‌بندی | یک‌باره، تکرارشونده، بازه‌ای | `low_session_detail`, `comp_session_card` | … |
+| `comp_filter_chips` | چیپ‌های فیلتر | انتخاب‌شده/نشده | `low_sessions_browse` | … |
+| `comp_footer` | پاورقی سایت | guest/member | `low_home` | … |
 | `comp_update_toast` | «نسخهٔ جدید آماده است» | default | `low_shell` | … (از service worker؛ در `04` صریح نیست — Q12) |
 
 مسیر design هر کامپوننت: `design/components/{component_id}*.png`؛ هر اسکرین: `design/low/{screen_id}*.png` (و `_state` برای حالت‌ها طبق `08`).
@@ -103,7 +112,7 @@
 | screen_id / اقدام | Guest | Member | رفتار gated |
 |-------------------|:-----:|:------:|-------------|
 | `low_home` | ✓ (نسخهٔ guest) | ✓ | بخش‌های شخصی ← CTA |
-| `low_sessions_browse`, `low_session_detail` (مشاهده) | ✓ | ✓ | — |
+| `low_sessions_browse`, `low_session_detail` (مشاهده) | ✓ | ✓ | — (اقدام‌های عضویت/حضور/صف: gate برای guest) |
 | عضویت/حضور/صف از جلسه | ✗ | ✓ | `low_auth_gate` ← ورود ← بازگشت |
 | `low_inbox` | ✗ | ✓ | `low_auth_gate` |
 | `low_points` | ✗ | ✓ | `low_auth_gate` |
@@ -124,7 +133,7 @@
 | `03` §۷ اینباکس | ✓ | جزئیات پیام (Q9) |
 | `03` §۸ قرآن | ✓ مشروط | Q6 |
 | `03` §۱۰ نقشه (low) | ✓ مشروط | Q4 |
-| `03` §۲–۵ جلسه/حضور/صف/ارزیابی | ✗ عمداً | mid؛ فقط مرور guest/قرآن‌آموز مشروط (Q1) |
+| `03` §۲–۵ جلسه/حضور/صف/ارزیابی | جزئی | فقط مرور و جزئیات جلسه (Q1)؛ بقیه mid |
 | auth + OTP + devices + step-up | ✓ | بازنشانی رمز: Q8 |
 | OTP: درخواست/تأیید/تلاش مجدد/قفل ۳ تلاش | ✓ | — |
 | guest gates | ✓ | — |
@@ -140,20 +149,56 @@
 
 | # | سؤال | اثر |
 |---|------|-----|
-| Q1 | آیا بخش low در `web-main` شامل **مرور/جزئیات جلسات** (و guest browsing آن) است؟ API: `/public/*` یا aggregate low — هنوز در قرارداد نیست. اقدام‌های عضویت/حضور/صف در بخش mid همین وب می‌آیند؟ | `low_sessions_browse`, `low_session_detail`, هاب mid در shell |
-| Q2 | محتوای `low_home`؟ (خلاصهٔ امتیاز، جلسهٔ بعدی، اینباکس، دعوت guest…) | brief مالک |
+| ~~Q1~~ | **پاسخ مالک: بله** — مرور/جزئیات جلسات در low، دادهٔ mock؛ عضویت/حضور/صف در بخش mid. | `low_sessions_browse`, `low_session_detail` ⇒ هسته |
+| ~~Q2~~ | **تصمیم AI (مالک واگذار کرد):** §ح-۱ | `low_home` ⇒ هسته |
 | Q4 | «نقشهٔ کاربر» در low برای چیست و کجا نمایش داده می‌شود؟ | `low_map` |
 | Q5 | آپلود آواتار در فاز ۱ هست؟ | `low_profile`, `comp_avatar` |
 | Q6 | مصحف روی وب: کدام PDF، بارگیری و offline، ناوبری سوره/صفحه؟ | `low_quran` (+ ممکن است اسکرین‌های ثانویه) |
 | Q7 | «تنظیمات پایه» پروفایل چیست؟ (در `03` مبهم) | `low_profile` یا `low_settings` |
 | Q8 | پس از ورود تازه با OTP برای بازنشانی رمز، step-up دوباره لازم است؟ (پیشنهاد: نه، اگر OTP کمتر از ۵ دقیقه پیش بوده) | `low_stepup_sheet`، قرارداد L-13 |
 | Q9 | اینباکس: آیا جزئیات/deep-link پیام لازم است یا فقط لیست؟ | افزودن `low_inbox_detail` |
-| Q10 | ناوبری shell: چگونه بخش low و mid را در `web-main` از هم جدا کنیم؟ (تب/منو/مسیر) | `low_shell`, `comp_nav` |
-| Q11 | صفحهٔ فرود عمومی/SEO برای guest در `israapp.ir` لازم است یا خانه همان است؟ | `low_home` |
+| ~~Q10~~ | **تصمیم AI (مالک واگذار کرد):** §ح-۲ | `low_shell`, `comp_nav` ⇒ هسته |
+| ~~Q11~~ | بسته شد با Q2: خانهٔ guest همان صفحهٔ فرود است (SSR برای SEO). | — |
 | Q12 | اعلان «نسخهٔ جدید آماده است» (service worker) و صفحات حقوقی (قوانین/حریم خصوصی) در ثبت‌نام لازم‌اند؟ | `comp_update_toast`، اسکرین حقوقی |
 
+## ح) تصمیم‌ها (واگذارشده به AI — در انتظار تأیید نهایی)
+
+### ح-۱) `low_home` (Q2)
+یک مسیر `/`؛ نسخه بر اساس وضعیت ورود. هیچ آمار/نظر/لوگوی ساختگی نیست؛ فقط محتوای مبتنی بر docs.
+
+**نسخهٔ guest (صفحهٔ معرفی، SSR):**
+1. `comp_hero`: عنوان و توضیح کوتاه اسراء («پلتفرم جلسات قرآن»)، CTA اصلی «ورود / ثبت‌نام» (→ `low_auth_phone`)، CTA ثانویه «مشاهدهٔ جلسات» (→ `low_sessions_browse`).
+2. امکانات (`comp_feature_card`× ۵): جلسات قرآن (زمان‌بندی انعطاف‌پذیر) · حضور و صف نوبت قرائت · ارزیابی صوت، لحن، تجوید · امتیاز و نشان (۵۰/۱۵۰/۳۰۰/۵۰۰) · مصحف (متن محلی؛ **بدون صوت در فاز ۱ — ذکر نشود**).
+3. چطور کار می‌کند (`comp_steps`، ۳ گام): با شماره موبایل وارد شو ← جلسه را انتخاب کن و عضو شو ← در جلسه حاضر شو، نوبت بگیر و ارزیابی ببین.
+4. جلسات پیش‌رو: ۳ تا ۴ `comp_session_card` + «مشاهدهٔ همه».
+5. CTA نهایی (`comp_guest_cta_banner`) + `comp_pwa_install_banner` (نصب روی موبایل) + `comp_footer`.
+
+**نسخهٔ member (داشبورد):** سلام با نام ← `comp_points_summary_card` (→ `low_points`) ← اینباکس: تعداد نخوانده + ۳ پیام آخر (→ `low_inbox`) ← جلسات پیش‌رو ← میان‌بُر «مصحف».
+حالت‌ها: skeleton هر بخش جدا؛ خطای یک بخش بقیه را نمی‌شکند؛ بدون جلسه/پیام ⇒ `comp_empty_state`.
+
+### ح-۲) ناوبری و مرز low/mid (Q10)
+| مورد | تصمیم |
+|------|-------|
+| ساختار مسیر | low: `/` ، `/sessions`، `/sessions/:id`، `/quran`، `/inbox`، `/account/*`، `/auth/*`. mid: همه زیر `/manage/*` در یک route group جدا (layout و کد جدا؛ `web-admin` اصلاً داخل این اپ نیست) |
+| ناوبری موبایل (پایین) | member: خانه · جلسات · مصحف · اینباکس (با badge) · حساب. guest: خانه · جلسات · مصحف + دکمهٔ «ورود» در هدر |
+| دسکتاپ | همان آیتم‌ها در نوار بالا/کناری؛ «ورود» یا آواتار در گوشه |
+| ورودی mid | فقط برای کاربری که نقش جلسه/مجوز مرتبط دارد، آیتم «مدیریت جلسه» در منوی حساب (و در دسکتاپ نوار کناری) → `/manage`. نقش‌ها از claim/`GET /me` (قرارداد mid آن را کامل می‌کند). قرآن‌آموز عادی آن را نمی‌بیند |
+| tokenهای مشترک | همان نشست/توکن؛ فقط base URL درخواست‌ها فرق می‌کند (`/c/v1` در برابر `/o/v1`) |
+| guest روی مسیر محافظت‌شده | `low_auth_gate` یا هدایت به `low_auth_phone?next=…` و بازگشت پس از ورود |
+
+### ح-۳) دادهٔ mock (Q1)
+- mock فقط داخل `apps/web-main` (لایهٔ داده با یک interface که بعداً با fetch واقعی عوض شود)؛ **قبل از قفل مالک در `packages/api-types` نیاید**.
+- شکل دادهٔ جلسه از L-30/L-31 (`15` §۴-ب) برداشته شد. ۸ تا ۱۰ جلسه با ترکیب وضعیت‌ها و سه نوع زمان‌بندی (یک‌باره، تکرارشونده شنبه–جمعه، بازهٔ محدود)، `Asia/Tehran`، متن فارسی بی‌ادعا و بدون نام افراد واقعی.
+- mock باید خطا/خالی/کندی را هم شبیه‌سازی کند (برای حالت‌های design).
+
+### ح-۴) نکتهٔ فونت (برای مالک)
+- فایل‌ها `YekanBakhFaNum` هستند: **ارقام همیشه فارسی** رندر می‌شوند. این یعنی ارقام OTP/شماره/امتیاز در UI فارسی دیده می‌شوند؛ ورودی را باید هنگام ارسال به لاتین نرمال کرد (`15` §۸). در صورت نیاز به ارقام لاتین باید نسخهٔ بدون FaNum بیاید. تأیید کنید که ارقام فارسی همه‌جا مطلوب است.
+- وزن‌های موجود: Light(فقط ttf)، Regular، Bold، ExtraBlack؛ **Medium (۵۰۰) نیست** ⇒ توکن `font.weight.medium` در `THEME_TOKENS.md` باید با Regular/Bold جایگزین شود.
+- `THEME_TOKENS.md` هنوز «Vazirmatn» را مثال می‌زند؛ قفل #19 YekanBakh است (مالک تأیید کند اصلاح شود).
+- `ArabQuranIslamic.ttf` و `hejaz.ttf` برای `font.family.quran` (فقط آیات/مصحف) کاندیدا هستند؛ انتخاب با مالک (Q6).
+
 ## ز) گام بعد
-1. مالک سؤالات §و را جواب دهد (حداقل Q1، Q2، Q10 قبل از design).
+1. سؤالات باز باقی‌مانده در §و (Q4–Q9، Q12): هیچ‌کدام مانع طراحی ردیف‌های «هسته» نیست؛ ردیف‌های «مشروط» (`low_map`، `low_quran`) تا پاسخ طراحی نشوند. تصمیم‌های §ح را تأیید یا اصلاح کنید.
 2. ردیف‌های «هسته» همین حالا قابل طراحی‌اند؛ «مشروط» پس از جواب.
 3. مالک دارایی را با نام `screen_id`/`component_id` در `design/low/` و `design/components/` بگذارد (و فونت YekanBakh در `design/fonts/`).
 4. سپس قرارداد `15` قفل و UI فقط برای ردیف‌هایی با design کد می‌شود.

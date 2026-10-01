@@ -10,7 +10,7 @@
 
 ## در حال انجام (In progress)
 - کارstream فعال: API — auth + low برای web-main (فقط پیش‌نویس؛ mid/high/admin خارج از scope). پیش‌نویس: `docs-v2/15-api-low-web-main-draft.md` — منتظر قفل مالک (Q1–Q8 در §۹)
-- موجودی UI (فقط `web-main` بخش low): پیش‌نویس `docs-v2/16-ui-inventory-web-main-low-draft.md` — منتظر پاسخ سؤالات §و و سپس design مالک؛ کد UI زده نشده
+- موجودی UI (فقط `web-main` بخش low): پیش‌نویس `docs-v2/16-ui-inventory-web-main-low-draft.md` — Q1=بله(mock)، Q2/Q10 تصمیم AI در §ح؛ منتظر تأیید §ح، سؤالات Q4–Q9/Q12 و design مالک؛ کد UI زده نشده. فونت‌ها در `design/fonts` آمدند (YekanBakhFaNum؛ نکات در §ح-۴)
 - کد PWA هنوز در اسکلت وب‌ها اضافه نشده (کار فرانت)
 
 ## بعدی (Next)
@@ -37,4 +37,4 @@
 | handoff | `docs-v2/13-handoff.md` |
 | برنامهٔ cloud | `docs-v2/14-cloud-credits-plan.md` |
 | ماژول/فایل فعال | — |
-| پیش‌نویس API/schema | `docs-v2/15-api-low-web-main-draft.md` (auth + low/web-main؛ schema DB و env هنوز نه) |
+| پیش‌نویس API/schema | `docs-v2/15-api-low-web-main-draft.md` (auth + low/web-main + L-30/31 جلسات عمومی؛ schema DB و env هنوز نه) |

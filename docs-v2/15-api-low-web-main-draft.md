@@ -9,7 +9,7 @@
 | داخل | خارج (کارstream‌های بعد) |
 |------|--------------------------|
 | `/c/v1/auth/*`، step-up، `/c/v1/me/*` (profile، password، sessions، inbox) | mid (`/o/v1`) و high (`/s/v1`)، `web-admin` |
-| قرارداد قابل‌مصرف برای `web-main` (بخش user) | `/me/points`، `/public/*`، `/maps/*` — رزرو شده، شکل در کارstream مربوط |
+| قرارداد قابل‌مصرف برای `web-main` (بخش user) | `/me/points`، `/public/*` غیر از جلسات (L-30/31 در §۴-ب)، `/maps/*` — رزرو شده، شکل در کارstream مربوط |
 | خطاها، cookie/CORS، رفتار کلاینت | JWKS و claimهای JWT (مصرف‌کنندهٔ آن‌ها mid/high است؛ کلاینت JWT را parse نمی‌کند)، schema DB، env |
 
 کلاینت وب، access token را **opaque** می‌داند؛ فقط `accessExpiresIn` را از پاسخ می‌خواند.
@@ -101,6 +101,23 @@ body: `{ phone, password, deviceId, deviceLabel }`؛ پاسخ مثل L-02 (`isNe
 | L-20 | `POST /me/inbox/read-all` | idempotent |
 
 نکات: `platform` ∈ `web|android`. `kind`/`ref` مبهم (opaque) برای deep-link؛ مقادیر `kind` در کارstream mid/high تعیین می‌شود. آپلود آواتار (multipart روی `media/`) تا روشن‌شدن design **مورد این پیش‌نویس نیست**. رمز فراموش‌شده = ورود با OTP سپس L-13؛ endpoint جدا نداریم.
+
+### ۴-ب) محتوای عمومی جلسات (guest + member) — **[پیشنهاد]**، تا قفل: فقط mock
+
+| شناسه | مسیر | Auth | توضیح |
+|-------|------|:----:|-------|
+| L-30 | `GET /public/sessions` | اختیاری | `page,pageSize,status` (`scheduled|started|ended`)، `sort` پیش‌فرض `nextStartsAt:asc`؛ جلسهٔ `draft` هرگز نمی‌آید |
+| L-31 | `GET /public/sessions/:id` | اختیاری | جزئیات؛ `NOT_FOUND` برای draft/ناموجود |
+
+```json
+{ "id": "uuid", "title": "…", "description": "…", "status": "scheduled",
+  "schedule": { "type": "once|recurring|range", "startsAt": "ISO", "endsAt": "ISO",
+                "weekdays": [0,2], "timeOfDay": "18:00", "rangeFrom": "ISO", "rangeTo": "ISO" },
+  "nextStartsAt": "ISO|null", "location": { "label": "…" } }
+```
+- `weekdays`: ۰=شنبه … ۶=جمعه (`Asia/Tehran`)؛ فقط برای `recurring`. فیلدهای هر نوع جدا می‌آید (`once`: `startsAt/endsAt`؛ `range`: `rangeFrom/rangeTo` + قواعد روزانه).
+- داده از mid با internal REST به low می‌رسد (قفل #12)؛ کلاینت low به mid نمی‌زند. عضویت/حضور/صف خارج این پیش‌نویس‌اند (mid).
+- نقشه/مکان دقیق (Map.ir) این‌جا نیست؛ فقط `location.label`.
 
 ## ۵. وب: ذخیرهٔ توکن، cookie، CORS **[پیشنهاد]**
 
