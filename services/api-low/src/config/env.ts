@@ -48,9 +48,10 @@ export const EnvSchema = z
     SMS_PROVIDER: z.enum(['faraz', 'console', 'capture']).default('faraz'),
     SMS_DAILY_BUDGET: z.coerce.number().int().min(1).default(5000),
     FARAZ_API_KEY: z.string().optional(),
-    FARAZ_BASE_URL: z.url().default('https://edge.ippanel.com/v1'),
-    FARAZ_SENDER: z.string().optional(),
+    FARAZ_BASE_URL: z.url().default('https://api.iranpayamak.com'),
+    FARAZ_SENDER: z.string().optional().describe('line_number خط ارسال'),
     FARAZ_PATTERN_CODE: z.string().optional(),
+    FARAZ_CODE_VAR: z.string().min(1).default('code').describe('نام متغیر کد در الگوی پنل'),
     SMS_TIMEOUT_MS: z.coerce.number().int().min(200).max(10_000).default(2500),
 
     COOKIE_DOMAIN: z.string().optional(),
@@ -70,6 +71,7 @@ export const EnvSchema = z
     need(prod && !e.JWT_PRIVATE_KEY_PEM, 'JWT_PRIVATE_KEY_PEM', 'در production الزامی است (کلید RS256).');
     need(prod && e.SMS_PROVIDER !== 'faraz', 'SMS_PROVIDER', 'در production فقط faraz مجاز است.');
     need(e.SMS_PROVIDER === 'faraz' && !e.FARAZ_API_KEY && e.NODE_ENV !== 'test', 'FARAZ_API_KEY', 'برای Faraz الزامی است.');
+    need(e.SMS_PROVIDER === 'faraz' && !e.FARAZ_SENDER && e.NODE_ENV !== 'test', 'FARAZ_SENDER', 'برای Faraz الزامی است.');
     need(e.SMS_PROVIDER === 'faraz' && !e.FARAZ_PATTERN_CODE && e.NODE_ENV !== 'test', 'FARAZ_PATTERN_CODE', 'برای Faraz الزامی است.');
     need(prod && !e.PASSWORD_PEPPER, 'PASSWORD_PEPPER', 'در production الزامی است.');
     need(prod && !e.INTERNAL_URL_MID, 'INTERNAL_URL_MID', 'در production الزامی است.');

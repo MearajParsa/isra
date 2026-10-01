@@ -20,7 +20,7 @@ pnpm --filter @isra/api-low dev          # http://localhost:3001 — Swagger: /c
 
 ## تست
 ```bash
-pnpm --filter @isra/api-low test        # 125 تست؛ نیاز به MySQL (TEST_DB_HOST/USER/PASSWORD/NAME، پیش‌فرض بالا با schema_low_test)
+pnpm --filter @isra/api-low test        # 132 تست؛ نیاز به MySQL (TEST_DB_HOST/USER/PASSWORD/NAME، پیش‌فرض بالا با schema_low_test)
 pnpm --filter @isra/api-low test:cov
 ```
 | فایل | پوشش |
@@ -52,7 +52,7 @@ Request → requestContext(X-Request-Id) → helmet/CORS/cookie/json(16kb)
 هدر: `X-Internal-Token: <INTERNAL_SHARED_SECRET>`. این مسیرها باید فقط روی شبکهٔ خصوصی در دسترس باشند (از reverse-proxy عمومی export نشوند).
 
 ## محدودیت‌ها / بدهی‌های شناخته‌شده
-- قالب درخواست Faraz **با مستندات حساب واقعی تأیید نشده**؛ آدرس/فیلدها در `faraz.provider.ts` و env قابل اصلاح است.
+- Faraz طبق مستندات رسمی (`/ws/v1/sms/pattern`) پیاده شد؛ روی حساب واقعی هنوز تست نشده (تست‌ها با mock). `success` فقط یعنی «در صف»؛ تحویل واقعی با `GET /ws/v1/send_request/{id}/items`.
 - `users.status=blocked` فقط در ورود بررسی می‌شود؛ revoke نشست‌های کاربر مسدودشده با رویداد high (کارstream high).
 - revoke در instanceهای دیگر تا ۵ ثانیه تأخیر دارد (cache نشست؛ access فقط ۱۵ دقیقه).
 - کلید JWT چرخشی (چند kid در JWKS) هنوز پیاده نشده؛ تک‌کلید + `JWT_KEY_ID`.
