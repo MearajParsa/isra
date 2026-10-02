@@ -43,6 +43,8 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - name: دیتابیس تست api-mid
+        run: mysql -h127.0.0.1 -uroot -proot -e "CREATE DATABASE schema_mid_test CHARACTER SET utf8mb4; CREATE USER 'isra_mid'@'%' IDENTIFIED BY 'isra_mid_dev'; GRANT ALL ON schema_mid_test.* TO 'isra_mid'@'%';"
       - run: pnpm install --frozen-lockfile
       - name: lint + typecheck + test + build
         run: pnpm turbo lint typecheck test build

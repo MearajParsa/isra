@@ -1,9 +1,15 @@
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
+import { Logger } from 'nestjs-pino';
+import { createApp, startApp } from './bootstrap';
+import { loadEnv } from './config/env';
 
-// پیشوند هدف: /o/v1 (با کارstream API فعال می‌شود)
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  await app.listen(process.env.PORT ?? 3002);
+async function main() {
+  const env = loadEnv();
+  const app = await createApp(env);
+  await startApp(app, env);
+  app.get(Logger).log(`api-mid listening on :${env.PORT} (${env.NODE_ENV})`);
 }
-void bootstrap();
+
+main().catch((e: unknown) => {
+  console.error(e instanceof Error ? e.message : e);
+  process.exit(1);
+});

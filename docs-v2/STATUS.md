@@ -33,6 +33,10 @@
   - **نقشه → نشان (تصمیم مالک):** `NESHAN_API_KEY` فقط env سرور. endpoint نقشه هنوز در قرارداد نیست و `platform.neshan.org` از این محیط مسدود بود؛ همراه `api-mid` پیاده می‌شود.
   - **تأیید نشده / بدهی:** چرخش کلید JWT (چند kid)؛ بار واقعی k6 و تنظیم argon2 روی سخت‌افزار تولید؛ `/security-review` و `/code-review` طبق CLAUDE.md هنوز اجرا نشده؛ CI با سرویس MySQL هنوز روی GitHub اجرا نشده.
   - **بعدی:** `api-mid` (باید `/internal/v1/public/sessions*`، `/internal/v1/users/{id}/points`، `/internal/v1/events` را طبق README ارائه دهد) سپس `api-high`؛ تعویض `api/index.ts` وب‌ها از mock به fetch واقعی.
+- **`services/api-mid` پیاده‌سازی شد (۱۴۰۵/۰۷/۱۱):** همهٔ M-00..M-42 + health روی قرارداد `@isra/api-types`: جلسه و چرخهٔ حیات، عضویت/نقش درون‌جلسه، حضور (+۵ یک‌بار، زیر ۴۰ درخواست موازی تست شد)، صف (حریم خصوصی، قفل ردیف)، ارزیابی وزنی (manager تنها نه)، امتیاز/نشان، Idempotency-Key، Socket.IO، outbox به low، endpointهای internal برای low، رویدادهای ورودی (نام کاربران، تنظیمات high). **۹۸ تست** روی MariaDB واقعی سبز. smoke واقعی low+mid با هم (ورود OTP → grant → ساخت جلسه → عضویت → اینباکس در low → حضور → امتیاز در low) موفق بود. جزئیات و اجرای لوکال: `services/api-mid/README.md`.
+  - **باگ واقعی که تست کشف و رفع شد:** خواندن تنظیمات داخل تراکنش اتصال دوم از pool می‌گرفت ⇒ زیر بار pool قحط می‌شد؛ + deadlock روی درج‌های موازی ⇒ `withRetry`. envelope لیست فقط برای endpointهای `list:true` (در low هم اصلاح شد).
+  - **بدهی/تأیید نشده:** نشان (Neshan) هنوز نه (مستندات از container مسدود بود)؛ Socket.IO فقط single-instance؛ کد زیرساختی بین low/mid کپی است (`packages/service-kit` نیازمند تأیید مالک)؛ k6 انجام نشده؛ CI روی GitHub اجرا نشده.
+  - **بعدی:** `api-high` (نقش‌ها، تنظیمات، audit؛ ناشر `system.role.changed` و `system.settings.changed`) سپس تعویض `api/index.ts` وب‌ها از mock به fetch واقعی و حذف کامل mock (تصمیم مالک).
 - **اجرای محلی web-main:** `git checkout claude/exciting-pasteur-ksk14u` ← `pnpm install` ← `pnpm --filter @isra/web-main dev` ← http://localhost:5173 (PWA: `build` سپس `preview`).
 
 ## بعدی (Next)

@@ -66,3 +66,14 @@
 | `OUTBOX_ENABLED/OUTBOX_POLL_MS`, `MAINTENANCE_ENABLED` | worker outbox و job پاکسازی |
 | `INTERNAL_URL_MID/HIGH`, `INTERNAL_TIMEOUT_MS`, `INTERNAL_SHARED_SECRET` | internal REST؛ `INTERNAL_URL_MID` در production الزامی |
 نمونه: `services/api-low/.env.example`.
+
+## api-mid (۱۴۰۵/۰۷/۱۱) — نمونه: `services/api-mid/.env.example`
+| متغیر | توضیح |
+|-------|-------|
+| `DB_*` | دیتابیس جدا (`schema_mid` / روی cPanel مثلاً `israappi_mid`) با کاربر جدا |
+| `LOW_JWKS_URL` | آدرس JWKS سرویس low (مثلاً `https://api.israapp.ir/c/.well-known/jwks.json`) |
+| `JWT_ISSUER`, `JWT_AUDIENCE` | باید با low یکی باشد (`isra-low`/`isra`) |
+| `INTERNAL_SHARED_SECRET` | **دقیقاً همان** مقدار low؛ `INTERNAL_URL_LOW` برای outbox (production الزامی) |
+| `SOCKET_ENABLED`, `SOCKET_PATH` | پیش‌فرض فعال و `/o/v1/socket.io` |
+| `SCHEDULER_ENABLED`, `OUTBOX_*`, `MAINTENANCE_ENABLED` | jobها |
+| `NESHAN_API_KEY` | (بعداً) کلید نشان؛ فقط env سرور |
