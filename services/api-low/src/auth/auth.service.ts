@@ -37,7 +37,7 @@ interface UserRow {
   status: string;
   first_name: string | null;
   last_name: string | null;
-  has_pw: number | null;
+  has_pw: number | string | bigint | null; // MySQL 8 می‌تواند string/bigint برگرداند ⇒ Number()
 }
 
 @Injectable()
@@ -91,7 +91,7 @@ export class AuthService {
       accessExpiresIn: a.expiresIn,
       sessionId: s.sessionId,
       refreshToken: s.refreshToken,
-      user: { id: userId, phone: u.phone, isNewUser: isNew, profileComplete: !!(u.first_name && u.last_name), hasPassword: !!u.has_pw }
+      user: { id: userId, phone: u.phone, isNewUser: isNew, profileComplete: !!(u.first_name && u.last_name), hasPassword: Number(u.has_pw) > 0 }
     };
   }
 

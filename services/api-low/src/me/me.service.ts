@@ -35,10 +35,10 @@ export class MeService {
       `SELECT u.phone, p.first_name, p.last_name, p.avatar_path, (c.user_id IS NOT NULL) AS has_pw
          FROM users u LEFT JOIN profiles p ON p.user_id = u.id LEFT JOIN user_credentials c ON c.user_id = u.id WHERE u.id = ?`,
       [uuidToBuf(userId)]
-    )) as (ProfileRow & { phone: string; has_pw: number })[];
+    )) as (ProfileRow & { phone: string; has_pw: number | string | bigint })[];
     const r = rows[0];
     if (!r) throw new AppError('AUTH_TOKEN_INVALID');
-    return { id: userId, phone: r.phone, hasPassword: !!r.has_pw, profile: this.profileOut(r) };
+    return { id: userId, phone: r.phone, hasPassword: Number(r.has_pw) > 0, profile: this.profileOut(r) };
   }
 
   async patchProfile(userId: string, p: { firstName?: string; lastName?: string }) {

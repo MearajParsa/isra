@@ -78,8 +78,11 @@ describe('پرچم‌های سراسری از high', () => {
 describe('رویداد ثبت‌نام برای high/mid', () => {
   it('user.registered شامل phone و createdAt است', async () => {
     const u = await loginOtp(t);
-    const [row] = (await t.ds.query("SELECT payload FROM outbox_events WHERE type = 'user.registered' ORDER BY created_at DESC LIMIT 1")) as { payload: any }[];
-    const p = typeof row!.payload === 'string' ? JSON.parse(row!.payload) : row!.payload;
+    // ساعت تست جعلی است ⇒ ترتیب created_at قطعی نیست؛ رویداد همین کاربر را با userId پیدا کن
+    const rows = (await t.ds.query("SELECT payload FROM outbox_events WHERE type = 'user.registered'")) as { payload: any }[];
+    const all = rows.map((r) => (typeof r.payload === 'string' ? JSON.parse(r.payload) : r.payload));
+    const p = all.find((e) => e.userId === u.userId);
+    expect(p).toBeDefined();
     expect(p).toMatchObject({ userId: u.userId, phone: u.phone, firstName: '', lastName: '' });
     expect(Date.parse(p.createdAt)).not.toBeNaN();
   });
