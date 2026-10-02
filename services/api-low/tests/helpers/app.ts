@@ -19,7 +19,7 @@ export class TestClock extends Clock {
   }
 }
 
-const TABLES = ['users', 'user_credentials', 'profiles', 'user_claims', 'otp_challenges', 'auth_sessions', 'refresh_tokens', 'step_up_tokens', 'rate_limit_counters', 'inbox_messages', 'outbox_events', 'inbox_events'];
+const TABLES = ['users', 'user_credentials', 'profiles', 'user_claims', 'otp_challenges', 'auth_sessions', 'refresh_tokens', 'settings_cache', 'rate_limit_counters', 'inbox_messages', 'outbox_events', 'inbox_events'];
 
 export function testEnv(over: Record<string, string> = {}): Env {
   return loadEnv({

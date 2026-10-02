@@ -175,6 +175,14 @@ export class SessionsService {
     return this.toDto(r);
   }
 
+  /** شمار جلسات per وضعیت (برای نمای کلی api-high via internal REST) */
+  async stats() {
+    const rows = (await this.ds.query('SELECT status, COUNT(*) AS n FROM sessions GROUP BY status')) as { status: string; n: string | number }[];
+    const out = { draft: 0, scheduled: 0, started: 0, ended: 0 };
+    for (const r of rows) if (r.status in out) out[r.status as keyof typeof out] = Number(r.n);
+    return out;
+  }
+
   /** job دوره‌ای: next_starts_at جلسات تکرارشونده را تازه می‌کند (مرتب‌سازی فهرست عمومی) */
   async refreshSnapshots(limit = 500): Promise<number> {
     const now = this.clock.now();

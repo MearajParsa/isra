@@ -3,14 +3,16 @@ import { DataSource } from 'typeorm';
 import type { ClientId } from '@isra/api-types';
 import { AppError } from '../common/app-error';
 import { Clock } from '../common/clock';
-import { randomToken, sha256 } from '../common/crypto';
+import { sha256 } from '../common/crypto';
 import { uuidToBuf, uuidv7, bufToUuid } from '../common/ids';
 import { RateLimitService } from '../common/rate-limit/rate-limit.service';
 import { ENV, type Env } from '../config/env';
+import { FlagsService } from '../system/flags.service';
 import { OtpService } from './otp.service';
 import { PasswordService } from './password.service';
 import type { SessionStatus } from './session-status.cache';
 import { SessionService } from './session.service';
+import { TokenService } from './token.service';
 
 const STEP_UP_TTL_SEC = 300;
 
@@ -47,6 +49,8 @@ export class AuthService {
     private readonly sessions: SessionService,
     private readonly passwords: PasswordService,
     private readonly limiter: RateLimitService,
+    private readonly tokens: TokenService,
+    private readonly flags: FlagsService,
     @Inject(ENV) private readonly env: Env
   ) {}
 
@@ -100,6 +104,7 @@ export class AuthService {
       ) as Promise<UserRow[]>;
     const existing = (await sel())[0];
     if (existing) return { user: existing, isNew: false };
+    if (!(await this.flags.get()).registrationOpen) throw new AppError('AUTH_FORBIDDEN', { message: 'ثبت‌نام کاربر جدید موقتاً بسته است.' });
 
     const now = this.clock.now();
     const id = uuidv7(now.getTime());
@@ -112,7 +117,7 @@ export class AuthService {
         await m.query('INSERT INTO outbox_events (id, type, payload, created_at, attempts, next_attempt_at) VALUES (?, ?, ?, ?, 0, ?)', [
           uuidToBuf(uuidv7(now.getTime())),
           'user.registered',
-          JSON.stringify({ userId: id }),
+          JSON.stringify({ userId: id, phone, firstName: '', lastName: '', createdAt: now.toISOString() }),
           now,
           now
         ]);
@@ -148,26 +153,14 @@ export class AuthService {
 
   async stepUpVerify(userId: string, sessionId: string, b: { challengeId: string; code: string }) {
     await this.otp.verify(b.challengeId, b.code, 'step_up', userId);
-    const now = this.clock.now();
-    const raw = randomToken(32);
-    await this.ds.query('INSERT INTO step_up_tokens (id, session_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)', [
-      uuidToBuf(uuidv7(now.getTime())),
-      uuidToBuf(sessionId),
-      sha256(raw),
-      new Date(now.getTime() + STEP_UP_TTL_SEC * 1000),
-      now
-    ]);
-    return { stepUpToken: raw, expiresInSec: STEP_UP_TTL_SEC };
+    return { stepUpToken: await this.tokens.signStepUp(userId, sessionId, STEP_UP_TTL_SEC), expiresInSec: STEP_UP_TTL_SEC };
   }
 
   /** L-13 و موارد مشابه: OTP تازه‌تر از ۵ دقیقه روی همین نشست یا توکن step-up معتبر متصل به همین نشست */
   async assertStepUp(sessionId: string, status: SessionStatus, token: string | undefined): Promise<void> {
     const now = this.clock.now().getTime();
     if (status.otpAt && now - status.otpAt.getTime() <= STEP_UP_TTL_SEC * 1000) return;
-    if (token && token.length <= 512) {
-      const rows = (await this.ds.query('SELECT 1 AS ok FROM step_up_tokens WHERE token_hash = ? AND session_id = ? AND expires_at > ?', [sha256(token), uuidToBuf(sessionId), new Date(now)])) as unknown[];
-      if (rows.length) return;
-    }
+    if (token && token.length <= 1024 && (await this.tokens.verifyStepUp(token, status.userId, sessionId))) return;
     throw new AppError('AUTH_STEP_UP_REQUIRED');
   }
 }

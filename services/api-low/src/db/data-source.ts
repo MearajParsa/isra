@@ -3,10 +3,11 @@ import { DataSource, type DataSourceOptions } from 'typeorm';
 import type { Env } from '../config/env';
 import { ENTITIES } from './entities';
 import { InitSchema1727700000000 } from './migrations/1727700000000-InitSchema';
+import { FlagsAndStepUpJwt1727900000000 } from './migrations/1727900000000-FlagsAndStepUpJwt';
 import { SnakeNamingStrategy } from './naming';
 import { SafeTypeOrmLogger } from './typeorm.logger';
 
-export const MIGRATIONS = [InitSchema1727700000000];
+export const MIGRATIONS = [InitSchema1727700000000, FlagsAndStepUpJwt1727900000000];
 
 export function dataSourceOptions(env: Env): DataSourceOptions {
   return {

@@ -1,0 +1,84 @@
+import { Inject, Injectable, Logger, type OnApplicationBootstrap } from '@nestjs/common';
+import { DataSource } from 'typeorm';
+import { z } from 'zod';
+import { Clock } from '../common/clock';
+import { uuidToBuf } from '../common/ids';
+import { ENV, type Env } from '../config/env';
+import { AuditService } from '../domain/audit.service';
+import { ClaimsService } from '../domain/claims.service';
+import { type Q, displayName } from '../domain/db';
+
+export interface InboundEvent {
+  eventId: string;
+  type: string;
+  occurredAt: string;
+  payload: Record<string, unknown>;
+}
+
+const UserRegistered = z.object({ userId: z.uuid(), phone: z.string().regex(/^09\d{9}$/), firstName: z.string().max(40).default(''), lastName: z.string().max(40).default(''), createdAt: z.iso.datetime({ offset: true }).optional() });
+const ProfileUpdated = z.object({ userId: z.uuid(), firstName: z.string().max(40).optional(), lastName: z.string().max(40).optional() });
+
+/**
+ * مصرف رویدادهای ورودی از low (فهرست کاربران). at-least-once ⇒ dedupe با eventId در همان تراکنش اثر.
+ * راه‌انداز: اولین developer — وقتی کاربر `BOOTSTRAP_DEVELOPER_PHONE` در سیستم دیده شد و هنوز هیچ developer نیست.
+ */
+@Injectable()
+export class EventsService implements OnApplicationBootstrap {
+  private readonly log = new Logger('Events');
+
+  constructor(
+    private readonly ds: DataSource,
+    private readonly clock: Clock,
+    private readonly audit: AuditService,
+    private readonly claims: ClaimsService,
+    @Inject(ENV) private readonly env: Env
+  ) {}
+
+  async onApplicationBootstrap() {
+    if (this.env.NODE_ENV === 'test') return;
+    await this.bootstrapDeveloper().catch((e) => this.log.error({ err: e instanceof Error ? e.message : 'unknown' }, 'bootstrap failed'));
+  }
+
+  async handle(e: InboundEvent): Promise<void> {
+    const now = this.clock.now();
+    await this.ds.transaction(async (m) => {
+      const ins = (await m.query('INSERT IGNORE INTO inbox_events (event_id, type, received_at) VALUES (?, ?, ?)', [e.eventId, e.type, now])) as { affectedRows?: number };
+      if (!ins.affectedRows) return;
+
+      if (e.type === 'user.registered') {
+        const p = UserRegistered.parse(e.payload);
+        await m.query(
+          `INSERT INTO user_directory (user_id, phone, first_name, last_name, perm_ver, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?)
+           ON DUPLICATE KEY UPDATE phone = VALUES(phone), first_name = IF(VALUES(first_name) <> '', VALUES(first_name), first_name), last_name = IF(VALUES(last_name) <> '', VALUES(last_name), last_name), updated_at = VALUES(updated_at)`,
+          [uuidToBuf(p.userId), p.phone, p.firstName, p.lastName, p.createdAt ? new Date(p.createdAt) : now, now]
+        );
+        await this.bootstrapDeveloper(m);
+      } else if (e.type === 'user.profile.updated') {
+        const p = ProfileUpdated.parse(e.payload);
+        await m.query('UPDATE user_directory SET first_name = COALESCE(?, first_name), last_name = COALESCE(?, last_name), updated_at = ? WHERE user_id = ?', [p.firstName ?? null, p.lastName ?? null, now, uuidToBuf(p.userId)]);
+      } else {
+        this.log.debug({ type: e.type }, 'نوع رویداد ناشناخته؛ نادیده');
+      }
+    });
+  }
+
+  /** فقط وقتی هیچ developer نیست و شمارهٔ مشخص‌شده در دایرکتوری هست؛ idempotent و با قفل ردیف نقش‌ها */
+  async bootstrapDeveloper(q: Q = this.ds): Promise<boolean> {
+    const phone = this.env.BOOTSTRAP_DEVELOPER_PHONE;
+    if (!phone) return false;
+    const run = async (m: Q) => {
+      const has = (await m.query("SELECT 1 AS x FROM user_system_roles WHERE role_key = 'developer' FOR UPDATE")) as unknown[];
+      if (has.length) return false;
+      const u = (await m.query('SELECT user_id, first_name, last_name FROM user_directory WHERE phone = ?', [phone])) as { user_id: Buffer; first_name: string; last_name: string }[];
+      if (!u[0]) return false;
+      const now = this.clock.now();
+      await m.query("INSERT INTO user_system_roles (user_id, role_key, granted_by, granted_at) VALUES (?, 'developer', NULL, ?)", [u[0].user_id, now]);
+      const uid = u[0].user_id.toString('hex');
+      const id = `${uid.slice(0, 8)}-${uid.slice(8, 12)}-${uid.slice(12, 16)}-${uid.slice(16, 20)}-${uid.slice(20)}`;
+      await this.claims.publish(m, id);
+      await this.audit.write(m, { actor: null, action: 'system.bootstrap', target: { type: 'user', id, label: displayName(u[0].first_name, u[0].last_name) }, summary: 'اولین توسعه‌دهندهٔ سیستم تعیین شد.', meta: { via: 'BOOTSTRAP_DEVELOPER_PHONE' } });
+      return true;
+    };
+    return q === this.ds ? this.ds.transaction((m) => run(m)) : run(q);
+  }
+}

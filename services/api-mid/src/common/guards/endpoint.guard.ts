@@ -4,6 +4,7 @@ import type { Response } from 'express';
 import { HEADERS, type EndpointDef, type RateLimit } from '@isra/api-types';
 import { JwtVerifier, canCreateSession } from '../../auth/jwt-verifier';
 import { ENV, type Env } from '../../config/env';
+import { SettingsService } from '../../domain/settings.service';
 import { AppError } from '../app-error';
 import { EP_KEY, endpoint } from '../ep';
 import { RateLimitService } from '../rate-limit/rate-limit.service';
@@ -22,6 +23,7 @@ export class EndpointGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly jwt: JwtVerifier,
     private readonly limiter: RateLimitService,
+    private readonly settings: SettingsService,
     @Inject(ENV) readonly env: Env
   ) {}
 
@@ -36,6 +38,7 @@ export class EndpointGuard implements CanActivate {
       const g = await this.limiter.hit('memory', `g:${req.ctx.ip}`, GLOBAL_IP_LIMIT.limit, GLOBAL_IP_LIMIT.windowSec);
       if (!g.allowed) throw new AppError('RATE_LIMITED', { details: { retryAfterSec: g.resetSec } });
     }
+    if (!def.internalOnly && (await this.settings.get()).maintenance) throw new AppError('SERVICE_UNAVAILABLE');
     if (BODY_METHODS.has(req.method) && def.body && Number(req.header('content-length') ?? 0) > 0 && !req.is('application/json')) throw new AppError('UNSUPPORTED_MEDIA_TYPE');
 
     await this.authenticate(def, req);

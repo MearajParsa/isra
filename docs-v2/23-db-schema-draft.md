@@ -90,3 +90,6 @@ migration `1727700000000-InitSchema` (MySQL ۸ و MariaDB سازگار؛ collati
 
 ## پیاده‌سازی `schema_mid` — انحراف‌ها (۱۴۰۵/۰۷/۱۱)
 migration `1727800000000-InitSchema` (۱۵ جدول). تفاوت‌ها: `user_directory(first_name,last_name)` به‌جای `name/phone_masked/can_create_session/perm_ver` (نام از رویداد low؛ `session.create` از JWT)؛ `session_locations` ساخته نشد (مکان فعلاً `location_label`؛ نشان بعداً)؛ `queue_items.finished_at` برای ترتیب done؛ `queue_items.active_key` (ستون تولیدشدهٔ UNIQUE) برای «یک آیتم فعال per کاربر»؛ `idempotency_keys(user_id, idem_key, request_hash, status, response)` فعال؛ `settings_cache.setting_key` (کلمهٔ رزرو `key`).
+
+## پیاده‌سازی `schema_high` و تغییر low (۱۴۰۵/۰۷/۱۱)
+`schema_high` (migration `1728000000000`، ۱۱ جدول + seed): `system_roles` (CHECK undeletable)، `permissions`، `role_permissions(locked)`، `user_directory(phone UNIQUE, perm_ver)`، `user_system_roles`، `user_grants`، `system_settings`، `audit_logs`، `outbox_events`، `inbox_events`، `rate_limit_counters`. تفاوت با پیش‌نویس: `user_directory` شامل `phone` کامل و `perm_ver` است؛ ستون‌های `key`/`group`/`grant` به `role_key`/`permission_key`/`perm_group`/`grant_key` (کلمهٔ رزرو). **low:** migration 2 جدول `step_up_tokens` را حذف و `settings_cache` (پرچم‌ها) را اضافه کرد.

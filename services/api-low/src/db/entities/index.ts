@@ -1,9 +1,11 @@
-import { AuthSessionEntity, OtpChallengeEntity, RateLimitCounterEntity, RefreshTokenEntity, StepUpTokenEntity } from './auth.entities';
+import { AuthSessionEntity, OtpChallengeEntity, RateLimitCounterEntity, RefreshTokenEntity } from './auth.entities';
 import { InboxEventEntity, InboxMessageEntity, OutboxEventEntity } from './messaging.entities';
+import { SettingsCacheEntity } from './settings.entity';
 import { ProfileEntity, UserClaimsEntity, UserCredentialEntity, UserEntity } from './user.entities';
 
 export * from './auth.entities';
 export * from './messaging.entities';
+export * from './settings.entity';
 export * from './user.entities';
 
 export const ENTITIES = [
@@ -14,7 +16,7 @@ export const ENTITIES = [
   OtpChallengeEntity,
   AuthSessionEntity,
   RefreshTokenEntity,
-  StepUpTokenEntity,
+  SettingsCacheEntity,
   RateLimitCounterEntity,
   InboxMessageEntity,
   OutboxEventEntity,

@@ -77,3 +77,12 @@
 | `SOCKET_ENABLED`, `SOCKET_PATH` | پیش‌فرض فعال و `/o/v1/socket.io` |
 | `SCHEDULER_ENABLED`, `OUTBOX_*`, `MAINTENANCE_ENABLED` | jobها |
 | `NESHAN_API_KEY` | (بعداً) کلید نشان؛ فقط env سرور |
+
+## api-high (۱۴۰۵/۰۷/۱۱) — نمونه: `services/api-high/.env.example`
+| متغیر | توضیح |
+|-------|-------|
+| `DB_*` | دیتابیس جدا (`schema_high` / cPanel: مثلاً `israappi_high`) با کاربر جدا |
+| `LOW_JWKS_URL`, `JWT_ISSUER`, `JWT_AUDIENCE` | مثل mid؛ برای access و step-up JWT |
+| `INTERNAL_SHARED_SECRET` | همان مقدار low/mid؛ `INTERNAL_URL_LOW` و `INTERNAL_URL_MID` (production الزامی) |
+| `BOOTSTRAP_DEVELOPER_PHONE` | شمارهٔ اولین توسعه‌دهنده؛ فقط وقتی developer وجود ندارد اثر دارد (بعد از اولین بار می‌توانید حذفش کنید) |
+**low:** `INTERNAL_URL_HIGH` (برای ارسال `user.*` به high) اضافه شد.

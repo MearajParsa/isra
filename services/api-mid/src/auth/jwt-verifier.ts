@@ -50,6 +50,8 @@ export class JwtVerifier {
   }
 }
 
-/** مجوز سطح کاربر `session.create` (grant مستقیم از high) یا نقش سیستم developer/super_admin */
-export const canCreateSession = (p: Pick<Principal, 'roles' | 'perms'>): boolean =>
-  p.perms.includes('session.create') || p.roles.includes('super_admin') || p.roles.includes('developer');
+/**
+ * مجوز سطح کاربر `session.create`: high مجوز مؤثر هر کاربر (grant مستقیم ∪ مجوزهای نقش‌های سیستم، با احترام به ماتریس)
+ * را در claim `perms` می‌گذارد؛ نام نقش به‌تنهایی کافی نیست (ماتریس قابل ویرایش است).
+ */
+export const canCreateSession = (p: Pick<Principal, 'perms'>): boolean => p.perms.includes('session.create');

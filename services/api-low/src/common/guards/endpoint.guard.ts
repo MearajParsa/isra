@@ -6,6 +6,7 @@ import { AuthService } from '../../auth/auth.service';
 import { readRefreshCookie } from '../../auth/cookie';
 import { SessionService } from '../../auth/session.service';
 import { SessionStatusCache } from '../../auth/session-status.cache';
+import { FlagsService } from '../../system/flags.service';
 import { TokenService } from '../../auth/token.service';
 import { ENV, type Env } from '../../config/env';
 import { AppError } from '../app-error';
@@ -34,6 +35,7 @@ export class EndpointGuard implements CanActivate {
     private readonly sessions: SessionService,
     private readonly auth: AuthService,
     private readonly limiter: RateLimitService,
+    private readonly flags: FlagsService,
     @Inject(ENV) private readonly env: Env
   ) {}
 
@@ -46,6 +48,7 @@ export class EndpointGuard implements CanActivate {
 
     // سقف سراسری per-IP پیش از هر کار گران (حتی توکن‌های نامعتبر/درخواست‌های ناموفق شمرده می‌شوند)
     await this.globalLimit(def, req);
+    await this.maintenance(def);
     this.checkContentType(def, req);
     this.checkCsrf(def, req);
     await this.authenticate(def, req);
@@ -119,6 +122,12 @@ export class EndpointGuard implements CanActivate {
       case 'user+ip':
         return user ? `u:${user}|ip:${ip}` : null;
     }
+  }
+
+  /** maintenance_mode (از high): همهٔ مسیرها ۵۰۳ مگر auth (ادمین باید بتواند وارد شود و خاموش کند)، JWKS و health */
+  private async maintenance(def: EndpointDef) {
+    if (def.internalOnly || def.id.startsWith('L-0') || def.id === 'L-90') return;
+    if ((await this.flags.get()).maintenanceMode) throw new AppError('SERVICE_UNAVAILABLE');
   }
 
   private async globalLimit(def: EndpointDef, req: IsraRequest) {

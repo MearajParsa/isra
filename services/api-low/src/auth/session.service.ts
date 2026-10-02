@@ -196,11 +196,6 @@ export class SessionService {
     void this.ds.query('UPDATE auth_sessions SET last_active_at = ? WHERE id = ? AND revoked_at IS NULL', [new Date(now), uuidToBuf(sessionId)]).catch(() => undefined);
   }
 
-  /** پس از تعیین رمز: سایر نشست‌ها + step-up tokenهای قدیمی بی‌اعتبار */
-  async purgeStepUp(sessionId: string): Promise<void> {
-    await this.ds.query('DELETE FROM step_up_tokens WHERE session_id = ?', [uuidToBuf(sessionId)]);
-  }
-
   invalidateCache(...ids: string[]) {
     this.cache.invalidate(...ids);
   }

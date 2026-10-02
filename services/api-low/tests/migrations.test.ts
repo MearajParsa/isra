@@ -20,10 +20,11 @@ describe('migration', () => {
     await ds.runMigrations();
     expect((await tables()).length).toBe(12);
     await ds.undoLastMigration();
+    await ds.undoLastMigration();
     expect(await tables()).toEqual([]);
     await ds.runMigrations();
     expect(await tables()).toEqual(
-      ['auth_sessions', 'inbox_events', 'inbox_messages', 'otp_challenges', 'outbox_events', 'profiles', 'rate_limit_counters', 'refresh_tokens', 'step_up_tokens', 'user_claims', 'user_credentials', 'users'].sort()
+      ['auth_sessions', 'inbox_events', 'inbox_messages', 'otp_challenges', 'outbox_events', 'profiles', 'rate_limit_counters', 'refresh_tokens', 'settings_cache', 'user_claims', 'user_credentials', 'users'].sort()
     );
   });
 
@@ -41,7 +42,6 @@ describe('migration', () => {
     };
     expect(await unique('users', 'uq_users_phone')).toBe(true);
     expect(await unique('refresh_tokens', 'uq_refresh_hash')).toBe(true);
-    expect(await unique('step_up_tokens', 'uq_stepup_hash')).toBe(true);
     expect(await unique('inbox_messages', 'uq_inbox_source_event')).toBe(true);
   });
 });

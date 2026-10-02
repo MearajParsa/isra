@@ -45,6 +45,11 @@ export class InternalController {
     return { success: true, data: await this.sessions.publicOne(id) };
   }
 
+  @Get('stats/sessions')
+  async stats() {
+    return { success: true, data: await this.sessions.stats() };
+  }
+
   @Get('users/:id/points')
   async userPoints(@Param('id') id: string) {
     if (!isUuid(id)) throw new AppError('NOT_FOUND');

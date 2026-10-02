@@ -16,6 +16,7 @@
   "include": [
     "src/**/*",
     "tests/**/*",
-    "vitest.config.mts"
+    "vitest.config.mts",
+    "scripts/**/*"
   ]
 }

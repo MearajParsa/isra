@@ -259,3 +259,37 @@ describe('migration', () => {
   });
 });
 export type { User };
+
+describe('maintenance_mode از high', () => {
+  it('پرچم ⇒ همهٔ مسیرهای عمومی 503؛ internal و health باز؛ خاموش شدن ⇒ برگشت', async () => {
+    const u = await mkUser(t, 'کاربر نگهداری');
+    const flags = (version: number, m: boolean) => send(ev('system.settings.changed', { version, evalWeights: { voice: 40, tone: 30, tajweed: 30 }, badgeThresholds: [50, 150, 300, 500], flags: { maintenance_mode: m, registration_open: true } }));
+    expect((await a.get('/me', u)).status).toBe(200);
+    expect((await flags(50, true)).status).toBe(202);
+    t.clock.advance(6_000);
+    const r = await a.get('/me', u);
+    expect(r.status).toBe(503);
+    expect(r.body.error.code).toBe('SERVICE_UNAVAILABLE');
+    expect((await request(t.http).get('/o/health/live')).status).toBe(200);
+    expect((await internalGet('/public/sessions')).status).toBe(200);
+    await flags(51, false);
+    t.clock.advance(6_000);
+    expect((await a.get('/me', u)).status).toBe(200);
+    await t.ds.query('DELETE FROM settings_cache');
+  });
+});
+
+describe('internal stats برای high', () => {
+  it('شمار جلسات per وضعیت', async () => {
+    await t.ds.query('DELETE FROM session_members');
+    await t.ds.query('DELETE FROM sessions');
+    const m = await creator(t);
+    await mkSession(t, m, 'draft');
+    await mkSession(t, m, 'scheduled');
+    await mkSession(t, m, 'scheduled');
+    await mkSession(t, m, 'ended');
+    const r = await internalGet('/stats/sessions');
+    expect(r.body.data).toEqual({ draft: 1, scheduled: 2, started: 0, ended: 1 });
+    expect((await internalGet('/stats/sessions', null)).status).toBe(401);
+  });
+});

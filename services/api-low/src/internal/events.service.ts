@@ -5,6 +5,7 @@ import { low } from '@isra/api-types';
 import { Clock } from '../common/clock';
 import { uuidToBuf, uuidv7 } from '../common/ids';
 import { SessionStatusCache } from '../auth/session-status.cache';
+import { FlagsService } from '../system/flags.service';
 
 export interface InboundEvent {
   eventId: string;
@@ -28,6 +29,8 @@ const RoleChanged = z.object({
   permVer: z.number().int().min(1)
 });
 
+const SettingsChanged = z.object({ version: z.number().int().min(1), flags: z.object({ maintenance_mode: z.boolean(), registration_open: z.boolean() }) });
+
 /**
  * مصرف رویدادهای ورودی از mid/high. dedupe با `inbox_events` در همان تراکنش اثر ⇒ تحویل مجدد بی‌اثر است.
  * نوع ناشناخته: پذیرفته و نادیده (سازگاری رو‌به‌جلو؛ producer جدیدتر نباید consumer قدیمی را بشکند).
@@ -39,7 +42,8 @@ export class EventsService {
   constructor(
     private readonly ds: DataSource,
     private readonly clock: Clock,
-    private readonly status: SessionStatusCache
+    private readonly status: SessionStatusCache,
+    private readonly flags: FlagsService
   ) {}
 
   async handle(e: InboundEvent): Promise<void> {
@@ -77,6 +81,14 @@ export class EventsService {
              perm_ver = GREATEST(perm_ver, VALUES(perm_ver))`,
           [uuidToBuf(p.userId), JSON.stringify(p.systemRoles), JSON.stringify(p.grants), p.permVer, now]
         );
+      } else if (e.type === 'system.settings.changed') {
+        const p = SettingsChanged.parse(e.payload);
+        await m.query(
+          `INSERT INTO settings_cache (setting_key, value, version, updated_at) VALUES ('global', ?, ?, ?)
+           ON DUPLICATE KEY UPDATE value = IF(VALUES(version) > version, VALUES(value), value), updated_at = IF(VALUES(version) > version, VALUES(updated_at), updated_at), version = GREATEST(version, VALUES(version))`,
+          [JSON.stringify({ flags: p.flags }), p.version, now]
+        );
+        this.flags.invalidate();
       } else {
         this.log.debug({ type: e.type }, 'نوع رویداد ناشناخته؛ نادیده');
       }

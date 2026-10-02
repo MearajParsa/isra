@@ -53,16 +53,6 @@ export class RefreshTokenEntity {
   @Column({ ...dt, nullable: true }) rotatedAt!: Date | null;
 }
 
-@Entity('step_up_tokens')
-@Index('uq_stepup_hash', ['tokenHash'], { unique: true })
-export class StepUpTokenEntity {
-  @PrimaryColumn(id) id!: string;
-  @Column({ ...id, name: 'session_id' }) sessionId!: string;
-  @Column({ ...hash }) tokenHash!: Buffer;
-  @Column({ ...dt }) expiresAt!: Date;
-  @Column({ ...dt }) createdAt!: Date;
-}
-
 @Entity('rate_limit_counters')
 export class RateLimitCounterEntity {
   @PrimaryColumn({ type: 'varchar', length: 120, name: 'counter_key' }) counterKey!: string;

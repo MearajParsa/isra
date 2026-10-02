@@ -12,7 +12,8 @@
     "test:cov": "vitest run --coverage",
     "migration:run": "tsx --env-file-if-exists=.env.local node_modules/typeorm/cli.js migration:run -d src/db/data-source.cli.ts",
     "migration:revert": "tsx --env-file-if-exists=.env.local node_modules/typeorm/cli.js migration:revert -d src/db/data-source.cli.ts",
-    "migration:show": "tsx --env-file-if-exists=.env.local node_modules/typeorm/cli.js migration:show -d src/db/data-source.cli.ts"
+    "migration:show": "tsx --env-file-if-exists=.env.local node_modules/typeorm/cli.js migration:show -d src/db/data-source.cli.ts",
+    "users:replay": "tsx --env-file-if-exists=.env.local scripts/replay-user-events.ts"
   },
   "dependencies": {
     "@isra/api-types": "workspace:*",

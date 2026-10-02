@@ -67,7 +67,6 @@ export class MeService {
     const now = this.clock.now();
     await this.ds.query('INSERT INTO user_credentials (user_id, password_hash, updated_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), updated_at = VALUES(updated_at)', [uuidToBuf(userId), hash, now]);
     await this.sessions.revokeOthers(userId, sessionId);
-    await this.sessions.purgeStepUp(sessionId);
     return {};
   }
 

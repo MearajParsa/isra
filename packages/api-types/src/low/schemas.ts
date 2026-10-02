@@ -59,7 +59,10 @@ export const RefreshResult = named(
 export const StepUpVerifyBody = named('StepUpVerifyBody', z.object({ challengeId: Uuid, code: OtpCode }).strict());
 export const StepUpResult = named(
   'StepUpResult',
-  z.object({ stepUpToken: z.string().min(16).max(512), expiresInSec: z.number().int().positive().max(900).meta({ description: '۳۰۰ ثانیه' }) })
+  z.object({
+    stepUpToken: z.string().min(16).max(1024).meta({ description: 'JWT امضاشده (RS256؛ lvl=stepup، متصل به نشست) — high/low آن را محلی با JWKS تأیید می‌کنند؛ برای کلاینت opaque است' }),
+    expiresInSec: z.number().int().positive().max(900).meta({ description: '۳۰۰ ثانیه' })
+  })
 );
 
 export const Profile = named(

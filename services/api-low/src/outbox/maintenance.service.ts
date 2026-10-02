@@ -36,7 +36,6 @@ export class MaintenanceService implements OnApplicationBootstrap, OnApplication
     const out: Record<string, number> = {};
     try {
       out.otp = await del('DELETE FROM otp_challenges WHERE expires_at < ? LIMIT 5000', ago(DAY));
-      out.stepUp = await del('DELETE FROM step_up_tokens WHERE expires_at < ? LIMIT 5000', ago(DAY));
       out.refresh = await del('DELETE FROM refresh_tokens WHERE expires_at < ? LIMIT 5000', ago(DAY));
       out.refreshOfRevoked = await del('DELETE r FROM refresh_tokens r JOIN auth_sessions s ON s.id = r.session_id WHERE s.revoked_at < ?', ago(7 * DAY));
       out.sessions = await del('DELETE FROM auth_sessions WHERE revoked_at < ? LIMIT 5000', ago(30 * DAY));

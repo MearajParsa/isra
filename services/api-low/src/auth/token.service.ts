@@ -56,12 +56,37 @@ export class TokenService {
         clockTolerance: 30,
         currentDate: this.clock.now()
       });
-      if (typeof payload.sub !== 'string' || typeof payload.sid !== 'string') throw new AppError('AUTH_TOKEN_INVALID');
+      // توکن step-up (lvl=stepup) هرگز به‌عنوان access پذیرفته نمی‌شود
+      if (typeof payload.sub !== 'string' || typeof payload.sid !== 'string' || payload.lvl !== 'low') throw new AppError('AUTH_TOKEN_INVALID');
       return { userId: payload.sub, sessionId: payload.sid, deviceId: typeof payload.did === 'string' ? payload.did : undefined, permVer: typeof payload.pv === 'number' ? payload.pv : 1 };
     } catch (e) {
       if (e instanceof AppError) throw e;
       if (e instanceof errors.JWTExpired) throw new AppError('AUTH_TOKEN_EXPIRED');
       throw new AppError('AUTH_TOKEN_INVALID');
+    }
+  }
+
+  /** step-up: JWT کوتاه‌عمر (۵ دقیقه) متصل به نشست؛ high آن را محلی با JWKS تأیید می‌کند (بدون hop به low) */
+  async signStepUp(userId: string, sessionId: string, ttlSec: number): Promise<string> {
+    const iat = Math.floor(this.clock.now().getTime() / 1000);
+    return new SignJWT({ sid: sessionId, lvl: 'stepup' })
+      .setProtectedHeader({ alg: 'RS256', kid: this.keys.kid, typ: 'JWT' })
+      .setSubject(userId)
+      .setIssuer(this.env.JWT_ISSUER)
+      .setAudience(this.env.JWT_AUDIENCE)
+      .setIssuedAt(iat)
+      .setExpirationTime(iat + ttlSec)
+      .setJti(randomUUID())
+      .sign(this.keys.privateKey);
+  }
+
+  /** @returns true اگر توکن معتبر و برای همین کاربر و همین نشست باشد */
+  async verifyStepUp(token: string, userId: string, sessionId: string): Promise<boolean> {
+    try {
+      const { payload } = await jwtVerify(token, this.keys.publicKey, { algorithms: ['RS256'], issuer: this.env.JWT_ISSUER, audience: this.env.JWT_AUDIENCE, clockTolerance: 5, currentDate: this.clock.now() });
+      return payload.lvl === 'stepup' && payload.sub === userId && payload.sid === sessionId;
+    } catch {
+      return false;
     }
   }
 }

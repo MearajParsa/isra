@@ -13,7 +13,9 @@ describe('جلسه: ساخت، دیده‌شدن و چرخهٔ حیات', () => 
   it('ساخت نیازمند session.create؛ کاربر عادی 403، با grant یا نقش سیستم مجاز', async () => {
     const plain = await mkUser(t, 'عادی');
     expect((await a.post('/sessions', plain, sessionBody())).status).toBe(403);
-    expect((await a.post('/sessions', await mkUser(t, 'ادمین', { roles: ['super_admin'] }), sessionBody())).status).toBe(200);
+    // نام نقش به‌تنهایی کافی نیست؛ مجوز مؤثر از high در perms می‌آید
+    expect((await a.post('/sessions', await mkUser(t, 'ادمین نقش', { roles: ['super_admin'] }), sessionBody())).status).toBe(403);
+    expect((await a.post('/sessions', await mkUser(t, 'ادمین مجوز', { roles: ['super_admin'], perms: ['session.create'] }), sessionBody())).status).toBe(200);
     const m = await creator(t);
     const r = await a.post('/sessions', m, sessionBody());
     expect(r.status).toBe(200);
