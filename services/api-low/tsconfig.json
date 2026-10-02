@@ -8,12 +8,15 @@
     "emitDecoratorMetadata": true,
     "strictPropertyInitialization": false,
     "skipLibCheck": true,
-    "types": ["node"],
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "incremental": true
+    "types": [
+      "node"
+    ],
+    "noEmit": true
   },
   "include": [
-    "src/**/*"
+    "src/**/*",
+    "tests/**/*",
+    "vitest.config.mts",
+    "scripts/**/*"
   ]
 }

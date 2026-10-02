@@ -82,6 +82,11 @@
 | `AUTH_PERM_STALE` | 401 | `perm_ver` قدیمی؛ refresh کن |
 | `AUTH_OTP_INVALID` | 400 | OTP نادرست |
 | `AUTH_OTP_EXHAUSTED` | 429 | بیش از ۳ تلاش |
+| `AUTH_OTP_EXPIRED` | 400 | OTP منقضی/ناموجود (ببین `15`) |
+| `AUTH_OTP_SEND_FAILED` | 503 | خطای ارسال پیامک |
+| `AUTH_INVALID_CREDENTIALS` | 401 | شماره/رمز نادرست (پیام یکسان) |
+| `AUTH_REFRESH_INVALID` | 401 | refresh باطل/منقضی/استفادهٔ مجدد |
+| `SERVICE_UNAVAILABLE` | 503 | نگهداری |
 | `VALIDATION_FAILED` | 400 | ورودی نامعتبر |
 | `RATE_LIMITED` | 429 | OTP/login |
 | `NOT_FOUND` | 404 | |

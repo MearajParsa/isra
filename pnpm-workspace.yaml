@@ -2,5 +2,7 @@ packages:
   - apps/*
   - services/*
   - packages/*
+  - e2e
 allowBuilds:
+  '@swc/core': true
   esbuild: true

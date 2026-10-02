@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>اسراء — مستندات API</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css" />
+</head>
+<body>
+  <div id="swagger"></div>
+  <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>
+    window.ui = SwaggerUIBundle({
+      dom_id: '#swagger',
+      urls: [
+        { url: 'low.v1.openapi.json', name: 'api-low (/c/v1)' },
+        { url: 'mid.v1.openapi.json', name: 'api-mid (/o/v1)' },
+        { url: 'high.v1.openapi.json', name: 'api-high (/s/v1)' }
+      ],
+      deepLinking: true,
+      displayRequestDuration: true,
+      persistAuthorization: false
+    });
+  </script>
+</body>
+</html>

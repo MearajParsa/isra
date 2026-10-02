@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /auth/
+Disallow: /account
+Disallow: /inbox
+Disallow: /manage
+Disallow: /my-sessions
+Disallow: /points
+Disallow: /sessions/*/live
+
+Sitemap: https://israapp.ir/sitemap.xml

@@ -25,3 +25,9 @@ media/*
 
 .DS_Store
 Thumbs.db
+
+# build cache
+*.tsbuildinfo
+
+# بستهٔ استقرار تولیدشده
+deploy/

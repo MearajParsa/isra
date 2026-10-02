@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # تست‌های integration/e2e روی MySQL واقعی (بدون Docker محلی؛ فقط service کانتینر CI)
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: schema_low_test
+          MYSQL_USER: isra_low
+          MYSQL_PASSWORD: isra_low_dev
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      TEST_DB_HOST: 127.0.0.1
+      TEST_DB_USER: isra_low
+      TEST_DB_PASSWORD: isra_low_dev
+      TEST_DB_NAME: schema_low_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # برای openapi:breaking (مقایسه با master)
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: دیتابیس تست api-mid و api-high
+        run: mysql -h127.0.0.1 -uroot -proot -e "CREATE DATABASE schema_mid_test CHARACTER SET utf8mb4; CREATE USER 'isra_mid'@'%' IDENTIFIED BY 'isra_mid_dev'; GRANT ALL ON schema_mid_test.* TO 'isra_mid'@'%'; CREATE DATABASE schema_high_test CHARACTER SET utf8mb4; CREATE USER 'isra_high'@'%' IDENTIFIED BY 'isra_high_dev'; GRANT ALL ON schema_high_test.* TO 'isra_high'@'%';"
+      - run: pnpm install --frozen-lockfile
+      - name: lint + typecheck + test + build
+        run: pnpm turbo lint typecheck test build
+      - name: OpenAPI به‌روز است؟ (drift)
+        run: pnpm --filter @isra/api-types openapi:check
+      - name: تغییر ناسازگار نسبت به master؟
+        run: pnpm --filter @isra/api-types openapi:breaking -- origin/master
+      - name: audit وابستگی‌ها (high+)
+        run: pnpm audit --prod --audit-level high

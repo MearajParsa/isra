@@ -1,9 +1,16 @@
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
+import { Logger } from 'nestjs-pino';
+import { createApp } from './bootstrap';
+import { loadEnv } from './config/env';
 
-// پیشوند هدف: /c/v1 (با کارstream API فعال می‌شود)
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  await app.listen(process.env.PORT ?? 3001);
+async function main() {
+  const env = loadEnv();
+  const app = await createApp(env);
+  await app.listen(env.PORT, '0.0.0.0');
+  app.get(Logger).log(`api-low listening on :${env.PORT} (${env.NODE_ENV})`);
 }
-void bootstrap();
+
+main().catch((e: unknown) => {
+  // fail-fast: پیکربندی/DB نامعتبر ⇒ خروج با کد غیرصفر
+  console.error(e instanceof Error ? e.message : e);
+  process.exit(1);
+});

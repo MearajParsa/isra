@@ -3,26 +3,50 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "dev": "tsx watch src/main.ts",
-    "lint": "tsc --noEmit",
-    "typecheck": "tsc --noEmit",
-    "test": "echo \"no tests yet\""
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node --env-file-if-exists=.env.local dist/main.js",
+    "dev": "node --env-file-if-exists=.env.local --watch -r @swc-node/register src/main.ts",
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:cov": "vitest run --coverage",
+    "migration:run": "tsx --env-file-if-exists=.env.local node_modules/typeorm/cli.js migration:run -d src/db/data-source.cli.ts",
+    "migration:revert": "tsx --env-file-if-exists=.env.local node_modules/typeorm/cli.js migration:revert -d src/db/data-source.cli.ts",
+    "migration:show": "tsx --env-file-if-exists=.env.local node_modules/typeorm/cli.js migration:show -d src/db/data-source.cli.ts",
+    "users:replay": "tsx --env-file-if-exists=.env.local scripts/replay-user-events.ts"
   },
   "dependencies": {
+    "@isra/api-types": "workspace:*",
     "@nestjs/common": "^12.1.1",
     "@nestjs/core": "^12.1.1",
     "@nestjs/platform-express": "^12.1.1",
     "@nestjs/typeorm": "^12.0.2",
+    "@node-rs/argon2": "^2.2.1",
+    "cookie-parser": "^1.4.7",
+    "express": "^5.2.1",
+    "helmet": "^8.3.0",
+    "jose": "^6.2.12",
     "mysql2": "^3.24.4",
+    "nestjs-pino": "^5.2.1",
+    "pino": "^10.3.1",
+    "pino-http": "^11.0.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
-    "typeorm": "^1.1.1"
+    "typeorm": "^1.1.1",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@nestjs/schematics": "^12.0.6",
+    "@swc-node/register": "^1.12.1",
+    "@swc/core": "^1.16.13",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/express": "^5.0.6",
     "@types/node": "^26.6.3",
+    "@types/supertest": "^7.2.1",
+    "supertest": "^7.3.0",
     "tsx": "^4.23.15",
-    "typescript": "~5.8.3"
+    "typescript": "~5.8.3",
+    "unplugin-swc": "^2.0.0",
+    "vitest": "^5.0.2"
   }
 }
