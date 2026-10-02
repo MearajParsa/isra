@@ -4,7 +4,7 @@
 > کلیدهایی که قبلاً در چت/فایل متنی منتشر شده‌اند (Faraz، Neshan، JWT قدیمی، Map.ir، رمز دیتابیس) را **بچرخانید (rotate)**.
 
 ## الف) اجرای محلی
-پیش‌نیاز: Node 22+، pnpm، MySQL/MariaDB محلی.
+پیش‌نیاز: Node 22+، pnpm، MySQL 8 یا MariaDB (ترجیحاً ≥ 10.6). روی MariaDB قدیمی‌تر (مثلاً 10.4 در XAMPP) outbox خودکار به `FOR UPDATE` ساده برمی‌گردد و کار می‌کند؛ ولی نسخهٔ جدید توصیه می‌شود.
 1. سه دیتابیس بسازید: `schema_low`، `schema_mid`، `schema_high` (utf8mb4) و برای هرکدام یک کاربر جدا.
 2. `pnpm install` و `pnpm --filter @isra/api-types bundle`.
 3. در هر `services/api-*/` فایل `.env.example` را به `.env.local` کپی و پر کنید:

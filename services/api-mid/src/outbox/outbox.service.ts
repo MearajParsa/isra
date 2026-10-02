@@ -1,3 +1,4 @@
+import { lockClause } from '../db/lock-clause';
 import { Inject, Injectable, Logger, type OnApplicationBootstrap, type OnApplicationShutdown } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { Clock } from '../common/clock';
@@ -43,9 +44,10 @@ export class OutboxService implements OnApplicationBootstrap, OnApplicationShutd
     if (this.running) return 0;
     this.running = true;
     try {
+      const lock = await lockClause(this.ds);
       return await this.ds.transaction(async (m) => {
         const now = this.clock.now();
-        const rows = (await m.query('SELECT id, type, payload, created_at, attempts FROM outbox_events WHERE published_at IS NULL AND next_attempt_at <= ? ORDER BY created_at LIMIT ? FOR UPDATE SKIP LOCKED', [now, BATCH])) as {
+        const rows = (await m.query('SELECT id, type, payload, created_at, attempts FROM outbox_events WHERE published_at IS NULL AND next_attempt_at <= ? ORDER BY created_at LIMIT ? ' + lock, [now, BATCH])) as {
           id: Buffer;
           type: string;
           payload: unknown;
