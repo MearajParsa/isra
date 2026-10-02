@@ -4,6 +4,32 @@ import { getDeviceInfo } from '$lib/utils/device';
 
 export type AuthStatus = 'unknown' | 'guest' | 'member';
 
+/** نشانهٔ «احتمالاً نشست دارد» (refresh در cookie HttpOnly است): مهمان تازه‌وارد درخواست refresh بیهوده (و خطای ۴۰۱ در کنسول) نمی‌زند */
+const HINT_KEY = 'isra.admin.session';
+const hint = {
+  has: () => {
+    try {
+      return localStorage.getItem(HINT_KEY) === '1';
+    } catch {
+      return true;
+    }
+  },
+  set: () => {
+    try {
+      localStorage.setItem(HINT_KEY, '1');
+    } catch {
+      /* ignore */
+    }
+  },
+  clear: () => {
+    try {
+      localStorage.removeItem(HINT_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+};
+
 class AuthStore {
   status = $state<AuthStatus>('unknown');
   accessToken = $state<string | null>(null);
@@ -14,9 +40,13 @@ class AuthStore {
   #refreshing: Promise<void> | null = null;
   #init: Promise<void> | null = null;
 
-  /** بازیابی نشست از cookie refresh (در mock: شبیه‌سازی) */
+  /** بازیابی نشست از cookie refresh (`isra_rt_admin`) */
   init(): Promise<void> {
     this.#init ??= (async () => {
+      if (!hint.has()) {
+        this.status = 'guest';
+        return;
+      }
       try {
         const r = await api.auth.refresh();
         this.#setToken(r.accessToken, r.accessExpiresIn);
@@ -29,6 +59,7 @@ class AuthStore {
   }
 
   applyLogin(result: AuthResult) {
+    hint.set();
     this.#setToken(result.accessToken, result.accessExpiresIn);
     this.expiredNotice = false;
     this.status = 'member';
@@ -98,6 +129,7 @@ class AuthStore {
     if (this.#timer) clearTimeout(this.#timer);
     this.#timer = null;
     this.accessToken = null;
+    hint.clear();
     this.status = 'guest';
   }
 }

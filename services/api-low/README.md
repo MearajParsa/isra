@@ -45,12 +45,12 @@ Request → requestContext(X-Request-Id) → helmet/CORS/cookie/json(16kb)
 ## قرارداد internal (مصرف‌کنندهٔ api-mid/high باید رعایت کند)
 | جهت | مسیر | توضیح |
 |-----|------|-------|
-| low → mid | `GET {INTERNAL_URL_MID}/internal/v1/public/sessions?page&pageSize&status` | envelope `{success,data:PublicSession[],meta:{page,pageSize,total}}` |
+| low → mid | `GET {INTERNAL_URL_MID}/internal/v1/public/sessions?page&pageSize&status` (`INTERNAL_URL_MID` شامل پیشوند سرویس است: `…/o`) | envelope `{success,data:PublicSession[],meta:{page,pageSize,total}}` |
 | low → mid | `GET …/internal/v1/public/sessions/{id}` | 404 ⇒ NOT_FOUND |
 | low → mid | `GET …/internal/v1/users/{id}/points` | `{success,data:PointsSummary}` |
-| mid/high → low | `POST /internal/v1/events` `{eventId,type,occurredAt,payload}` | 202؛ dedupe با eventId. انواع: `inbox.message.created`، `system.role.changed` |
+| mid/high → low | `POST /c/internal/v1/events` `{eventId,type,occurredAt,payload}` | 202؛ dedupe با eventId. انواع: `inbox.message.created`، `system.role.changed` |
 | low → mid/high | `POST {url}/internal/v1/events` | `user.registered`، `user.profile.updated` (outbox) |
-هدر: `X-Internal-Token: <INTERNAL_SHARED_SECRET>`. این مسیرها باید فقط روی شبکهٔ خصوصی در دسترس باشند (از reverse-proxy عمومی export نشوند).
+هدر: `X-Internal-Token: <INTERNAL_SHARED_SECRET>`. مسیرهای internal زیر پیشوند هر سرویس (`/c`، `/o`، `/s`) هستند تا روی هاست‌های بدون شبکهٔ خصوصی (cPanel/Passenger) هم کار کنند؛ در این حالت روی دامنهٔ عمومی هم در دسترس‌اند و فقط secret قوی (≥۳۲ نویسه) + محدودیت ۱۰ تلاش ناموفق/دقیقه per IP + (اختیاری) `INTERNAL_ALLOWED_IPS` از آن‌ها محافظت می‌کند. روی nginx/VPS بهتر است `/*/internal/` از اینترنت بسته شود.
 
 ## محدودیت‌ها / بدهی‌های شناخته‌شده
 - Faraz طبق مستندات رسمی (`/ws/v1/sms/pattern`) پیاده شد؛ روی حساب واقعی هنوز تست نشده (تست‌ها با mock). `success` فقط یعنی «در صف»؛ تحویل واقعی با `GET /ws/v1/send_request/{id}/items`.

@@ -1,7 +1,4 @@
-/**
- * نوع‌های قرارداد پیش‌نویس mid (docs-v2/18-api-mid-web-main-draft.md).
- * ⚠ قفل مشروط؛ پس از آماده‌شدن api-mid به packages/api-types منتقل می‌شود.
- */
+/** نوع‌های کلاینت برای api-mid (قرارداد: packages/api-types؛ docs-v2/18) */
 import type { Page, PublicSession, SessionSchedule } from './types';
 
 export type SessionRole = 'session_manager' | 'session_supporter' | 'teacher' | 'quran_student';
@@ -38,6 +35,8 @@ export interface SessionMe {
   permissions: Permission[];
   /** حضور من در این جلسه (یا null) */
   myAttendance: { enteredAt: string } | null;
+  /** وزن‌های فعلی ارزیابی (از high) برای پیش‌نمایش امتیاز */
+  evalWeights: EvaluationWeights;
 }
 
 export interface SessionInput {
@@ -165,10 +164,12 @@ export interface MidApi {
   evaluations: {
     submit(t: string, sessionId: string, input: EvaluationInput): Promise<Evaluation>;
     list(t: string, sessionId: string): Promise<Page<Evaluation>>;
-    weights(): EvaluationWeights;
   };
   live: {
-    /** اتصال Socket.IO (mock: BroadcastChannel)؛ handler فقط سیگنال می‌گیرد */
-    subscribe(t: string, sessionId: string, handler: (e: LiveEvent) => void): Unsubscribe;
+    /**
+     * اتصال Socket.IO با تمدید خودکار توکن و reconnect؛ رویداد فقط «سیگنال» است و داده با REST گرفته می‌شود.
+     * پس از هر (باز)اتصال، رویدادهای `payload.resync` برای دریافت دوبارهٔ همهٔ داده‌ها می‌آید.
+     */
+    subscribe(o: { getToken: () => string | null; sessionId: string; onEvent: (e: LiveEvent) => void; onStatus: (connected: boolean) => void }): Unsubscribe;
   };
 }

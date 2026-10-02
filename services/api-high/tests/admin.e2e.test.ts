@@ -313,7 +313,7 @@ describe('اولین developer (bootstrap)', () => {
     const t2 = await startApp({ BOOTSTRAP_DEVELOPER_PHONE: '09125550000' });
     try {
       const send = (uid: string, phone: string, eventId = randomUUID()) =>
-        request(t2.http).post('/internal/v1/events').set('X-Internal-Token', 'test-internal-secret-test-internal-1234').send({ eventId, type: 'user.registered', occurredAt: new Date().toISOString(), payload: { userId: uid, phone, firstName: 'بنیان', lastName: 'گذار' } });
+        request(t2.http).post('/s/internal/v1/events').set('X-Internal-Token', 'test-internal-secret-test-internal-1234').send({ eventId, type: 'user.registered', occurredAt: new Date().toISOString(), payload: { userId: uid, phone, firstName: 'بنیان', lastName: 'گذار' } });
       const other = randomUUID();
       await send(other, '09125551111').expect(202);
       expect(await outboxTypes(t2)).toHaveLength(0);

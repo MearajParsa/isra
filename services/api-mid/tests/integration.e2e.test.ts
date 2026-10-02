@@ -20,11 +20,11 @@ afterAll(async () => t.close());
 
 const ev = (type: string, payload: object, eventId = randomUUID()) => ({ eventId, type, occurredAt: new Date().toISOString(), payload });
 const send = (body: object, token: string | null = SECRET) => {
-  const r = request(t.http).post('/internal/v1/events');
+  const r = request(t.http).post('/o/internal/v1/events');
   return (token ? r.set('X-Internal-Token', token) : r).send(body);
 };
 const internalGet = (path: string, token: string | null = SECRET) => {
-  const r = request(t.http).get(`/internal/v1${path}`);
+  const r = request(t.http).get(`/o/internal/v1${path}`);
   return token ? r.set('X-Internal-Token', token) : r;
 };
 

@@ -6,7 +6,6 @@
   import { auth } from '$lib/auth/auth.svelte';
   import { net } from '$lib/stores/net.svelte';
   import { pwa } from '$lib/stores/pwa.svelte';
-  import { markReady } from '$lib/api/mock/control';
   import TopBar from '$lib/components/layout/TopBar.svelte';
   import BottomNav from '$lib/components/layout/BottomNav.svelte';
   import OfflineBanner from '$lib/components/layout/OfflineBanner.svelte';
@@ -22,7 +21,6 @@
   const isAuthRoute = $derived(page.url.pathname.startsWith('/auth'));
 
   onMount(() => {
-    markReady();
     const stops = [net.start(), pwa.start()];
     if ('serviceWorker' in navigator) {
       // نسخهٔ جدید service worker فعال شد (اعلان Q12)

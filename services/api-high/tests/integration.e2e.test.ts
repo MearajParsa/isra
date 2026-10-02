@@ -18,7 +18,7 @@ afterAll(async () => t.close());
 beforeEach(async () => resetDb(t.ds));
 
 const send = (body: object, token: string | null = SECRET) => {
-  const r = request(t.http).post('/internal/v1/events');
+  const r = request(t.http).post('/s/internal/v1/events');
   return (token ? r.set('X-Internal-Token', token) : r).send(body);
 };
 const ev = (type: string, payload: object, eventId = randomUUID()) => ({ eventId, type, occurredAt: new Date().toISOString(), payload });

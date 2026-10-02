@@ -35,7 +35,7 @@ beforeEach(() => {
 
 const event = (type: string, payload: Record<string, unknown>, eventId = randomUUID()) => ({ eventId, type, occurredAt: new Date().toISOString(), payload });
 const send = (body: unknown, token: string | null = SECRET) => {
-  const r = request(t.http).post('/internal/v1/events');
+  const r = request(t.http).post('/c/internal/v1/events');
   return (token ? r.set('X-Internal-Token', token) : r).send(body as object);
 };
 

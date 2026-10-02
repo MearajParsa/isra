@@ -35,6 +35,8 @@ const numFmt = new Intl.NumberFormat('fa-IR');
 export const WEEKDAYS = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه'] as const;
 
 export const formatNumber = (n: number) => numFmt.format(n);
+/** ارقام فارسی بدون جداکنندهٔ هزارگان (سال، ساعت) */
+export const formatPlain = (n: number) => new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(n);
 export const formatDate = (iso: string) => dateFmt.format(new Date(iso));
 export const formatDateTime = (iso: string) => dateTimeFmt.format(new Date(iso));
 export const formatShortDate = (iso: string) => shortDateFmt.format(new Date(iso));

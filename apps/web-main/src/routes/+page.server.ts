@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import { api } from '$lib/api';
 import { errorMessage } from '$lib/utils/errors';
 

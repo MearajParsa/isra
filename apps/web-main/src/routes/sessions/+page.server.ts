@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import { api } from '$lib/api';
 import type { SessionStatus } from '$lib/api/types';
 import { errorMessage } from '$lib/utils/errors';

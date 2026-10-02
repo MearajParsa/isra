@@ -23,13 +23,16 @@ export const MySessionItem = named(
   })
 );
 
+const EvalWeightsView = z.object({ voice: z.number().int().min(0).max(100), tone: z.number().int().min(0).max(100), tajweed: z.number().int().min(0).max(100) });
+
 export const SessionMe = named(
   'SessionMe',
   z.object({
     session: MidSession,
     membership: z.object({ status: MembershipStatus, roles: z.array(SessionRole).max(4) }).nullable(),
     permissions: z.array(Permission),
-    myAttendance: z.object({ enteredAt: IsoDateTime }).nullable()
+    myAttendance: z.object({ enteredAt: IsoDateTime }).nullable(),
+    evalWeights: EvalWeightsView.meta({ description: 'وزن‌های فعلی ارزیابی (از high) برای پیش‌نمایش امتیاز در فرم؛ مقدار ذخیره‌شده روی هر ارزیابی وزن لحظهٔ ثبت است' })
   })
 );
 

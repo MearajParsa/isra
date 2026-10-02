@@ -1,14 +1,10 @@
-import { mockApi } from './mock/mockApi';
-import { midMockApi } from './mock/midMock';
-import type { MidApi } from './mid-types';
-import type { LowApi } from './types';
+import { CLIENT_ID, CLIENT_VERSION, LOW_URL, MID_URL } from './config';
+import { createHttp } from './http';
+import { createLowApi } from './lowClient';
+import { createMidApi } from './midClient';
 
-/**
- * نقطهٔ تعویض: تا قفل قرارداد و آماده‌شدن سرور low، mock فعال است.
- * بعداً اینجا پیاده‌سازی fetch (base `/c/v1`) جایگزین می‌شود.
- */
-export const api: LowApi = mockApi;
-/** mid (`/o/v1`) — mock تا آماده‌شدن api-mid */
-export const midApi: MidApi = midMockApi;
+/** کلاینت‌های واقعی api-low (`/c/v1`) و api-mid (`/o/v1`)؛ بدون mock/seed */
+export const api = createLowApi(createHttp({ base: LOW_URL, client: CLIENT_ID, version: CLIENT_VERSION }));
+export const midApi = createMidApi(createHttp({ base: MID_URL, client: CLIENT_ID, version: CLIENT_VERSION }), { baseUrl: MID_URL });
 export * from './types';
 export * from './mid-types';

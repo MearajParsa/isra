@@ -2,6 +2,8 @@
   import type { SessionSchedule } from '$lib/api/types';
   import { WEEKDAYS, fromTehranInput, scheduleLabel, toTehranDateInput, toTehranInput } from '$lib/utils/format';
   import TextField from '$lib/components/ui/TextField.svelte';
+  import TimeField from '$lib/components/ui/TimeField.svelte';
+  import JalaliDateField from '$lib/components/ui/JalaliDateField.svelte';
 
   interface Props {
     schedule: SessionSchedule;
@@ -24,6 +26,14 @@
     if (k === 'once') onchange({ type: 'once', startsAt: iso(7, 18), endsAt: iso(7, 19) });
     else if (k === 'recurring') onchange({ type: 'recurring', weekdays: [4], timeOfDay: '18:00', durationMin: 60 });
     else onchange({ type: 'range', rangeFrom: iso(7, 0), rangeTo: iso(60, 0), weekdays: [4], timeOfDay: '18:00', durationMin: 60 });
+  }
+
+  /** تغییر شروع: مدت قبلی حفظ می‌شود تا «پایان» هرگز قبل از «شروع» نماند (حداقل ۱۵ دقیقه) */
+  function changeStart(startsAt: string) {
+    if (schedule.type !== 'once' || !startsAt) return;
+    const oldDur = Date.parse(schedule.endsAt) - Date.parse(schedule.startsAt);
+    const dur = Number.isFinite(oldDur) && oldDur >= 15 * 60_000 ? oldDur : 60 * 60_000;
+    onchange({ ...schedule, startsAt, endsAt: new Date(Date.parse(startsAt) + dur).toISOString() });
   }
 
   function toggleDay(d: number) {
@@ -61,22 +71,8 @@
 
   {#if schedule.type === 'once'}
     <div class="grid">
-      <TextField
-        label="شروع"
-        type="datetime-local"
-        ltr
-        value={toTehranInput(schedule.startsAt)}
-        error={errors.startsAt}
-        oninput={(e) => onchange({ ...schedule, startsAt: fromTehranInput((e.currentTarget as HTMLInputElement).value) })}
-      />
-      <TextField
-        label="پایان"
-        type="datetime-local"
-        ltr
-        value={toTehranInput(schedule.endsAt)}
-        error={errors.endsAt}
-        oninput={(e) => onchange({ ...schedule, endsAt: fromTehranInput((e.currentTarget as HTMLInputElement).value) })}
-      />
+      <JalaliDateField label="شروع" withTime value={toTehranInput(schedule.startsAt)} error={errors.startsAt} {disabled} onchange={(v) => changeStart(fromTehranInput(v))} />
+      <JalaliDateField label="پایان" withTime value={toTehranInput(schedule.endsAt)} error={errors.endsAt} {disabled} onchange={(v) => onchange({ ...schedule, endsAt: fromTehranInput(v) })} />
     </div>
   {:else}
     <div class="days">
@@ -91,14 +87,11 @@
       {#if errors.weekdays}<p class="err" role="alert">{errors.weekdays}</p>{/if}
     </div>
     <div class="grid">
-      <TextField
-        label="ساعت شروع"
-        type="time"
-        ltr
-        value={schedule.timeOfDay}
-        error={errors.timeOfDay}
-        oninput={(e) => onchange({ ...schedule, timeOfDay: (e.currentTarget as HTMLInputElement).value })}
-      />
+      <div class="tf">
+        <span class="lbl">ساعت شروع</span>
+        <TimeField label="ساعت شروع" value={schedule.timeOfDay} {disabled} onchange={(v) => onchange({ ...schedule, timeOfDay: v })} />
+        {#if errors.timeOfDay}<p class="err" role="alert">{errors.timeOfDay}</p>{/if}
+      </div>
       <TextField
         label="مدت (دقیقه)"
         type="number"
@@ -111,22 +104,8 @@
     </div>
     {#if schedule.type === 'range'}
       <div class="grid">
-        <TextField
-          label="از تاریخ"
-          type="date"
-          ltr
-          value={toTehranDateInput(schedule.rangeFrom)}
-          error={errors.rangeFrom}
-          oninput={(e) => onchange({ ...schedule, rangeFrom: fromTehranInput((e.currentTarget as HTMLInputElement).value) })}
-        />
-        <TextField
-          label="تا تاریخ"
-          type="date"
-          ltr
-          value={toTehranDateInput(schedule.rangeTo)}
-          error={errors.rangeTo}
-          oninput={(e) => onchange({ ...schedule, rangeTo: fromTehranInput((e.currentTarget as HTMLInputElement).value) })}
-        />
+        <JalaliDateField label="از تاریخ" value={toTehranDateInput(schedule.rangeFrom)} error={errors.rangeFrom} {disabled} onchange={(v) => onchange({ ...schedule, rangeFrom: fromTehranInput(v) })} />
+        <JalaliDateField label="تا تاریخ" value={toTehranDateInput(schedule.rangeTo)} error={errors.rangeTo} {disabled} onchange={(v) => onchange({ ...schedule, rangeTo: fromTehranInput(v) })} />
       </div>
     {/if}
   {/if}
@@ -171,6 +150,10 @@
     background: var(--color-card);
     color: var(--color-primary);
     box-shadow: var(--elev-1);
+  }
+  .tf {
+    display: grid;
+    gap: 6px;
   }
   .grid {
     display: grid;

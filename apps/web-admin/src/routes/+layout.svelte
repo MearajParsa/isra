@@ -4,7 +4,6 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page, navigating } from '$app/state';
-  import { markReady } from '$lib/api/mock/control';
   import { auth } from '$lib/auth/auth.svelte';
   import { system } from '$lib/auth/system.svelte';
   import { net } from '$lib/stores/net.svelte';
@@ -25,7 +24,6 @@
   const isLogin = $derived((page.url.pathname as string) === '/login');
 
   onMount(() => {
-    markReady();
     const stops = [net.start(), pwa.start()];
     if ('serviceWorker' in navigator) {
       const had = Boolean(navigator.serviceWorker.controller);

@@ -23,7 +23,7 @@ const ListQuery = z.object({
  * قرارداد internal (مصرف‌کننده: api-low؛ ارسال‌کننده: low/high). فقط شبکهٔ خصوصی + `X-Internal-Token`.
  * خارج از OpenAPI عمومی (docs-v2/22 API9).
  */
-@Controller('internal/v1')
+@Controller('o/internal/v1')
 @UseGuards(InternalGuard)
 export class InternalController {
   constructor(

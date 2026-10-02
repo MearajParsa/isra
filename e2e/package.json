@@ -1,0 +1,13 @@
+{
+  "name": "@isra/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "تست سرتاسری روی پشتهٔ واقعی (api-low/mid/high + web-main + web-admin)؛ بدون mock",
+  "scripts": {
+    "journey": "node journey.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "1.56.1"
+  }
+}

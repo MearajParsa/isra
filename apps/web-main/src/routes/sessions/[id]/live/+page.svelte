@@ -25,7 +25,6 @@
   import EvaluationResult from '$lib/components/features/EvaluationResult.svelte';
 
   const id = $derived(page.params.id as string);
-  const weights = midApi.evaluations.weights();
 
   const me = new Resource<SessionMe>();
   const queue = new Resource<QueueState>();
@@ -38,6 +37,7 @@
   let evalTarget = $state<string | null>(null);
   let evalErrors = $state<Record<string, string>>({});
 
+  const weights = $derived(me.data?.evalWeights ?? { voice: 40, tone: 30, tajweed: 30 });
   const approved = $derived(me.data?.membership?.status === 'approved');
   const perms = $derived(me.data?.permissions ?? []);
   const roles = $derived(me.data?.membership?.roles ?? []);
@@ -87,22 +87,16 @@
         break;
       case 'session.state':
         void loadMe(true);
-        toasts.info('وضعیت جلسه تغییر کرد.');
+        if (!e.payload?.resync) toasts.info('وضعیت جلسه تغییر کرد.');
         break;
     }
   }
 
-  // اتصال زنده (Socket.IO؛ در mock BroadcastChannel)
+  // اتصال زنده (Socket.IO روی api-mid): توکن تازه از auth خوانده می‌شود؛ قطع/انقضا ⇒ reconnect خودکار
   $effect(() => {
-    const token = auth.accessToken;
     const sessionId = id;
-    if (!token || !approved) return;
-    const off = midApi.live.subscribe(token, sessionId, onLive);
-    connected = true;
-    return () => {
-      off();
-      connected = false;
-    };
+    if (!approved) return;
+    return midApi.live.subscribe({ getToken: () => auth.accessToken, sessionId, onEvent: onLive, onStatus: (c) => (connected = c) });
   });
 
   async function run(key: string, fn: () => Promise<void>) {

@@ -7,6 +7,7 @@ import { Clock } from '../common/clock';
 import { bufToUuid, uuidToBuf, uuidv7 } from '../common/ids';
 import { LiveService } from '../live/live.service';
 import { MembersAccess, type SessionRow, sortRoles } from './access.service';
+import { SettingsService } from './settings.service';
 import { conflict, parseJson, type Q } from './db';
 import { canTransition, isStaffRole, permissionsFor, type SessionRole, type SessionState } from './rules';
 import { type Schedule, nextStartMs, nextStartsAt, toTehranIso } from './schedule';
@@ -29,7 +30,8 @@ export class SessionsService {
     private readonly ds: DataSource,
     private readonly clock: Clock,
     private readonly access: MembersAccess,
-    private readonly live: LiveService
+    private readonly live: LiveService,
+    private readonly settings: SettingsService
   ) {}
 
   toDto(r: SessionRow): SessionDto {
@@ -108,7 +110,8 @@ export class SessionsService {
       session: this.toDto(session),
       membership: membership ? { status: membership.status, roles: membership.roles } : null,
       permissions,
-      myAttendance: att[0] ? { enteredAt: att[0].entered_at.toISOString() } : null
+      myAttendance: att[0] ? { enteredAt: att[0].entered_at.toISOString() } : null,
+      evalWeights: { ...(await this.settings.get()).weights }
     };
   }
 

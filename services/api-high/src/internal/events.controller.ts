@@ -11,7 +11,7 @@ const InternalEvent = z.object({
 });
 
 /** قرارداد internal: فقط شبکهٔ خصوصی + `X-Internal-Token` (خارج از OpenAPI عمومی) */
-@Controller('internal/v1')
+@Controller('s/internal/v1')
 @UseGuards(InternalGuard)
 export class EventsController {
   constructor(private readonly events: EventsService) {}

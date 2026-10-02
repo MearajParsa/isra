@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import { error } from '@sveltejs/kit';
 import { api } from '$lib/api';
 import { ApiError } from '$lib/api/types';

@@ -14,6 +14,9 @@
     <nav aria-label="پیوندهای پایین صفحه">
       <a href="/">صفحهٔ اول</a>
       <a href="/sessions">جلسات</a>
+      <a href="/about">دربارهٔ اسراء</a>
+      <a href="/privacy">حریم خصوصی</a>
+      <a href="/terms">شرایط استفاده</a>
       <a href="/auth/phone">ورود / ثبت‌نام</a>
     </nav>
   </div>

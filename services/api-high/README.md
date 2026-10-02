@@ -33,10 +33,10 @@ pnpm --filter @isra/api-high test       # ۵۲ تست؛ نیاز به MySQL (TES
 ## قرارداد internal
 | جهت | مسیر |
 |-----|------|
-| low → high | `POST /internal/v1/events` (`user.registered` با phone/نام، `user.profile.updated`) |
+| low → high | `POST /s/internal/v1/events` (`user.registered` با phone/نام، `user.profile.updated`) |
 | high → low | `system.role.changed`، `system.settings.changed`، `system.permission.changed` |
 | high → mid | `system.settings.changed`، (و `system.role.changed`/`permission.changed` که mid نادیده می‌گیرد) |
-| high → mid | `GET /internal/v1/stats/sessions` (نمای کلی؛ cache ۱۵s + stale-if-error؛ mid خراب و cache خالی ⇒ 503) |
+| high → mid | `GET {INTERNAL_URL_MID}/internal/v1/stats/sessions` (`…/o`) (نمای کلی؛ cache ۱۵s + stale-if-error؛ mid خراب و cache خالی ⇒ 503) |
 هدر `X-Internal-Token`؛ فقط شبکهٔ خصوصی.
 
 ## محدودیت‌ها / بدهی

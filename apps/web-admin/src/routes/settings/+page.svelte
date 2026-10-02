@@ -7,7 +7,7 @@
   import { formatDateTime, formatNumber } from '$lib/utils/format';
   import { Resource } from '$lib/utils/resource.svelte';
   import { withStepUp } from '$lib/utils/stepup';
-  import { previewScore, validateSettings } from '$lib/api/mock/highRules';
+  import { previewScore, validateSettings } from '$lib/utils/settingsRules';
   import PageHeader from '$lib/components/ui/PageHeader.svelte';
   import TextField from '$lib/components/ui/TextField.svelte';
   import Button from '$lib/components/ui/Button.svelte';

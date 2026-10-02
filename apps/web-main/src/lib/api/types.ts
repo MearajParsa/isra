@@ -1,7 +1,4 @@
-/**
- * نوع‌های قرارداد پیش‌نویس low (docs-v2/15-api-low-web-main-draft.md).
- * ⚠ پیش‌نویس و قفل‌نشده؛ پس از قفل مالک به packages/api-types منتقل می‌شود.
- */
+/** نوع‌های کلاینت برای api-low (قرارداد: packages/api-types؛ docs-v2/15) */
 
 export type ApiErrorCode =
   | 'AUTH_REQUIRED'
@@ -9,6 +6,7 @@ export type ApiErrorCode =
   | 'AUTH_TOKEN_INVALID'
   | 'AUTH_STEP_UP_REQUIRED'
   | 'AUTH_FORBIDDEN'
+  | 'AUTH_PERM_STALE'
   | 'AUTH_OTP_INVALID'
   | 'AUTH_OTP_EXPIRED'
   | 'AUTH_OTP_EXHAUSTED'
@@ -20,6 +18,8 @@ export type ApiErrorCode =
   | 'NOT_FOUND'
   | 'CONFLICT'
   | 'SESSION_INVALID_TRANSITION'
+  | 'PAYLOAD_TOO_LARGE'
+  | 'UNSUPPORTED_MEDIA_TYPE'
   | 'INTERNAL_ERROR'
   | 'SERVICE_UNAVAILABLE'
   /** فقط سمت کلاینت: قطع شبکه */
@@ -133,7 +133,6 @@ export interface InboxQuery {
   unreadOnly?: boolean;
 }
 
-/** فقط mock: شکل نهایی /me/points در کارstream mid قفل می‌شود */
 export type BadgeKey = 'badge_50' | 'badge_150' | 'badge_300' | 'badge_500';
 export interface PointsSummary {
   total: number;

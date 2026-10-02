@@ -11,7 +11,7 @@ export const InternalEvent = z.object({
   payload: z.record(z.string(), z.unknown())
 });
 
-@Controller('internal/v1')
+@Controller('c/internal/v1')
 @UseGuards(InternalGuard)
 export class EventsController {
   constructor(private readonly events: EventsService) {}

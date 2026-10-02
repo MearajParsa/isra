@@ -31,6 +31,7 @@ export const EnvSchema = z
 
     INTERNAL_SHARED_SECRET: z.string().min(32),
     INTERNAL_URL_LOW: z.url().optional(),
+    INTERNAL_ALLOWED_IPS: csv.default([]).describe('اختیاری: فقط این IPها به مسیرهای internal دسترسی دارند'),
     INTERNAL_TIMEOUT_MS: z.coerce.number().int().min(100).max(10_000).default(2000),
     OUTBOX_POLL_MS: z.coerce.number().int().min(100).default(2000),
     OUTBOX_ENABLED: bool.default(true),

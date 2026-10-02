@@ -28,3 +28,6 @@ Thumbs.db
 
 # build cache
 *.tsbuildinfo
+
+# بستهٔ استقرار تولیدشده
+deploy/

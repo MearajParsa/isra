@@ -2,6 +2,10 @@
 
 فرمت: [Keep a Changelog](https://keepachangelog.com/fa/1.1.0/)؛ نسخه‌گذاری: [SemVer](https://semver.org/lang/fa/) روی قرارداد (جزئیات: `docs-v2/22-api-engineering-standards.md` §۵).
 
+## [1.2.0] — ۱۴۰۵/۰۷/۱۲
+### افزوده شد (سازگار)
+- `SessionMe.evalWeights` (M-02): وزن‌های فعلی ارزیابی برای پیش‌نمایش امتیاز در فرم.
+
 ## [1.1.0] — ۱۴۰۵/۰۷/۱۱
 ### تغییر (سازگار)
 - `StepUpResult.stepUpToken`: حداکثر طول ۵۱۲ → ۱۰۲۴ (توکن step-up اکنون JWT امضاشده است تا api-high بدون hop به low آن را محلی تأیید کند). کلاینت‌ها توکن را opaque می‌دانند ⇒ بدون اثر.

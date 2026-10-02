@@ -4,6 +4,32 @@ import { getDeviceInfo } from '$lib/utils/device';
 
 export type AuthStatus = 'unknown' | 'guest' | 'member';
 
+/** نشانهٔ «احتمالاً نشست دارد» (refresh در cookie HttpOnly است و قابل تشخیص نیست): مهمان تازه‌وارد درخواست refresh بیهوده نمی‌زند */
+const HINT_KEY = 'isra.session';
+const hint = {
+  has: () => {
+    try {
+      return localStorage.getItem(HINT_KEY) === '1';
+    } catch {
+      return true; // storage در دسترس نیست ⇒ محتاطانه امتحان کن
+    }
+  },
+  set: () => {
+    try {
+      localStorage.setItem(HINT_KEY, '1');
+    } catch {
+      /* ignore */
+    }
+  },
+  clear: () => {
+    try {
+      localStorage.removeItem(HINT_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+};
+
 const FRESH_OTP_MS = 5 * 60_000;
 
 class AuthStore {
@@ -29,13 +55,17 @@ class AuthStore {
     return this.lastOtpAt !== null && Date.now() - this.lastOtpAt < FRESH_OTP_MS;
   }
 
-  /** بازیابی نشست از cookie refresh (در mock: شبیه‌سازی) */
+  /** بازیابی نشست از cookie refresh */
   init(): Promise<void> {
     this.#initPromise ??= this.#init();
     return this.#initPromise;
   }
 
   async #init() {
+    if (!hint.has()) {
+      this.status = 'guest';
+      return;
+    }
     try {
       const r = await api.auth.refresh();
       this.#setToken(r.accessToken, r.accessExpiresIn);
@@ -54,6 +84,7 @@ class AuthStore {
     this.#setToken(result.accessToken, result.accessExpiresIn);
     this.expiredNotice = false;
     if (viaOtp) this.lastOtpAt = Date.now();
+    hint.set();
     this.me = await api.me.get(result.accessToken);
     this.status = 'member';
     void this.refreshUnread();
@@ -153,6 +184,7 @@ class AuthStore {
     this.me = null;
     this.unread = 0;
     this.lastOtpAt = null;
+    hint.clear();
     this.status = 'guest';
   }
 }
