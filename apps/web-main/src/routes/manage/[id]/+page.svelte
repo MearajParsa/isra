@@ -160,6 +160,9 @@
           <ScheduleInfo schedule={session.schedule} />
           {#if session.nextStartsAt}<p class="small"><Icon name="calendar" size={16} /> شروع بعدی: <strong>{formatDateTime(session.nextStartsAt)}</strong></p>{/if}
           <p class="small"><Icon name="pin" size={16} /> {session.location.label}</p>
+          {#if session.location.routeUrl}
+          <Button href={session.location.routeUrl} external variant="secondary" size="sm"><Icon name="route" size={16} />مسیریابی</Button>
+        {/if}
           <div class="btns">
             {#if can('session.edit')}
               {#if session.status === 'draft' || session.status === 'scheduled'}

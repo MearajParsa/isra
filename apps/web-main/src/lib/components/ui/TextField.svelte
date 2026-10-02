@@ -7,7 +7,7 @@
     value?: string;
     id?: string;
     name?: string;
-    type?: 'text' | 'tel' | 'password' | 'datetime-local' | 'date' | 'time' | 'number';
+    type?: 'text' | 'url' | 'tel' | 'password' | 'datetime-local' | 'date' | 'time' | 'number';
     inputmode?: 'text' | 'numeric' | 'tel';
     autocomplete?: AutoFill;
     placeholder?: string;

@@ -43,7 +43,7 @@ export interface SessionInput {
   title: string;
   description: string;
   schedule: SessionSchedule;
-  location: { label: string };
+  location: { label: string; routeUrl?: string | null };
 }
 
 export interface Member {

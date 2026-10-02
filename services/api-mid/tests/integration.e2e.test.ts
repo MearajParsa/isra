@@ -249,7 +249,8 @@ describe('migration', () => {
       await ds.runMigrations();
       expect(await tables()).toBe(15);
       for (const [tb, ix] of [['attendance_entries', 'uq_attendance_session_user'], ['evaluations', 'uq_eval_queue_item'], ['point_ledger', 'uq_ledger_reason_ref'], ['badge_awards', 'uq_badge_user_key'], ['session_members', 'uq_member_session_user'], ['queue_items', 'uq_queue_active']] as const) expect(await unique(tb, ix), ix).toBe(true);
-      await ds.undoLastMigration();
+      await ds.undoLastMigration(); // SessionRouteUrl
+      await ds.undoLastMigration(); // InitSchema
       expect(await tables()).toBe(0);
       await ds.runMigrations();
       expect(await tables()).toBe(15);

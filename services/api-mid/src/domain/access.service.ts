@@ -12,6 +12,7 @@ export interface SessionRow {
   status: SessionState;
   schedule: unknown;
   location_label: string;
+  location_route_url: string | null;
   created_by: string;
   created_at: Date;
   next_starts_at: Date | null;
@@ -33,7 +34,7 @@ export class MembersAccess {
 
   async session(q: Q, sessionId: string, lock = false): Promise<SessionRow | null> {
     if (!isUuid(sessionId)) return null;
-    const rows = (await q.query(`SELECT id, title, description, status, schedule, location_label, created_by, created_at, next_starts_at FROM sessions WHERE id = ?${lock ? ' FOR UPDATE' : ''}`, [uuidToBuf(sessionId)])) as (Omit<SessionRow, 'id' | 'created_by'> & { id: Buffer; created_by: Buffer })[];
+    const rows = (await q.query(`SELECT id, title, description, status, schedule, location_label, location_route_url, created_by, created_at, next_starts_at FROM sessions WHERE id = ?${lock ? ' FOR UPDATE' : ''}`, [uuidToBuf(sessionId)])) as (Omit<SessionRow, 'id' | 'created_by'> & { id: Buffer; created_by: Buffer })[];
     const r = rows[0];
     return r ? { ...r, id: bufToUuid(r.id), created_by: bufToUuid(r.created_by) } : null;
   }

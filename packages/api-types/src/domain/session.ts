@@ -21,7 +21,13 @@ export const SessionSchedule = named(
   'زمان‌بندی انعطاف‌پذیر (Asia/Tehran؛ هفته شنبه–جمعه)'
 );
 
-export const SessionLocation = z.object({ label: z.string().trim().min(2).max(120) }).strict();
+/** آدرس متنی + (اختیاری) لینک مسیریابی که سازندهٔ جلسه می‌گذارد (نشان/بلد/گوگل‌مپ …؛ فقط https). */
+export const SessionLocation = z
+  .object({
+    label: z.string().trim().min(2).max(120),
+    routeUrl: z.url({ protocol: /^https$/, error: 'لینک مسیریابی باید با https شروع شود.' }).max(500).nullable().optional()
+  })
+  .strict();
 
 const sessionBase = {
   id: Id,

@@ -28,6 +28,19 @@ describe('جلسه: ساخت، دیده‌شدن و چرخهٔ حیات', () => 
     expect(me.body.data.permissions).not.toContain('eval.submit');
   });
 
+  it('لینک مسیریابی اختیاری: فقط https، ذخیره و قابل ویرایش/حذف', async () => {
+    const m = await creator(t);
+    expect((await a.post('/sessions', m, { ...sessionBody(), location: { label: 'مسجد', routeUrl: 'javascript:alert(1)' } })).status).toBe(400);
+    expect((await a.post('/sessions', m, { ...sessionBody(), location: { label: 'مسجد', routeUrl: 'http://nshn.ir/x' } })).status).toBe(400);
+    const r = await a.post('/sessions', m, { ...sessionBody(), location: { label: 'مسجد', routeUrl: 'https://nshn.ir/abc' } });
+    expect(r.status).toBe(200);
+    expect(r.body.data.location).toEqual({ label: 'مسجد', routeUrl: 'https://nshn.ir/abc' });
+    const id = r.body.data.id;
+    const cleared = await a.patch(`/sessions/${id}`, m, { ...sessionBody(), location: { label: 'مسجد', routeUrl: null } });
+    expect(cleared.body.data.location.routeUrl).toBeNull();
+    expect((await a.post('/sessions', m, sessionBody())).body.data.location.routeUrl).toBeNull();
+  });
+
   it('اعتبارسنجی بدنه: عنوان کوتاه، پایان قبل از شروع، فیلد اضافه', async () => {
     const m = await creator(t);
     expect((await a.post('/sessions', m, sessionBody({ title: 'ab' }))).status).toBe(400);

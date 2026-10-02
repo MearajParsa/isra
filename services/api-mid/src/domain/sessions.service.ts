@@ -20,7 +20,7 @@ export interface SessionDto {
   description: string;
   schedule: Schedule;
   nextStartsAt: string | null;
-  location: { label: string };
+  location: { label: string; routeUrl: string | null };
   status: SessionState;
 }
 
@@ -42,7 +42,7 @@ export class SessionsService {
       description: r.description,
       schedule,
       nextStartsAt: r.status === 'ended' ? null : nextStartsAt(schedule, this.clock.now()),
-      location: { label: r.location_label },
+      location: { label: r.location_label, routeUrl: r.location_route_url },
       status: r.status
     };
   }
@@ -57,9 +57,9 @@ export class SessionsService {
     const id = uuidv7(now.getTime());
     await this.ds.transaction(async (m) => {
       await m.query(
-        `INSERT INTO sessions (id, title, description, status, schedule_type, schedule, next_starts_at, location_label, created_by, version, created_at, updated_at)
-         VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?, 1, ?, ?)`,
-        [uuidToBuf(id), input.title, input.description, input.schedule.type, JSON.stringify(input.schedule), this.snapshot(input.schedule), input.location.label, uuidToBuf(userId), now, now]
+        `INSERT INTO sessions (id, title, description, status, schedule_type, schedule, next_starts_at, location_label, location_route_url, created_by, version, created_at, updated_at)
+         VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+        [uuidToBuf(id), input.title, input.description, input.schedule.type, JSON.stringify(input.schedule), this.snapshot(input.schedule), input.location.label, input.location.routeUrl ?? null, uuidToBuf(userId), now, now]
       );
       const memberId = uuidv7(now.getTime());
       await m.query("INSERT INTO session_members (id, session_id, user_id, status, requested_at, decided_by, decided_at) VALUES (?, ?, ?, 'approved', ?, ?, ?)", [uuidToBuf(memberId), uuidToBuf(id), uuidToBuf(userId), now, uuidToBuf(userId), now]);
@@ -79,13 +79,14 @@ export class SessionsService {
     await this.ds.transaction(async (m) => {
       const { session } = await this.access.load(m, sessionId, userId, 'session.edit', true);
       if (session.status !== 'draft' && session.status !== 'scheduled') throw conflict('SESSION_LOCKED', 'جلسهٔ شروع‌شده یا پایان‌یافته قابل ویرایش نیست.');
-      await m.query('UPDATE sessions SET title = ?, description = ?, schedule_type = ?, schedule = ?, next_starts_at = ?, location_label = ?, version = version + 1, updated_at = ? WHERE id = ?', [
+      await m.query('UPDATE sessions SET title = ?, description = ?, schedule_type = ?, schedule = ?, next_starts_at = ?, location_label = ?, location_route_url = ?, version = version + 1, updated_at = ? WHERE id = ?', [
         input.title,
         input.description,
         input.schedule.type,
         JSON.stringify(input.schedule),
         this.snapshot(input.schedule),
         input.location.label,
+        input.location.routeUrl ?? null,
         this.clock.now(),
         uuidToBuf(sessionId)
       ]);
@@ -125,7 +126,7 @@ export class SessionsService {
     const staff = scope === 'staff' ? "AND m.status = 'approved' AND EXISTS (SELECT 1 FROM session_member_roles x WHERE x.member_id = m.id AND x.role <> 'quran_student')" : '';
     const [rows, cnt] = await Promise.all([
       this.ds.query(
-        `SELECT s.id, s.title, s.description, s.status, s.schedule, s.location_label, s.created_by, s.created_at, s.next_starts_at, m.status AS m_status,
+        `SELECT s.id, s.title, s.description, s.status, s.schedule, s.location_label, s.location_route_url, s.created_by, s.created_at, s.next_starts_at, m.status AS m_status,
                 (SELECT GROUP_CONCAT(r.role) FROM session_member_roles r WHERE r.member_id = m.id) AS roles
            FROM session_members m JOIN sessions s ON s.id = m.session_id
           WHERE m.user_id = ? ${staff}
@@ -166,7 +167,7 @@ export class SessionsService {
     const where = status ? 'status = ?' : "status <> 'draft'";
     const args: unknown[] = status ? [status] : [];
     const [rows, cnt] = await Promise.all([
-      this.ds.query(`SELECT id, title, description, status, schedule, location_label, created_by, created_at, next_starts_at FROM sessions WHERE ${where} ORDER BY FIELD(status,'started','scheduled','ended'), COALESCE(next_starts_at, created_at) ASC, id ASC LIMIT ? OFFSET ?`, [...args, pageSize, (page - 1) * pageSize]) as Promise<(Omit<SessionRow, 'id' | 'created_by'> & { id: Buffer; created_by: Buffer })[]>,
+      this.ds.query(`SELECT id, title, description, status, schedule, location_label, location_route_url, created_by, created_at, next_starts_at FROM sessions WHERE ${where} ORDER BY FIELD(status,'started','scheduled','ended'), COALESCE(next_starts_at, created_at) ASC, id ASC LIMIT ? OFFSET ?`, [...args, pageSize, (page - 1) * pageSize]) as Promise<(Omit<SessionRow, 'id' | 'created_by'> & { id: Buffer; created_by: Buffer })[]>,
       this.ds.query(`SELECT COUNT(*) AS n FROM sessions WHERE ${where}`, args) as Promise<{ n: string | number }[]>
     ]);
     return { items: rows.map((r) => this.toDto({ ...r, id: bufToUuid(r.id), created_by: bufToUuid(r.created_by) })), page, pageSize, total: Number(cnt[0]?.n ?? 0) };

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "اسراء — api-high (نقش‌ها، مجوزها، تنظیمات سراسری، audit)",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "summary": "قرارداد api-high — نسخهٔ مسیر v1",
     "description": "قرارداد REST سرویس **api-high** (پیشوند `/s/v1`). تولیدشده از schemaهای zod در `@isra/api-types`؛ **دستی ویرایش نکنید**.\n\n- قالب پاسخ: `{ success, data, meta.requestId }`؛ خطا: `{ success:false, error:{code,message,details}, meta }`. `message` فارسی، `code` پایدار.\n- زمان‌ها ISO-8601 با offset؛ منطق کسب‌وکار `Asia/Tehran`؛ هفته شنبه–جمعه.\n- امنیت: JWT RS256 (access ۱۵ دقیقه)، refresh ۱۴ روز با rotation؛ اقدام حساس ⇒ `X-Step-Up-Token`.\n- محدودیت‌ها: بدنهٔ JSON حداکثر ۱۶KB؛ `pageSize` ≤ سقف هر endpoint؛ بدنه‌های `strict` (فیلد ناشناخته ⇒ `VALIDATION_FAILED`).\n- نسخه‌بندی: تغییر ناسازگار فقط با نسخهٔ جدید مسیر (`v2`)؛ سیاست deprecation: هدرهای `Deprecation` و `Sunset` (حداقل ۱۸۰ روز).",
     "license": {

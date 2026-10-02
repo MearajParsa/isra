@@ -6,6 +6,8 @@
     variant?: 'primary' | 'secondary' | 'text' | 'danger' | 'warm' | 'light';
     size?: 'md' | 'sm';
     href?: string;
+    /** لینک بیرونی: تب جدید + rel امن */
+    external?: boolean;
     type?: 'button' | 'submit';
     loading?: boolean;
     disabled?: boolean;
@@ -18,6 +20,7 @@
     variant = 'primary',
     size = 'md',
     href,
+    external = false,
     type = 'button',
     loading = false,
     disabled = false,
@@ -28,7 +31,7 @@
 </script>
 
 {#if href && !disabled}
-  <a class="btn {variant} {size}" class:full {href} {onclick}>
+  <a class="btn {variant} {size}" class:full {href} {onclick} target={external ? '_blank' : undefined} rel={external ? 'noopener noreferrer' : undefined}>
     {@render children()}
   </a>
 {:else}

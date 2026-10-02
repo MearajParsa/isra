@@ -24,11 +24,13 @@
   /* svelte-ignore state_referenced_locally */
   let location = $state(initial.location.label);
   /* svelte-ignore state_referenced_locally */
+  let routeUrl = $state(initial.location.routeUrl ?? '');
+  /* svelte-ignore state_referenced_locally */
   let schedule = $state(initial.schedule);
 
   function submit(e: SubmitEvent) {
     e.preventDefault();
-    onsubmit({ title, description, location: { label: location }, schedule });
+    onsubmit({ title, description, location: { label: location, routeUrl: routeUrl.trim() || null }, schedule });
   }
 </script>
 
@@ -45,10 +47,21 @@
     label="مکان"
     bind:value={location}
     error={errors.location}
-    hint="مثلاً «آنلاین» یا نام سالن و شهر؛ نقشه بعداً اضافه می‌شود."
+    hint="آدرس متنی؛ مثلاً «آنلاین» یا نام سالن، خیابان و شهر."
     disabled={busy}
     required
     maxlength={120}
+  />
+
+  <TextField
+    label="لینک مسیریابی (اختیاری)"
+    bind:value={routeUrl}
+    error={errors['location.routeUrl']}
+    hint="لینک مکان را از نشان، بلد یا گوگل‌مپ کپی کنید؛ باید با https شروع شود."
+    type="url"
+    ltr
+    disabled={busy}
+    maxlength={500}
   />
 
   <ScheduleFields {schedule} {errors} disabled={busy} onchange={(s) => (schedule = s)} />

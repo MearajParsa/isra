@@ -2,6 +2,10 @@
 
 فرمت: [Keep a Changelog](https://keepachangelog.com/fa/1.1.0/)؛ نسخه‌گذاری: [SemVer](https://semver.org/lang/fa/) روی قرارداد (جزئیات: `docs-v2/22-api-engineering-standards.md` §۵).
 
+## [1.3.0] — ۱۴۰۵/۰۷/۱۲
+### افزوده شد (سازگار)
+- `SessionLocation.routeUrl` (اختیاری، فقط https، حداکثر ۵۰۰): لینک مسیریابی که سازندهٔ جلسه کنار آدرس متنی می‌گذارد.
+
 ## [1.2.0] — ۱۴۰۵/۰۷/۱۲
 ### افزوده شد (سازگار)
 - `SessionMe.evalWeights` (M-02): وزن‌های فعلی ارزیابی برای پیش‌نمایش امتیاز در فرم.

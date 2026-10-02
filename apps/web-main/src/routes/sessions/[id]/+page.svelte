@@ -65,6 +65,9 @@
           <p class="next"><Icon name="calendar" size={18} />شروع بعدی: <strong>{formatDateTime(s.nextStartsAt)}</strong></p>
         {/if}
         <p class="loc"><Icon name="pin" size={18} />{s.location.label}</p>
+        {#if s.location.routeUrl}
+          <Button href={s.location.routeUrl} external variant="secondary" size="sm"><Icon name="route" size={16} />مسیریابی</Button>
+        {/if}
       </div>
 
       <div class="panel act">

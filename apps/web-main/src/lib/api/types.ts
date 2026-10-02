@@ -166,7 +166,7 @@ export interface PublicSession {
   status: SessionStatus;
   schedule: SessionSchedule;
   nextStartsAt: string | null;
-  location: { label: string };
+  location: { label: string; routeUrl?: string | null };
 }
 
 export interface PublicSessionsQuery {
