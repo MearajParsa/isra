@@ -1,3 +1,4 @@
+import { tableOptions } from '../table-options';
 import type { MigrationInterface, QueryRunner } from 'typeorm';
 import { ALL_PERMISSIONS, DEFAULT_FLAGS, DEFAULT_ROLE_PERMS, DEFAULT_THRESHOLDS, DEFAULT_WEIGHTS, LOCKED, PERMISSION_TITLES, ROLE_KEYS, ROLE_TEXT } from '../../domain/rules';
 
@@ -9,7 +10,7 @@ export class InitSchema1728000000000 implements MigrationInterface {
   name = 'InitSchema1728000000000';
 
   public async up(q: QueryRunner): Promise<void> {
-    const T = 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
+    const T = await tableOptions(q);
     const stmts = [
       `CREATE TABLE system_roles (
         role_key VARCHAR(24) NOT NULL,

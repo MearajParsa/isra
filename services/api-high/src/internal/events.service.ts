@@ -52,7 +52,7 @@ export class EventsService implements OnApplicationBootstrap {
            ON DUPLICATE KEY UPDATE phone = VALUES(phone), first_name = IF(VALUES(first_name) <> '', VALUES(first_name), first_name), last_name = IF(VALUES(last_name) <> '', VALUES(last_name), last_name), updated_at = VALUES(updated_at)`,
           [uuidToBuf(p.userId), p.phone, p.firstName, p.lastName, p.createdAt ? new Date(p.createdAt) : now, now]
         );
-        await this.bootstrapDeveloper(m);
+        await this.bootstrapDeveloper(m, p.phone);
       } else if (e.type === 'user.profile.updated') {
         const p = ProfileUpdated.parse(e.payload);
         await m.query('UPDATE user_directory SET first_name = COALESCE(?, first_name), last_name = COALESCE(?, last_name), updated_at = ? WHERE user_id = ?', [p.firstName ?? null, p.lastName ?? null, now, uuidToBuf(p.userId)]);
@@ -62,22 +62,32 @@ export class EventsService implements OnApplicationBootstrap {
     });
   }
 
-  /** فقط وقتی هیچ developer نیست و شمارهٔ مشخص‌شده در دایرکتوری هست؛ idempotent و با قفل ردیف نقش‌ها */
-  async bootstrapDeveloper(q: Q = this.ds): Promise<boolean> {
-    const phone = this.env.BOOTSTRAP_DEVELOPER_PHONE;
-    if (!phone) return false;
+  /**
+   * `BOOTSTRAP_DEVELOPER_PHONE` یک یا چند شماره (با کاما). idempotent و با قفل ردیف نقش‌ها:
+   *  - هنگام راه‌اندازی (بدون phone): فقط وقتی هیچ developer نیست، همهٔ شماره‌های حاضر در دایرکتوری developer می‌شوند؛
+   *  - هنگام ثبت‌نام (با phone): اگر همان شماره در فهرست env باشد developer می‌شود (حتی اگر developer دیگری هست).
+   */
+  async bootstrapDeveloper(q: Q = this.ds, onlyPhone?: string): Promise<boolean> {
+    const phones = (this.env.BOOTSTRAP_DEVELOPER_PHONE ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+    if (!phones.length) return false;
     const run = async (m: Q) => {
-      const has = (await m.query("SELECT 1 AS x FROM user_system_roles WHERE role_key = 'developer' FOR UPDATE")) as unknown[];
-      if (has.length) return false;
-      const u = (await m.query('SELECT user_id, first_name, last_name FROM user_directory WHERE phone = ?', [phone])) as { user_id: Buffer; first_name: string; last_name: string }[];
-      if (!u[0]) return false;
-      const now = this.clock.now();
-      await m.query("INSERT INTO user_system_roles (user_id, role_key, granted_by, granted_at) VALUES (?, 'developer', NULL, ?)", [u[0].user_id, now]);
-      const uid = u[0].user_id.toString('hex');
-      const id = `${uid.slice(0, 8)}-${uid.slice(8, 12)}-${uid.slice(12, 16)}-${uid.slice(16, 20)}-${uid.slice(20)}`;
-      await this.claims.publish(m, id);
-      await this.audit.write(m, { actor: null, action: 'system.bootstrap', target: { type: 'user', id, label: displayName(u[0].first_name, u[0].last_name) }, summary: 'اولین توسعه‌دهندهٔ سیستم تعیین شد.', meta: { via: 'BOOTSTRAP_DEVELOPER_PHONE' } });
-      return true;
+      const has = (await m.query("SELECT user_id FROM user_system_roles WHERE role_key = 'developer' FOR UPDATE")) as unknown[];
+      const targets = onlyPhone ? phones.filter((p) => p === onlyPhone) : has.length ? [] : phones;
+      let granted = false;
+      for (const phone of targets) {
+        const u = (await m.query('SELECT user_id, first_name, last_name FROM user_directory WHERE phone = ?', [phone])) as { user_id: Buffer; first_name: string; last_name: string }[];
+        if (!u[0]) continue;
+        const already = (await m.query("SELECT 1 AS x FROM user_system_roles WHERE user_id = ? AND role_key = 'developer'", [u[0].user_id])) as unknown[];
+        if (already.length) continue;
+        const now = this.clock.now();
+        await m.query("INSERT INTO user_system_roles (user_id, role_key, granted_by, granted_at) VALUES (?, 'developer', NULL, ?)", [u[0].user_id, now]);
+        const uid = u[0].user_id.toString('hex');
+        const id = `${uid.slice(0, 8)}-${uid.slice(8, 12)}-${uid.slice(12, 16)}-${uid.slice(16, 20)}-${uid.slice(20)}`;
+        await this.claims.publish(m, id);
+        await this.audit.write(m, { actor: null, action: 'system.bootstrap', target: { type: 'user', id, label: displayName(u[0].first_name, u[0].last_name) }, summary: 'توسعه‌دهندهٔ سیستم از طریق پیکربندی تعیین شد.', meta: { via: 'BOOTSTRAP_DEVELOPER_PHONE' } });
+        granted = true;
+      }
+      return granted;
     };
     return q === this.ds ? this.ds.transaction((m) => run(m)) : run(q);
   }

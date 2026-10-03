@@ -1,3 +1,4 @@
+import { tableOptions } from '../table-options';
 import type { MigrationInterface, QueryRunner } from 'typeorm';
 
 /**
@@ -8,7 +9,7 @@ export class InitSchema1727700000000 implements MigrationInterface {
   name = 'InitSchema1727700000000';
 
   public async up(q: QueryRunner): Promise<void> {
-    const T = 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
+    const T = await tableOptions(q);
     const stmts = [
       `CREATE TABLE users (
         id BINARY(16) NOT NULL,

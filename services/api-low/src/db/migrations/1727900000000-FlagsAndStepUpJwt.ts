@@ -1,3 +1,4 @@
+import { tableOptions } from '../table-options';
 import type { MigrationInterface, QueryRunner } from 'typeorm';
 
 /**
@@ -14,7 +15,7 @@ export class FlagsAndStepUpJwt1727900000000 implements MigrationInterface {
       version INT NOT NULL,
       updated_at DATETIME(3) NOT NULL,
       PRIMARY KEY (setting_key)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+    ) ${await tableOptions(q)}`);
   }
 
   public async down(q: QueryRunner): Promise<void> {
@@ -27,6 +28,6 @@ export class FlagsAndStepUpJwt1727900000000 implements MigrationInterface {
       created_at DATETIME(3) NOT NULL,
       PRIMARY KEY (id),
       UNIQUE KEY uq_stepup_hash (token_hash)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+    ) ${await tableOptions(q)}`);
   }
 }
