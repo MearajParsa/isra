@@ -8,13 +8,14 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const svc = process.argv[2];
 if (!['api-low', 'api-mid', 'api-high'].includes(svc ?? '')) {
   console.error('استفاده: node scripts/pack-service.mjs <api-low|api-mid|api-high>');
   process.exit(1);
 }
-const root = resolve(new URL('..', import.meta.url).pathname);
+const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const src = join(root, 'services', svc);
 const types = join(root, 'packages', 'api-types');
 const out = join(root, 'deploy', svc);

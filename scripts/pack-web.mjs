@@ -7,8 +7,9 @@
  */
 import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = resolve(new URL('..', import.meta.url).pathname);
+const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const build = join(root, 'apps', 'web-main', 'build');
 const out = join(root, 'deploy', 'web-main');
 if (!existsSync(join(build, 'index.js'))) {
