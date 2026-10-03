@@ -1,3 +1,4 @@
+import { tableOptions } from '../table-options';
 import type { MigrationInterface, QueryRunner } from 'typeorm';
 
 /**
@@ -8,7 +9,7 @@ export class InitSchema1727800000000 implements MigrationInterface {
   name = 'InitSchema1727800000000';
 
   public async up(q: QueryRunner): Promise<void> {
-    const T = 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
+    const T = await tableOptions(q);
     const stmts = [
       `CREATE TABLE sessions (
         id BINARY(16) NOT NULL,
@@ -129,7 +130,7 @@ export class InitSchema1727800000000 implements MigrationInterface {
       ) ${T}`,
       `CREATE TABLE idempotency_keys (
         user_id BINARY(16) NOT NULL,
-        idem_key VARCHAR(80) NOT NULL,
+        idem_key VARCHAR(80) COLLATE utf8mb4_bin NOT NULL,
         request_hash BINARY(32) NOT NULL,
         status VARCHAR(10) NOT NULL,
         response JSON NULL,

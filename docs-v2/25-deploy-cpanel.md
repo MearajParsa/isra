@@ -27,6 +27,8 @@
 ### ۱) دیتابیس
 در cPanel ← MySQL Databases: سه دیتابیس + سه کاربر (هر کاربر فقط به دیتابیس خودش، ALL PRIVILEGES). نام‌ها معمولاً `cpuser_low` و… است؛ همان را در `DB_NAME`/`DB_USER` بگذارید. `DB_HOST=localhost`.
 
+جدول‌ها collation پیش‌فرض خود دیتابیس را می‌گیرند (مثلاً `utf8mb4_persian_ci`)؛ اگر پیش‌فرض utf8mb4 نباشد، `utf8mb4_unicode_ci` استفاده می‌شود. فقط ستون `idem_key` عمداً `utf8mb4_bin` (حساس به حروف) است.
+
 ### ۲) secretها
 روی سیستم خودتان: `node scripts/gen-secrets.mjs > ~/isra-secrets.txt` (خارج از ریپو). مقادیر را در env هر سرویس بگذارید.
 
