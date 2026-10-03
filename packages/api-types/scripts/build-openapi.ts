@@ -51,7 +51,8 @@ mkdirSync(outDir, { recursive: true });
 for (const [name, content] of files) {
   const path = resolve(outDir, name);
   if (check) {
-    const current = existsSync(path) ? readFileSync(path, 'utf8') : '';
+    // پایان‌خط ویندوز (CRLF از git autocrlf) نباید drift حساب شود
+    const current = existsSync(path) ? readFileSync(path, 'utf8').replace(/\r\n/g, '\n') : '';
     if (current !== content) {
       console.error(`✗ ${name} به‌روز نیست — اجرا کنید: pnpm --filter @isra/api-types openapi`);
       drift++;
