@@ -9,7 +9,7 @@
   import { formatDate, formatNumber } from '$lib/utils/format';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon, { type IconName } from '$lib/components/ui/Icon.svelte';
-  import StarOrnament from '$lib/components/ui/StarOrnament.svelte';
+  import GuestLanding from '$lib/components/features/GuestLanding.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import SessionCard from '$lib/components/features/SessionCard.svelte';
@@ -20,40 +20,6 @@
   import Footer from '$lib/components/layout/Footer.svelte';
 
   let { data } = $props();
-
-  const features: { icon: IconName; title: string; text: string }[] = [
-    {
-      icon: 'calendar',
-      title: 'جلسات قرآن',
-      text: 'جلسه‌های یک‌باره، هفتگی یا در یک بازهٔ مشخص؛ زمان و مکان هر جلسه از قبل روشن است.'
-    },
-    {
-      icon: 'mic',
-      title: 'حضور و نوبت قرائت',
-      text: 'با ورود به جلسه حضور شما ثبت می‌شود و در صف نوبت قرائت قرار می‌گیرید.'
-    },
-    {
-      icon: 'check',
-      title: 'ارزیابی دقیق',
-      text: 'معلم و پشتیبان جلسه، صوت، لحن و تجوید قرائت شما را ارزیابی می‌کنند.'
-    },
-    {
-      icon: 'award',
-      title: 'امتیاز و نشان',
-      text: 'با هر حضور ۵ امتیاز بگیرید و نشان‌های ۵۰، ۱۵۰، ۳۰۰ و ۵۰۰ امتیاز را کسب کنید.'
-    },
-    {
-      icon: 'bell',
-      title: 'اینباکس درون‌برنامه',
-      text: 'خبر عضویت، رسیدن نوبت و نتیجهٔ ارزیابی را همان‌جا در اینباکس ببینید.'
-    }
-  ];
-
-  const steps = [
-    { n: 1, title: 'با شمارهٔ موبایل وارد شوید', text: 'فقط شمارهٔ شما و یک کد پیامکی؛ بدون فرم طولانی.' },
-    { n: 2, title: 'جلسهٔ مناسب را پیدا کنید', text: 'جلسات را مرور کنید و در جلسهٔ دلخواه عضو شوید.' },
-    { n: 3, title: 'بخوانید و پیشرفت کنید', text: 'در جلسه حاضر شوید، نوبت بگیرید و نتیجهٔ ارزیابی را ببینید.' }
-  ];
 
   const points = new Resource<PointsSummary>();
   const inbox = new Resource<InboxItem[]>();
@@ -74,14 +40,14 @@
 
 <svelte:head>
   <title>اسراء — پلتفرم جلسات قرآن</title>
-  <meta
-    name="description"
-    content="اسراء پلتفرم جلسات قرآن است: عضویت در جلسات، حضور، نوبت قرائت، ارزیابی صوت، لحن و تجوید، امتیاز و نشان."
-  />
-  <meta property="og:title" content="اسراء — پلتفرم جلسات قرآن" />
-  <meta property="og:description" content="با هم بخوانیم، با هم پیش برویم." />
-  <meta property="og:type" content="website" />
-  <meta property="og:locale" content="fa_IR" />
+    <meta
+      name="description"
+      content="اسراء پلتفرم جلسات قرآن است: عضویت در جلسات، حضور، نوبت قرائت، ارزیابی صوت، لحن و تجوید، امتیاز و نشان."
+    />
+    <meta property="og:title" content="اسراء — پلتفرم جلسات قرآن" />
+    <meta property="og:description" content="با هم بخوانیم، با هم پیش برویم." />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="fa_IR" />
 </svelte:head>
 
 {#snippet sessionsSection()}
@@ -184,125 +150,14 @@
 
   <div class="container pwa"><PwaInstallBanner /></div>
 {:else}
-  <!-- ─── نسخهٔ guest: صفحهٔ معرفی (SSR) ─── -->
-  <section class="hero">
-    <div class="container hero-in">
-      <div class="hero-text">
-        <p class="eyebrow">پلتفرم جلسات قرآن</p>
-        <h1>با هم بخوانیم،<br />با هم پیش برویم</h1>
-        <p class="lead">
-          در جلسات قرآن عضو شوید، نوبت قرائت بگیرید، از معلم بازخورد دریافت کنید و با امتیاز و نشان‌ها
-          انگیزه‌تان را زنده نگه دارید.
-        </p>
-        <div class="cta">
-          <Button href="/auth/phone" variant="warm">ورود / ثبت‌نام</Button>
-          <Button href="/sessions" variant="light">مشاهدهٔ جلسات</Button>
-        </div>
-      </div>
-      <div class="hero-art" aria-hidden="true"><StarOrnament size={380} /></div>
-    </div>
-  </section>
-
-  <section class="section container" aria-labelledby="features-h">
-    <div class="sec-head center">
-      <h2 id="features-h">هر آنچه برای یک جلسهٔ قرآنی لازم است</h2>
-      <p class="muted">از پیدا کردن جلسه تا دیدن نتیجهٔ ارزیابی، همه در یک‌جا.</p>
-    </div>
-    <ul class="features">
-      {#each features as f (f.title)}
-        <li class="feat">
-          <span class="f-ico"><Icon name={f.icon} size={26} /></span>
-          <h3>{f.title}</h3>
-          <p class="muted">{f.text}</p>
-        </li>
-      {/each}
-    </ul>
-  </section>
-
-  <section class="steps-sec">
-    <div class="container section">
-      <div class="sec-head center">
-        <h2>چطور کار می‌کند؟</h2>
-      </div>
-      <ol class="steps">
-        {#each steps as s (s.n)}
-          <li class="step">
-            <span class="n">{formatNumber(s.n)}</span>
-            <h3>{s.title}</h3>
-            <p class="muted">{s.text}</p>
-          </li>
-        {/each}
-      </ol>
-    </div>
-  </section>
-
-  {@render sessionsSection()}
-
-  <section class="container final">
-    <div class="final-card">
-      <h2>امروز شروع کنید</h2>
-      <p>ثبت‌نام فقط چند ثانیه طول می‌کشد؛ شمارهٔ موبایل و یک کد پیامکی.</p>
-      <Button href="/auth/phone" variant="warm">ورود / ثبت‌نام</Button>
-    </div>
-    <div class="pwa"><PwaInstallBanner /></div>
-  </section>
+  <!-- ─── نسخهٔ guest: صفحهٔ معرفی (SSR، scroll-craft) ─── -->
+  <GuestLanding sessions={data.sessions} sessionsError={data.sessionsError} />
+  <div class="container pwa"><PwaInstallBanner /></div>
 {/if}
 
 <Footer />
 
 <style>
-  /* ─── hero ─── */
-  .hero {
-    background: var(--color-primary);
-    color: var(--color-on-primary);
-    overflow: hidden;
-  }
-  .hero-in {
-    display: grid;
-    gap: var(--space-xl);
-    align-items: center;
-    padding-block: var(--space-2xl) var(--space-xl);
-  }
-  .eyebrow {
-    display: inline-block;
-    padding: 4px 14px;
-    margin-bottom: var(--space-md);
-    border-radius: var(--radius-pill);
-    background: color-mix(in srgb, var(--color-accent-warm) 20%, transparent);
-    color: var(--color-accent-warm);
-    font-weight: 700;
-    font-size: var(--fs-sm);
-  }
-  .hero h1 {
-    font-size: var(--fs-display);
-    line-height: 1.35;
-  }
-  .lead {
-    max-width: 34rem;
-    margin-top: var(--space-md);
-    font-size: var(--fs-lg);
-    color: color-mix(in srgb, var(--color-on-primary) 82%, transparent);
-  }
-  .cta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-md);
-    margin-top: var(--space-xl);
-  }
-  .hero-art {
-    display: none;
-    justify-self: center;
-  }
-  @media (min-width: 900px) {
-    .hero-in {
-      grid-template-columns: 1.2fr 1fr;
-      padding-block: var(--space-3xl);
-    }
-    .hero-art {
-      display: block;
-    }
-  }
-
   /* ─── sections ─── */
   .section {
     padding-block: var(--space-2xl) 0;
@@ -313,12 +168,6 @@
     justify-content: space-between;
     gap: var(--space-md);
     margin-bottom: var(--space-lg);
-  }
-  .sec-head.center {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: var(--space-xs);
   }
   .all {
     display: inline-flex;
@@ -341,96 +190,6 @@
     .grid {
       grid-template-columns: repeat(3, 1fr);
     }
-  }
-
-  .features {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: var(--space-md);
-  }
-  .feat {
-    flex: 1 1 100%;
-    padding: var(--space-lg);
-    background: var(--color-card);
-    border: 1px solid var(--color-outline);
-    border-radius: var(--radius-lg);
-  }
-  .f-ico {
-    display: grid;
-    place-items: center;
-    width: 52px;
-    height: 52px;
-    margin-bottom: var(--space-md);
-    border-radius: var(--radius-md);
-    background: var(--color-secondary);
-    color: var(--color-primary);
-  }
-  .feat h3 {
-    margin-bottom: 4px;
-  }
-  @media (min-width: 640px) {
-    .feat {
-      flex-basis: calc((100% - var(--space-md)) / 2);
-      max-width: calc((100% - var(--space-md)) / 2);
-    }
-  }
-  @media (min-width: 960px) {
-    .feat {
-      flex-basis: calc((100% - 2 * var(--space-md)) / 3);
-      max-width: calc((100% - 2 * var(--space-md)) / 3);
-    }
-  }
-
-  .steps-sec {
-    margin-top: var(--space-2xl);
-    background: var(--color-neutral);
-    padding-bottom: var(--space-2xl);
-  }
-  .steps {
-    display: grid;
-    gap: var(--space-lg);
-  }
-  .step {
-    position: relative;
-    padding: var(--space-lg);
-    background: var(--color-surface);
-    border-radius: var(--radius-lg);
-  }
-  .n {
-    display: grid;
-    place-items: center;
-    width: 40px;
-    height: 40px;
-    margin-bottom: var(--space-md);
-    border-radius: 50%;
-    background: var(--color-primary);
-    color: var(--color-accent-warm);
-    font-weight: 700;
-  }
-  @media (min-width: 768px) {
-    .steps {
-      grid-template-columns: repeat(3, 1fr);
-    }
-  }
-
-  .final {
-    padding-top: var(--space-2xl);
-    display: grid;
-    gap: var(--space-lg);
-  }
-  .final-card {
-    display: grid;
-    justify-items: center;
-    gap: var(--space-md);
-    padding: var(--space-2xl) var(--space-lg);
-    text-align: center;
-    background: var(--color-accent);
-    color: var(--color-on-accent);
-    border-radius: var(--radius-lg);
-  }
-  .final-card p {
-    color: color-mix(in srgb, var(--color-on-accent) 85%, transparent);
   }
 
   .pwa {
