@@ -87,3 +87,22 @@ Node app با Application URL = `israapp.ir`، root = `deploy/web-main`، Startu
 - Socket.IO (`/o/v1/socket.io`): اگر WebSocket روی هاست بسته بود، کلاینت به polling برمی‌گردد. فقط یک instance پشتیبانی می‌شود.
 - Rollback: بستهٔ قبلی را برگردانید؛ migrationها فقط رو به جلو هستند (قبل از ارتقا از دیتابیس backup بگیرید).
 - نشان (Neshan): هنوز پیاده نشده؛ `NESHAN_API_KEY` سمت سرور خواهد بود، هرگز کلاینت.
+
+## ج) استقرار خودکار (GitHub Actions + SSH)
+با هر ادغام در `master`، workflow `.github/workflows/deploy.yml` بیلد و بسته‌بندی می‌کند، با `rsync` روی هاست می‌فرستد، در صورت تغییر `package.json` روی هاست `npm install` می‌زند، اپ را با `tmp/restart.txt` restart می‌کند و `/health` را چک می‌کند (ترتیب: low ← mid ← high ← web-main ← web-admin). اجرای دستی: Actions ← Deploy ← Run workflow (با انتخاب هدف‌ها).
+
+**یک‌بار دستی:** ساخت ۴ اپ در Setup Node.js App و وارد کردن env (بخش ب). Application root هر اپ باید `apps/<نام>` باشد (یا `APPS_DIR` را تغییر دهید).
+
+**کلید SSH:** روی سیستم خودتان `ssh-keygen -t ed25519 -f isra_deploy -N ""` ← محتوای `isra_deploy.pub` را در cPanel ← SSH Access ← Import Key و Authorize کنید؛ `isra_deploy` (خصوصی) فقط در GitHub Secret می‌رود. `SSH_KNOWN_HOSTS`: خروجی `ssh-keyscan -p 22 <host>`.
+
+**GitHub ← Settings ← Secrets and variables ← Actions**
+| نوع | نام | مقدار |
+|---|---|---|
+| Secret | `SSH_HOST` | آدرس سرور |
+| Secret | `SSH_USER` | کاربر cPanel |
+| Secret | `SSH_PRIVATE_KEY` | کل محتوای فایل خصوصی |
+| Secret | `SSH_KNOWN_HOSTS` | خروجی ssh-keyscan |
+| Variable | `DEPLOY_ENABLED` | `true` (تا نباشد workflow کاری نمی‌کند) |
+| Variable (اختیاری) | `SSH_PORT`، `APPS_DIR` (apps)، `ADMIN_DOCROOT` (panel.israapp.ir)، `NODE_VERSION` (22)، `API_LOW_URL`/`API_MID_URL`/`API_HIGH_URL` | |
+
+Environment variables اپ‌ها (رمز دیتابیس، کلید Faraz …) **فقط در پنل cPanel** می‌مانند و هرگز به GitHub نمی‌روند. اگر `NODE_VERSION` یا مسیر `~/nodevenv/<approot>/<نسخه>` روی هاست فرق دارد، با `ls ~/nodevenv/apps/api-low` بررسی کنید.
