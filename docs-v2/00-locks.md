@@ -14,7 +14,7 @@
 | 6 | ارتباط بین‌سرویسی | فقط **internal REST** + الگوی **outbox/inbox**. Nest `EventEmitter` **فقط درون‌فرآیندی** (in-process) همان سرویس — برای ارتباط بین سرویس‌ها استفاده نشود. message broker جدا قفل نشده (نساز مگر باز شود). |
 | 7 | Gateway و دامنه API | **بدون API Gateway جدا**. دامنه تولید: `api.israapp.ir` با پیشوند سطح: `/c/v1` (low/client)، `/o/v1` (mid/ops)، `/s/v1` (high/system). دامنه وب: `israapp.ir`، ادمین: `admin.israapp.ir`. |
 | 8 | Auth — استثنا | **همه کلاینت‌ها** (از جمله android-mid/high و web-admin) مجازند **فقط** برای مسیرهای auth به `api-low` درخواست بزنند: `/c/v1/auth/*` یا auth مشترک زیر low. **بقیهٔ فراخوانی‌ها** فقط به سطح خودشان (`/c/v1`، `/o/v1`، `/s/v1`). Low مالک حساب، OTP، صدور توکن. Mid/High JWT را محلی با **JWKS از low** اعتبارسنجی می‌کنند (بدون hop احراز در هر درخواست غیر-auth). High مالک نقش/مجوز/ادمین سیستم. |
-| 9 | JWT | الگوریتم **RS256**. Mid/High کلید عمومی را از **JWKS** سرویس low می‌خوانند. Access = **۱۵ دقیقه**؛ Refresh = **۱۴ روز** با **rotation**. Revoke خانوادهٔ session؛ step-up برای اقدام حساس. |
+| 9 | JWT | الگوریتم **RS256**. Mid/High کلید عمومی را از **JWKS** سرویس low می‌خوانند. Access = **۲۰ دقیقه**؛ Refresh = **۳۰ روز** (تصمیم مالک ۱۴۰۵/۰۷/۱۲؛ قبلاً ۱۵ دقیقه/۱۴ روز) با **rotation**. Revoke خانوادهٔ session؛ step-up برای اقدام حساس. |
 | 10 | SMS / OTP | ارائه‌دهنده: **Faraz SMS**. OTP: **۵ رقم**، TTL **۲ دقیقه**، حداکثر **۳ تلاش**. شماره موبایل ذخیره‌شده به شکل `09xxxxxxxxxx`. |
 | 11 | Realtime | **Socket.IO** روی `api-mid` برای جلسه زنده (حضور/صف/ارزیابی وقتی اپ باز است). اینباکس در صورت نیاز poll. |
 | 12 | امتیاز و نشان | امتیاز در UI سطح **low** نمایش داده می‌شود؛ داده از mid با **internal REST** به low می‌آید (کلاینت low به api-mid مستقیم نزند). نشان‌ها در جدول `badge_awards`؛ با افت امتیاز **باطل نمی‌شوند**. آستانه‌ها: ۵۰ / ۱۵۰ / ۳۰۰ / ۵۰۰. امتیاز حضور: `+5` یک‌بار per session entry. |
@@ -52,7 +52,7 @@
 | وزن ارزیابی پیش‌فرض | صوت ۴۰ / لحن ۳۰ / تجوید ۳۰ (قابل تنظیم از high) |
 | آستانه نشان‌ها | ۵۰ / ۱۵۰ / ۳۰۰ / ۵۰۰؛ جدول `badge_awards`؛ بدون revoke با افت امتیاز |
 | OTP | ۵ رقم، ۲ دقیقه، ۳ تلاش؛ Faraz SMS؛ تلفن `09xxxxxxxxxx` |
-| Access / Refresh | ۱۵ دقیقه / ۱۴ روز rotating؛ JWT RS256 + JWKS از low |
+| Access / Refresh | ۲۰ دقیقه / ۳۰ روز rotating؛ JWT RS256 + JWKS از low |
 | API version و پیشوند تولید | `/c/v1`, `/o/v1`, `/s/v1` روی `api.israapp.ir` |
 | Auth استثنا برای همه کلاینت‌ها | فقط `/c/v1/auth/*` (یا auth مشترک low) به api-low؛ بقیه به سطح خود |
 | Android applicationId | `ir.isra.low`, `ir.isra.mid`, `ir.isra.high` |

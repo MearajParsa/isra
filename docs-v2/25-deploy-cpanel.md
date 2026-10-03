@@ -17,12 +17,18 @@
 6. Swagger: `http://localhost:3001/c/docs` (و `/o/docs`، `/s/docs`).
 
 ## ب) استقرار روی cPanel
-### چیدمان
+### چیدمان (ساب‌دامنه‌ها)
 | دامنه | چیست | نوع |
 |---|---|---|
 | `israapp.ir` | web-main (SSR + PWA) | Node app |
-| `admin.israapp.ir` | web-admin | فایل static (docroot) |
-| `api.israapp.ir/c` ، `/o` ، `/s` | api-low / api-mid / api-high | سه Node app جدا (Application URL با مسیر) |
+| `panel.israapp.ir` | web-admin | فایل static (docroot) |
+| `capi.israapp.ir` (`/c`) | api-low (client) | Node app |
+| `oapi.israapp.ir` (`/o`) | api-mid (operation) | Node app |
+| `sapi.israapp.ir` (`/s`) | api-high (system) | Node app |
+
+پیشوند `/c/v1`، `/o/v1`، `/s/v1` در خود کد ثابت است (آدرس نهایی: `https://capi.israapp.ir/c/v1/...`).
+
+**ساخت خودکار env:** `node scripts/gen-env.mjs <data.json>` ← خروجی `deploy/env/api-{low,mid,high}.env` (gitignore؛ secretهای مشترک تصادفی). هر خط را در پنل وارد کنید.
 
 ### ۱) دیتابیس
 در cPanel ← MySQL Databases: سه دیتابیس + سه کاربر (هر کاربر فقط به دیتابیس خودش، ALL PRIVILEGES). نام‌ها معمولاً `cpuser_low` و… است؛ همان را در `DB_NAME`/`DB_USER` بگذارید. `DB_HOST=localhost`.

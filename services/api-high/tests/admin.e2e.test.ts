@@ -334,4 +334,18 @@ describe('اولین developer (bootstrap)', () => {
       await t2.close();
     }
   });
+  it('چند شمارهٔ bootstrap (با کاما): هر شمارهٔ فهرست هنگام ثبت‌نام developer می‌شود؛ شمارهٔ بیرون فهرست نه', async () => {
+    const t2 = await startApp({ BOOTSTRAP_DEVELOPER_PHONE: '09125550000, 09125550001' });
+    try {
+      const send = (uid: string, phone: string) =>
+        request(t2.http).post('/s/internal/v1/events').set('X-Internal-Token', 'test-internal-secret-test-internal-1234').send({ eventId: randomUUID(), type: 'user.registered', occurredAt: new Date().toISOString(), payload: { userId: uid, phone, firstName: 'الف', lastName: 'ب' } });
+      await send(randomUUID(), '09125550000').expect(202);
+      await send(randomUUID(), '09125559999').expect(202);
+      await send(randomUUID(), '09125550001').expect(202);
+      const roles = (await t2.ds.query("SELECT d.phone FROM user_system_roles r JOIN user_directory d ON d.user_id = r.user_id WHERE r.role_key = 'developer' ORDER BY d.phone")) as { phone: string }[];
+      expect(roles.map((r) => r.phone)).toEqual(['09125550000', '09125550001']);
+    } finally {
+      await t2.close();
+    }
+  });
 });

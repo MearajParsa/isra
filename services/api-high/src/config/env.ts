@@ -38,7 +38,7 @@ export const EnvSchema = z
     MAINTENANCE_ENABLED: bool.default(true),
 
     /** شمارهٔ اولین developer: وقتی این کاربر در سیستم ثبت‌نام کرد و هنوز هیچ developer وجود ندارد، خودکار developer می‌شود */
-    BOOTSTRAP_DEVELOPER_PHONE: z.string().regex(/^09\d{9}$/).optional()
+    BOOTSTRAP_DEVELOPER_PHONE: z.string().regex(/^09\d{9}(\s*,\s*09\d{9})*$/, 'یک یا چند شمارهٔ 09xxxxxxxxx با کاما').optional()
   })
   .superRefine((e, ctx) => {
     const prod = e.NODE_ENV === 'production';
