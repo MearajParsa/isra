@@ -8,6 +8,8 @@
 - **بوت‌استرپ مونوریپو:** ریشه (pnpm+turbo)، `apps/` ×۵، `services/` ×۳ (NestJS خالی)، `packages/` placeholder، `design/`، `media/`. `pnpm turbo lint typecheck test build` سبز (۲۰/۲۰). Android فقط فایل‌های دستی (Gradle wrapper/SDK نصب نشده؛ build نشده).
 - تصمیم مالک ثبت شد در `04-platforms.md`: هر دو وب (`web-main`, `web-admin`) باید PWA باشند + اهداف عملکرد/انیمیشن
 
+- **بازطراحی لندینگ guest (`/` در web-main)** با اسکیل `scroll-craft` (نصب‌شده در `.claude/skills/scroll-craft`، موتور بدون تغییر در `apps/web-main/static/scrollcraft/`): کامپوننت `lib/components/features/GuestLanding.svelte` (۶ فصل، بدون تصویر تولیدی، فقط SVG/CSS و توکن‌های مالک؛ امضا: «کارت حضور» نمونه). نسخهٔ عضو (داشبورد) دست‌نخورده. brief در `scrollcraft/builds/isra-landing/BRIEF.md`. `svelte-check`/`lint`/`test` سبز؛ بازبینی تصویری دسکتاپ+موبایل انجام شد؛ **دستگاه واقعی و reduced-motion تست نشده**.
+
 ## در حال انجام (In progress)
 - کارstream فعال: API — auth + low برای web-main (فقط پیش‌نویس؛ mid/high/admin خارج از scope). پیش‌نویس: `docs-v2/15-api-low-web-main-draft.md` — منتظر قفل مالک (Q1–Q8 در §۹)
 - موجودی UI (فقط `web-main` بخش low): پیش‌نویس `docs-v2/16-ui-inventory-web-main-low-draft.md` — Q1=بله(mock)، Q2/Q10 تصمیم AI در §ح؛ منتظر تأیید §ح، سؤالات Q4–Q9/Q12 و design مالک؛ کد UI زده نشده. فونت‌ها در `design/fonts` آمدند (YekanBakhFaNum؛ نکات در §ح-۴)
