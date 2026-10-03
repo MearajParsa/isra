@@ -1,0 +1,13 @@
+# پایان‌خط یکسان روی همهٔ سیستم‌ها (ویندوز/لینوکس): فایل‌های تولیدی مثل OpenAPI نباید با CRLF تغییر کنند
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.zip binary
+*.pdf binary
