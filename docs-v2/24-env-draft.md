@@ -12,7 +12,7 @@
 | `DB_POOL_MAX` | `15` | |
 | `CORS_ORIGINS` | `https://israapp.ir,https://admin.israapp.ir` | allowlist؛ dev: localhost |
 | `PUBLIC_BASE_URL` | `https://api.israapp.ir` | |
-| `INTERNAL_SHARED_SECRET` | ≥ ۳۲ بایت | احراز internal REST بین سرویس‌ها (یا mTLS) |
+| `INTERNAL_SECRET_<PEER>` | ≥ ۳۲ نویسهٔ تصادفی | احراز internal REST: **secret مستقل برای هر جفت‌سرویس** (low↔mid، low↔high، mid↔high)؛ هر مقدار فقط در دو سرویس. هدرها: `X-Internal-Caller` + `X-Internal-Token`. در production مقدار نمونه/ضعیف و مقدار تکراری رد می‌شود |
 | `INTERNAL_URL_LOW` / `_MID` / `_HIGH` | شبکهٔ خصوصی | |
 | `JWKS_URL` | `https://api.israapp.ir/c/.well-known/jwks.json` | mid/high |
 | `JWT_ISSUER` / `JWT_AUDIENCE` | `isra-low` / `isra` | اعتبارسنجی `iss`/`aud` |
@@ -29,7 +29,7 @@
 | `FARAZ_API_KEY` / `FARAZ_SENDER` / `FARAZ_PATTERN_CODE` | ارائه‌دهندهٔ SMS؛ timeout ۳ث، circuit-breaker |
 | `SMS_DAILY_BUDGET` | سقف روزانه (ضد SMS-pumping) |
 | `OTP_PHONE_PER_HOUR=5` `OTP_IP_PER_HOUR=20` | قابل تنظیم |
-| `COOKIE_DOMAIN` / `COOKIE_SECURE=true` / `COOKIE_NAME=isra_rt` | refresh وب |
+| `COOKIE_SECURE=true` | refresh وب؛ نام cookie با `__Secure-` پیشوند می‌گیرد؛ Domain هرگز تنظیم نمی‌شود (host-only) |
 | `ALLOWED_CLIENTS` | `web-main,web-admin,android-low,android-mid,android-high` |
 | `MAPS_API_KEY` | Map.ir (فقط سرور) — در صورت فعال‌شدن proxy |
 
@@ -64,7 +64,7 @@
 | `DB_QUERY_TIMEOUT_MS`, `DB_POOL_MAX` | تایم‌اوت و اندازهٔ pool |
 | `REFRESH_GRACE_SEC` | پنجرهٔ grace وب برای مسابقهٔ چند-tab (پیش‌فرض ۱۰) |
 | `OUTBOX_ENABLED/OUTBOX_POLL_MS`, `MAINTENANCE_ENABLED` | worker outbox و job پاکسازی |
-| `INTERNAL_URL_MID/HIGH`, `INTERNAL_TIMEOUT_MS`, `INTERNAL_SHARED_SECRET` | internal REST؛ `INTERNAL_URL_MID` در production الزامی |
+| `INTERNAL_URL_MID/HIGH`, `INTERNAL_TIMEOUT_MS`, `INTERNAL_SECRET_MID/HIGH` | internal REST؛ `INTERNAL_URL_MID` در production الزامی |
 نمونه: `services/api-low/.env.example`.
 
 ## api-mid (۱۴۰۵/۰۷/۱۱) — نمونه: `services/api-mid/.env.example`
@@ -73,7 +73,7 @@
 | `DB_*` | دیتابیس جدا (`schema_mid` / روی cPanel مثلاً `israappi_mid`) با کاربر جدا |
 | `LOW_JWKS_URL` | آدرس JWKS سرویس low (مثلاً `https://api.israapp.ir/c/.well-known/jwks.json`) |
 | `JWT_ISSUER`, `JWT_AUDIENCE` | باید با low یکی باشد (`isra-low`/`isra`) |
-| `INTERNAL_SHARED_SECRET` | **دقیقاً همان** مقدار low؛ `INTERNAL_URL_LOW` برای outbox (production الزامی) |
+| `INTERNAL_SECRET_LOW` (= `INTERNAL_SECRET_MID` در low)، `INTERNAL_SECRET_HIGH` (= `INTERNAL_SECRET_MID` در high)؛ `INTERNAL_URL_LOW` برای outbox (production الزامی) |
 | `SOCKET_ENABLED`, `SOCKET_PATH` | پیش‌فرض فعال و `/o/v1/socket.io` |
 | `SCHEDULER_ENABLED`, `OUTBOX_*`, `MAINTENANCE_ENABLED` | jobها |
 | `NESHAN_API_KEY` | (بعداً) کلید نشان؛ فقط env سرور |
@@ -83,6 +83,6 @@
 |-------|-------|
 | `DB_*` | دیتابیس جدا (`schema_high` / cPanel: مثلاً `israappi_high`) با کاربر جدا |
 | `LOW_JWKS_URL`, `JWT_ISSUER`, `JWT_AUDIENCE` | مثل mid؛ برای access و step-up JWT |
-| `INTERNAL_SHARED_SECRET` | همان مقدار low/mid؛ `INTERNAL_URL_LOW` و `INTERNAL_URL_MID` (production الزامی) |
+| `INTERNAL_SECRET_LOW` (= `INTERNAL_SECRET_HIGH` در low)، `INTERNAL_SECRET_MID` (= `INTERNAL_SECRET_HIGH` در mid)؛ `INTERNAL_URL_LOW` و `INTERNAL_URL_MID` (production الزامی) |
 | `BOOTSTRAP_DEVELOPER_PHONE` | شمارهٔ اولین توسعه‌دهنده؛ فقط وقتی developer وجود ندارد اثر دارد (بعد از اولین بار می‌توانید حذفش کنید) |
 **low:** `INTERNAL_URL_HIGH` (برای ارسال `user.*` به high) اضافه شد.

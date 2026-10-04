@@ -26,7 +26,7 @@ describe('قواعد نقش/مجوز', () => {
 describe('env (fail-fast)', () => {
   it('LOW_JWKS_URL و secret اجباری', () => expect(() => loadEnv({ NODE_ENV: 'test' })).toThrow(/LOW_JWKS_URL|DB_HOST/));
   it('production: INTERNAL_URL_LOW/MID و CORS الزامی؛ شمارهٔ راه‌انداز معتبر باشد', () => {
-    const base = { DB_HOST: 'h', DB_USER: 'u', DB_PASSWORD: 'p', LOW_JWKS_URL: 'https://api.israapp.ir/c/.well-known/jwks.json', INTERNAL_SHARED_SECRET: 'x'.repeat(32) };
+    const base = { DB_HOST: 'h', DB_USER: 'u', DB_PASSWORD: 'p', LOW_JWKS_URL: 'https://api.israapp.ir/c/.well-known/jwks.json', INTERNAL_SECRET_LOW: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6', INTERNAL_SECRET_MID: 'f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1' };
     expect(() => loadEnv({ ...base, NODE_ENV: 'production' })).toThrow(/INTERNAL_URL_LOW|INTERNAL_URL_MID|CORS_ORIGINS/);
     expect(() => loadEnv({ ...base, NODE_ENV: 'test', BOOTSTRAP_DEVELOPER_PHONE: '123' })).toThrow(/BOOTSTRAP_DEVELOPER_PHONE/);
     expect(loadEnv({ ...base, NODE_ENV: 'test', BOOTSTRAP_DEVELOPER_PHONE: '09121234567' }).BOOTSTRAP_DEVELOPER_PHONE).toBe('09121234567');

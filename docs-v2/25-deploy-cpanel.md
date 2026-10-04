@@ -9,7 +9,7 @@
 2. `pnpm install` و `pnpm --filter @isra/api-types bundle`.
 3. در هر `services/api-*/` فایل `.env.example` را به `.env.local` کپی و پر کنید:
    - `DB_USER`/`DB_PASSWORD`/`DB_NAME` ← اطلاعات دیتابیس همان سرویس (همین‌جا جای اتصال DB است).
-   - `INTERNAL_SHARED_SECRET` در هر سه **دقیقاً یکی**.
+   - secret سرویس‌به‌سرویس **per جفت** است: `INTERNAL_SECRET_*` (low↔mid، low↔high، mid↔high) — هر مقدار دقیقاً در دو سرویس یکسان و از جفت‌های دیگر متفاوت؛ `scripts/gen-env.mjs` خودکار می‌سازد. `DB_PASSWORD` عمداً خالی تولید می‌شود؛ خودتان پر کنید. `NODE_ENV` پیش‌فرض اکنون `production` است (fail-closed)؛ `INTERNAL_ALLOWED_IPS=<IP سرور>` را هم بگذارید.
    - `SMS_PROVIDER=console` ⇒ کد OTP در ترمینال api-low چاپ می‌شود. (برای پیامک واقعی: بخش Faraz پایین.)
    - در api-high: `BOOTSTRAP_DEVELOPER_PHONE=<شمارهٔ شما>` ⇒ اولین ورود با این شماره، نقش developer می‌گیرد.
 4. اجرا (سه ترمینال یا `pnpm dev` در ریشه): migrationها خودکار اجرا می‌شوند (`DB_MIGRATIONS_RUN=true`).
@@ -52,6 +52,8 @@ VITE_API_LOW_URL=https://api.israapp.ir VITE_API_HIGH_URL=https://api.israapp.ir
 ### ۴) سه API (Setup Node.js App)
 برای هر سرویس: Node 22، Application root = پوشهٔ آپلودشدهٔ `deploy/api-*`، Application URL = `api.israapp.ir/c` (یا `/o`، `/s`)، Startup file = `app.js` → «Run NPM Install» → env را وارد کنید → Restart.
 
+**نصب بازتولیدپذیر:** `pack-service.mjs` در بسته `package.json` با نسخه‌های دقیق (از `pnpm-lock.yaml`؛ بدون `^`/`~`)، `package-lock.json` (با `npm install --package-lock-only --ignore-scripts`) و `.npmrc` (`audit=false`, `fund=false`, `save-exact=true`) می‌گذارد. دکمهٔ «Run NPM Install» در cPanel وجود `package-lock.json` را رعایت می‌کند و همان درخت وابستگی را نصب می‌کند؛ روی SSH معادل آن `npm ci --omit=dev --ignore-scripts` است. هیچ وابستگی‌ای install script ندارد (`@node-rs/argon2` باینری prebuilt می‌گیرد)، پس `--ignore-scripts` امن است؛ اگر در آینده وابستگی‌ای script لازم داشت، این فلگ را از `deploy-ssh.sh` بردارید. توجه: ساخت `package-lock.json` هنگام pack به دسترسی شبکه به registry نیاز دارد و نسخهٔ transitiveها را در همان لحظه قفل می‌کند؛ lock را همراه بسته آپلود کنید و دستی `npm install` نزنید.
+
 | متغیر | low | mid | high | توضیح |
 |---|:-:|:-:|:-:|---|
 | `NODE_ENV=production` | ✓ | ✓ | ✓ | |
@@ -60,9 +62,9 @@ VITE_API_LOW_URL=https://api.israapp.ir VITE_API_HIGH_URL=https://api.israapp.ir
 | `DB_MIGRATIONS_RUN=true` | ✓ | ✓ | ✓ | در نصب/ارتقا |
 | `CORS_ORIGINS=https://israapp.ir,https://admin.israapp.ir` | ✓ | ✓ | ✓ | |
 | `SWAGGER_ENABLED=false` | ✓ | ✓ | ✓ | (در صورت نیاز true) |
-| `INTERNAL_SHARED_SECRET` | ✓ | ✓ | ✓ | یکسان |
+| `INTERNAL_SECRET_MID` / `_HIGH` (low)، `_LOW` / `_HIGH` (mid)، `_LOW` / `_MID` (high) | ✓ | ✓ | ✓ | per جفت؛ دو سر یکسان |
 | `JWT_PRIVATE_KEY_PEM`، `OTP_PEPPER` | ✓ | | | از gen-secrets |
-| `COOKIE_DOMAIN=.israapp.ir`، `PUBLIC_BASE_URL=https://api.israapp.ir` | ✓ | | | |
+| `PUBLIC_BASE_URL=https://capi.israapp.ir`، `SESSION_MAX_AGE_SEC=7776000` | ✓ | | | |
 | `SMS_PROVIDER=faraz`، `FARAZ_API_KEY`، `FARAZ_SENDER`، `FARAZ_PATTERN_CODE`، `FARAZ_CODE_VAR` | ✓ | | | کلید Faraz فقط اینجا |
 | `LOW_JWKS_URL=https://api.israapp.ir/c/.well-known/jwks.json`، `JWT_ISSUER`، `JWT_AUDIENCE` | | ✓ | ✓ | |
 | `INTERNAL_URL_LOW=https://api.israapp.ir/c` | | ✓ | ✓ | |
@@ -89,7 +91,7 @@ Node app با Application URL = `israapp.ir`، root = `deploy/web-main`، Startu
 - نشان (Neshan): هنوز پیاده نشده؛ `NESHAN_API_KEY` سمت سرور خواهد بود، هرگز کلاینت.
 
 ## ج) استقرار خودکار (GitHub Actions + SSH)
-با هر ادغام در `master`، workflow `.github/workflows/deploy.yml` بیلد و بسته‌بندی می‌کند، با `rsync` روی هاست می‌فرستد، در صورت تغییر `package.json` روی هاست `npm install` می‌زند، اپ را با `tmp/restart.txt` restart می‌کند و `/health` را چک می‌کند (ترتیب: low ← mid ← high ← web-main ← web-admin). اجرای دستی: Actions ← Deploy ← Run workflow (با انتخاب هدف‌ها).
+با هر ادغام در `master`، workflow `.github/workflows/deploy.yml` بیلد و بسته‌بندی می‌کند، با `rsync` روی هاست می‌فرستد، در صورت تغییر `package.json`/`package-lock.json`/`.npmrc`/tarball روی هاست `npm ci --omit=dev --ignore-scripts` می‌زند، اپ را با `tmp/restart.txt` restart می‌کند و `/health` را چک می‌کند (ترتیب: low ← mid ← high ← web-main ← web-admin). اجرای دستی: Actions ← Deploy ← Run workflow (با انتخاب هدف‌ها).
 
 **یک‌بار دستی:** ساخت ۴ اپ در Setup Node.js App و وارد کردن env (بخش ب). Application root هر اپ باید `apps/<نام>` باشد (یا `APPS_DIR` را تغییر دهید).
 

@@ -50,8 +50,17 @@ const KNOWN: ReadonlySet<string> = new Set<ApiErrorCode>([
   'SERVICE_UNAVAILABLE'
 ]);
 
-const uuid = () =>
-  typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}-idem`;
+function uuidv4(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const b = new Uint8Array(16);
+  crypto.getRandomValues(b);
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+const uuid = () => uuidv4();
 
 /** پایهٔ تماس با API واقعی: envelope استاندارد، نگاشت خطا به ApiError، timeout، هدرهای قرارداد */
 export function createHttp(cfg: HttpConfig) {

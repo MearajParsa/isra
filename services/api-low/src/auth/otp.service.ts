@@ -54,8 +54,14 @@ export class OtpService {
       throw new AppError('RATE_LIMITED', { details: { retryAfterSec: Math.max(1, wait) } });
     }
 
-    // سقف بودجهٔ روزانهٔ پیامک (ضد SMS-pumping/هزینه)
+    // سقف روزانهٔ per-شماره و per-IP پیش از بودجهٔ سراسری؛ بدون این، یک مهاجم ناشناس کل بودجه را مصرف و ورود همه را قفل می‌کرد
     const day = now.toISOString().slice(0, 10);
+    const perPhone = await this.limiter.hit('durable', `sms:ph:${day}:${hmac256(this.env.OTP_PEPPER, 'ph:' + phone).toString('hex').slice(0, 24)}`, this.env.SMS_PER_PHONE_DAILY, 86_400);
+    if (!perPhone.allowed) throw new AppError('RATE_LIMITED', { details: { retryAfterSec: perPhone.resetSec } });
+    const perIp = await this.limiter.hit('durable', `sms:ip:${day}:${ip}`, this.env.SMS_PER_IP_DAILY, 86_400);
+    if (!perIp.allowed) throw new AppError('RATE_LIMITED', { details: { retryAfterSec: perIp.resetSec } });
+
+    // سقف بودجهٔ روزانهٔ پیامک (ضد SMS-pumping/هزینه)
     const budget = await this.limiter.hit('durable', `sms:budget:${day}`, this.env.SMS_DAILY_BUDGET, 86_400);
     if (!budget.allowed) {
       this.log.error('daily SMS budget exhausted');

@@ -9,7 +9,8 @@ import { MaintenanceService } from '../src/outbox/maintenance.service';
 import { uuidv7 } from '../src/common/ids';
 import { type TestApp, type User, api, creator, join, mkSession, mkUser, startApp, testEnv } from './helpers/app';
 
-const SECRET = 'test-internal-secret-test-internal-1234';
+const SECRET = 'test-pair-low-mid-0123456789abcdef01';
+const HIGH_SECRET = 'test-pair-mid-high-0123456789abcdef0';
 let t: TestApp;
 let a: ReturnType<typeof api>;
 beforeAll(async () => {
@@ -19,12 +20,15 @@ beforeAll(async () => {
 afterAll(async () => t.close());
 
 const ev = (type: string, payload: object, eventId = randomUUID()) => ({ eventId, type, occurredAt: new Date().toISOString(), payload });
-const send = (body: object, token: string | null = SECRET) => {
-  const r = request(t.http).post('/o/internal/v1/events');
-  return (token ? r.set('X-Internal-Token', token) : r).send(body);
+/** رویداد system.* از high می‌آید؛ بقیه از low (ACL فرستنده) */
+const send = (body: object, token?: string | null, caller: 'low' | 'mid' | 'high' | null = null) => {
+  const sys = String((body as { type?: unknown }).type ?? '').startsWith('system.');
+  const r = request(t.http).post('/o/internal/v1/events').set('X-Internal-Caller', caller ?? (sys ? 'high' : 'low'));
+  const tok = token === undefined ? (sys ? HIGH_SECRET : SECRET) : token;
+  return (tok ? r.set('X-Internal-Token', tok) : r).send(body);
 };
-const internalGet = (path: string, token: string | null = SECRET) => {
-  const r = request(t.http).get(`/o/internal/v1${path}`);
+const internalGet = (path: string, token: string | null = SECRET, caller: 'low' | 'high' = 'low') => {
+  const r = request(t.http).get(`/o/internal/v1${path}`).set('X-Internal-Caller', caller);
   return token ? r.set('X-Internal-Token', token) : r;
 };
 
@@ -60,7 +64,7 @@ describe('رویدادهای ورودی (از low/high)', () => {
     expect((await send(ev('system.settings.changed', { ...good, version: 9, evalWeights: { voice: 50, tone: 50, tajweed: 50 } }))).status).toBe(400);
     const u = await mkUser(t, 'نمونه');
     expect((await a.get('/me/points', u)).body.data.badges.map((b: any) => b.threshold)).toEqual([10, 20, 30, 40]);
-    expect((await send(ev('future.event', { a: 1 }))).status).toBe(202);
+    expect((await send(ev('future.event', { a: 1 }))).status).toBe(403); // allow-list نوع رویداد per فرستنده
     await t.ds.query('DELETE FROM settings_cache');
   });
 
@@ -247,13 +251,14 @@ describe('migration', () => {
         return rows.length > 0 && Number(rows[0]!.nu) === 0;
       };
       await ds.runMigrations();
-      expect(await tables()).toBe(15);
+      expect(await tables()).toBe(16);
       for (const [tb, ix] of [['attendance_entries', 'uq_attendance_session_user'], ['evaluations', 'uq_eval_queue_item'], ['point_ledger', 'uq_ledger_reason_ref'], ['badge_awards', 'uq_badge_user_key'], ['session_members', 'uq_member_session_user'], ['queue_items', 'uq_queue_active']] as const) expect(await unique(tb, ix), ix).toBe(true);
+      await ds.undoLastMigration(); // RevokedSessions
       await ds.undoLastMigration(); // SessionRouteUrl
       await ds.undoLastMigration(); // InitSchema
       expect(await tables()).toBe(0);
       await ds.runMigrations();
-      expect(await tables()).toBe(15);
+      expect(await tables()).toBe(16);
     } finally {
       await ds.destroy();
     }
@@ -289,8 +294,23 @@ describe('internal stats برای high', () => {
     await mkSession(t, m, 'scheduled');
     await mkSession(t, m, 'scheduled');
     await mkSession(t, m, 'ended');
-    const r = await internalGet('/stats/sessions');
+    const r = await internalGet('/stats/sessions', HIGH_SECRET, 'high');
     expect(r.body.data).toEqual({ draft: 1, scheduled: 2, started: 0, ended: 1 });
-    expect((await internalGet('/stats/sessions', null)).status).toBe(401);
+    expect((await internalGet('/stats/sessions', null, 'high')).status).toBe(401);
+    expect((await internalGet('/stats/sessions')).status).toBe(403); // فرستندهٔ غیرمجاز (low) برای مسیر stats
+  });
+});
+
+describe('session.revoked از low', () => {
+  const sidOf = (tok: string) => (JSON.parse(Buffer.from(tok.split('.')[1]!, 'base64url').toString()) as { sid: string }).sid;
+  it('توکن نشست باطل‌شده رد می‌شود؛ نشست‌های دیگر سالم؛ ACL: فقط low', async () => {
+    const u = await mkUser(t, 'الف');
+    const v = await mkUser(t, 'ب');
+    expect((await a.get('/me', u)).status).toBe(200);
+    const body = ev('session.revoked', { sessionIds: [sidOf(u.token)], expiresAt: new Date(Date.now() + 600_000).toISOString() });
+    expect((await send(body, HIGH_SECRET, 'high')).status).toBe(403); // high اجازهٔ ارسال session.revoked ندارد
+    expect((await send(body)).status).toBe(202);
+    expect((await a.get('/me', u)).status).toBe(401);
+    expect((await a.get('/me', v)).status).toBe(200);
   });
 });

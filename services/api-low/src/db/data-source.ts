@@ -27,6 +27,7 @@ export function dataSourceOptions(env: Env): DataSourceOptions {
     logger: new SafeTypeOrmLogger(), // بدون SQL/پارامتر در لاگ
     logging: ['error', 'warn', 'migration'],
     maxQueryExecutionTime: 500, // رویداد query کند (فقط مدت)
+    ssl: env.DB_SSL ? { rejectUnauthorized: true, minVersion: 'TLSv1.2' } : undefined,
     extra: { connectionLimit: env.DB_POOL_MAX, connectTimeout: 5000 }
   };
 }

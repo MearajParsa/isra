@@ -11,7 +11,7 @@ cp services/api-high/.env.example services/api-high/.env.local  # ویندوز: 
 pnpm --filter @isra/api-high migration:run                      # schema + دادهٔ پایهٔ سیستم (نقش‌ها، مجوزها، تنظیمات پیش‌فرض)
 pnpm --filter @isra/api-high dev                                # http://localhost:3003 — Swagger: /s/docs
 ```
-**اتصال سرویس‌ها (لوکال):** `INTERNAL_SHARED_SECRET` هر سه سرویس یکی باشد؛ در `api-low/.env.local` مقدار `INTERNAL_URL_MID=http://127.0.0.1:3002` و `INTERNAL_URL_HIGH=http://127.0.0.1:3003` و در `api-high/.env.local` مقدار `INTERNAL_URL_LOW` و `INTERNAL_URL_MID` باشد (نمونه در `.env.example`).
+**اتصال سرویس‌ها (لوکال):** secret هر جفت‌سرویس (`INTERNAL_SECRET_*`، نمونه در `.env.example`) در دو سر یکسان باشد؛ در `api-low/.env.local` مقدار `INTERNAL_URL_MID=http://127.0.0.1:3002` و `INTERNAL_URL_HIGH=http://127.0.0.1:3003` و در `api-high/.env.local` مقدار `INTERNAL_URL_LOW` و `INTERNAL_URL_MID` باشد (نمونه در `.env.example`).
 
 ### اولین توسعه‌دهنده (ادمین اول)
 در `api-high/.env.local` مقدار `BOOTSTRAP_DEVELOPER_PHONE=09xxxxxxxxx` را بگذارید. وقتی این شماره در low ثبت‌نام/ورود کند (رویداد `user.registered`) و هنوز هیچ developer وجود نداشته باشد، خودکار developer می‌شود (audit: `system.bootstrap`). فقط وقتی هیچ developer نیست کار می‌کند؛ بعد از آن بی‌اثر است.
@@ -37,7 +37,7 @@ pnpm --filter @isra/api-high test       # ۵۲ تست؛ نیاز به MySQL (TES
 | high → low | `system.role.changed`، `system.settings.changed`، `system.permission.changed` |
 | high → mid | `system.settings.changed`، (و `system.role.changed`/`permission.changed` که mid نادیده می‌گیرد) |
 | high → mid | `GET {INTERNAL_URL_MID}/internal/v1/stats/sessions` (`…/o`) (نمای کلی؛ cache ۱۵s + stale-if-error؛ mid خراب و cache خالی ⇒ 503) |
-هدر `X-Internal-Token`؛ فقط شبکهٔ خصوصی.
+هدرهای `X-Internal-Caller` + `X-Internal-Token` (secret per جفت‌سرویس؛ ACL نوع رویداد/مسیر per فرستنده)؛ فقط شبکهٔ خصوصی.
 
 ## محدودیت‌ها / بدهی
 - اثر تغییر نقش روی توکن‌های صادرشده تا انقضای access (≤۱۵ دقیقه) برای low/mid؛ خود high فوراً (DB).

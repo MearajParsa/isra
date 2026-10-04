@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { z } from 'zod';
+import { RevocationService } from '../auth/revocation.service';
 import { Clock } from '../common/clock';
 import { uuidToBuf } from '../common/ids';
 import { SettingsChanged, SettingsService } from '../domain/settings.service';
@@ -12,6 +13,7 @@ export interface InboundEvent {
   payload: Record<string, unknown>;
 }
 
+const SessionRevoked = z.object({ sessionIds: z.array(z.uuid()).min(1).max(50), expiresAt: z.iso.datetime({ offset: true }) });
 const UserRegistered = z.object({ userId: z.uuid() });
 const ProfileUpdated = z.object({ userId: z.uuid(), firstName: z.string().max(40).optional(), lastName: z.string().max(40).optional() });
 
@@ -26,7 +28,8 @@ export class EventsService {
   constructor(
     private readonly ds: DataSource,
     private readonly clock: Clock,
-    private readonly settings: SettingsService
+    private readonly settings: SettingsService,
+    private readonly revocation: RevocationService
   ) {}
 
   async handle(e: InboundEvent): Promise<void> {
@@ -45,6 +48,9 @@ export class EventsService {
            ON DUPLICATE KEY UPDATE first_name = COALESCE(?, first_name), last_name = COALESCE(?, last_name), updated_at = VALUES(updated_at)`,
           [uuidToBuf(p.userId), p.firstName ?? '', p.lastName ?? '', now, p.firstName ?? null, p.lastName ?? null]
         );
+      } else if (e.type === 'session.revoked') {
+        const p = SessionRevoked.parse(e.payload);
+        await this.revocation.add(m, p.sessionIds, new Date(p.expiresAt));
       } else if (e.type === 'system.settings.changed') {
         await this.settings.apply(SettingsChanged.parse(e.payload));
       } else {

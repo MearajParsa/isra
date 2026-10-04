@@ -5,6 +5,7 @@ import { HEADERS, type EndpointDef, type RateLimit } from '@isra/api-types';
 import { JwtVerifier } from '../../auth/jwt-verifier';
 import { ENV, type Env } from '../../config/env';
 import { RbacService } from '../../domain/rbac.service';
+import { INTERNAL_KEY } from '../../internal/internal-auth';
 import { AppError } from '../app-error';
 import { EP_KEY, endpoint } from '../ep';
 import { RateLimitService } from '../rate-limit/rate-limit.service';
@@ -29,7 +30,11 @@ export class EndpointGuard implements CanActivate {
 
   async canActivate(c: ExecutionContext): Promise<boolean> {
     const id = this.reflector.get<string | undefined>(EP_KEY, c.getHandler());
-    if (!id) return true;
+    if (!id) {
+      // fail-closed: مسیر بدون تعریف قرارداد فقط برای کنترلر internal مجاز است (احراز با InternalGuard)
+      if (this.reflector.getAllAndOverride<boolean | undefined>(INTERNAL_KEY, [c.getHandler(), c.getClass()])) return true;
+      throw new AppError('AUTH_FORBIDDEN');
+    }
     const def = endpoint(id);
     const req = c.switchToHttp().getRequest<IsraRequest>();
     const res = c.switchToHttp().getResponse<Response>();

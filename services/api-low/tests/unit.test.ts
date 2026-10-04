@@ -102,7 +102,8 @@ function testEnvRaw(): Record<string, string> {
     DB_USER: 'u',
     DB_PASSWORD: 'p',
     OTP_PEPPER: 'x'.repeat(32),
-    INTERNAL_SHARED_SECRET: 'y'.repeat(32),
+    INTERNAL_SECRET_MID: 'y'.repeat(16) + 'z'.repeat(16),
+    INTERNAL_SECRET_HIGH: 'q'.repeat(16) + 'w'.repeat(16),
     SMS_PROVIDER: 'console'
   };
 }

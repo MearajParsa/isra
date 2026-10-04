@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { z } from 'zod';
 import { AppError } from '../common/app-error';
 import { Clock } from '../common/clock';
+import { internalHeaders } from '../internal/internal-auth';
 import { ENV, type Env } from '../config/env';
 import { AuditService } from './audit.service';
 import { UsersService } from './users.service';
@@ -30,7 +31,7 @@ export class OverviewService {
     const now = this.clock.now().getTime();
     if (this.cache && this.cache.fresh > now) return this.cache.v;
     try {
-      const res = await fetch(`${this.env.INTERNAL_URL_MID}/internal/v1/stats/sessions`, { headers: { 'X-Internal-Token': this.env.INTERNAL_SHARED_SECRET }, signal: AbortSignal.timeout(this.env.INTERNAL_TIMEOUT_MS) });
+      const res = await fetch(`${this.env.INTERNAL_URL_MID}/internal/v1/stats/sessions`, { headers: internalHeaders(this.env, 'mid'), signal: AbortSignal.timeout(this.env.INTERNAL_TIMEOUT_MS) });
       if (!res.ok) throw new Error(`mid http ${res.status}`);
       const v = Stats.parse(await res.json()).data;
       this.cache = { v, fresh: now + TTL_MS, stale: now + STALE_MS };
@@ -42,8 +43,9 @@ export class OverviewService {
     }
   }
 
-  async get() {
-    const [users, sessions, lastAudit] = await Promise.all([this.users.stats(), this.sessions(), this.audit.last(5)]);
+  /** آخرین رویدادهای audit فقط با مجوز `system.audit.view` (وگرنه فهرست خالی) */
+  async get(canViewAudit: boolean) {
+    const [users, sessions, lastAudit] = await Promise.all([this.users.stats(), this.sessions(), canViewAudit ? this.audit.last(5) : Promise.resolve([])]);
     return { users, sessions, lastAudit };
   }
 }

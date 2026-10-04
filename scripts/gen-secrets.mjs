@@ -9,8 +9,16 @@ import { generateKeyPairSync, randomBytes } from 'node:crypto';
 const hex = (n = 32) => randomBytes(n).toString('hex');
 const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 3072, privateKeyEncoding: { type: 'pkcs8', format: 'pem' }, publicKeyEncoding: { type: 'spki', format: 'pem' } });
 
-console.log(`# ===== مشترک بین هر سه سرویس (api-low/api-mid/api-high) — دقیقاً یک مقدار =====
-INTERNAL_SHARED_SECRET=${hex(32)}
+const lm = hex(32);
+const lh = hex(32);
+const mh = hex(32);
+console.log(`# ===== secret سرویس‌به‌سرویس: هر جفت مستقل است؛ هر مقدار دقیقاً در دو سرویس می‌آید =====
+# low↔mid:   api-low: INTERNAL_SECRET_MID    | api-mid:  INTERNAL_SECRET_LOW
+INTERNAL_SECRET_MID(low)=INTERNAL_SECRET_LOW(mid)=${lm}
+# low↔high:  api-low: INTERNAL_SECRET_HIGH   | api-high: INTERNAL_SECRET_LOW
+INTERNAL_SECRET_HIGH(low)=INTERNAL_SECRET_LOW(high)=${lh}
+# mid↔high:  api-mid: INTERNAL_SECRET_HIGH   | api-high: INTERNAL_SECRET_MID
+INTERNAL_SECRET_HIGH(mid)=INTERNAL_SECRET_MID(high)=${mh}
 
 # ===== فقط api-low =====
 OTP_PEPPER=${hex(32)}

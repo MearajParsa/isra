@@ -3,9 +3,11 @@ import { createRemoteJWKSet, errors, jwtVerify } from 'jose';
 import { AppError } from '../common/app-error';
 import { Clock } from '../common/clock';
 import { ENV, type Env } from '../config/env';
+import { RevocationService } from './revocation.service';
 
 export interface Principal {
   userId: string;
+  sessionId: string;
   roles: string[];
   perms: string[];
   expiresAt: number;
@@ -14,7 +16,7 @@ export interface Principal {
 /**
  * اعتبارسنجی محلی access JWT با JWKS سرویس low (RS256 pin‌شده؛ iss/aud/exp).
  * بدون hop به low در هر درخواست (قفل): kid ناشناخته ⇒ JWKS دوباره خوانده می‌شود (با cooldown) و کلید چرخشی پذیرفته می‌شود.
- * نشست revoke‌شده تا انقضای access (≤۱۵ دقیقه) در mid معتبر می‌ماند — پذیرفته‌شده در قفل‌ها.
+ * نشست revoke‌شده: low رویداد `session.revoked` می‌فرستد و `RevocationService` آن را (با تأخیر ≤ چند ثانیه) رد می‌کند.
  */
 @Injectable()
 export class JwtVerifier {
@@ -22,7 +24,8 @@ export class JwtVerifier {
 
   constructor(
     @Inject(ENV) private readonly env: Env,
-    private readonly clock: Clock
+    private readonly clock: Clock,
+    private readonly revoked: RevocationService
   ) {
     this.jwks = createRemoteJWKSet(new URL(env.LOW_JWKS_URL), { timeoutDuration: env.JWKS_TIMEOUT_MS, cooldownDuration: 15_000, cacheMaxAge: 10 * 60_000 });
   }
@@ -37,9 +40,10 @@ export class JwtVerifier {
         clockTolerance: 30,
         currentDate: this.clock.now()
       });
-      if (typeof payload.sub !== 'string' || payload.lvl !== 'low') throw new AppError('AUTH_TOKEN_INVALID');
+      if (typeof payload.sub !== 'string' || typeof payload.sid !== 'string' || payload.lvl !== 'low') throw new AppError('AUTH_TOKEN_INVALID');
+      if (await this.revoked.isRevoked(payload.sid)) throw new AppError('AUTH_TOKEN_INVALID');
       const strs = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
-      return { userId: payload.sub, roles: strs(payload.roles), perms: strs(payload.perms), expiresAt: (payload.exp ?? 0) * 1000 };
+      return { userId: payload.sub, sessionId: payload.sid, roles: strs(payload.roles), perms: strs(payload.perms), expiresAt: (payload.exp ?? 0) * 1000 };
     } catch (e) {
       if (e instanceof AppError) throw e;
       if (e instanceof errors.JWTExpired) throw new AppError('AUTH_TOKEN_EXPIRED');

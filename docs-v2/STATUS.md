@@ -10,6 +10,10 @@
 
 - **بازطراحی لندینگ guest (`/` در web-main)** با اسکیل `scroll-craft` (نصب‌شده در `.claude/skills/scroll-craft`، موتور بدون تغییر در `apps/web-main/static/scrollcraft/`): کامپوننت `lib/components/features/GuestLanding.svelte` (۶ فصل، بدون تصویر تولیدی، فقط SVG/CSS و توکن‌های مالک؛ امضا: «کارت حضور» نمونه). نسخهٔ عضو (داشبورد) دست‌نخورده. brief در `scrollcraft/builds/isra-landing/BRIEF.md`. `svelte-check`/`lint`/`test` سبز؛ بازبینی تصویری دسکتاپ+موبایل انجام شد؛ **دستگاه واقعی و reduced-motion تست نشده**.
 
+- **سخت‌سازی امنیتی (بازبینی `docs/security-audit-output/`):** secret داخلی per جفت‌سرویس + `X-Internal-Caller` + ACL نوع رویداد/مسیر؛ fail-closed در `EndpointGuard` (فقط کنترلر `@InternalRoute()`)؛ `NODE_ENV` پیش‌فرض production؛ رد secret نمونه/ضعیف و URL غیر https (پارس واقعی)؛ `DB_SSL` برای DB غیر loopback؛ revocation نشست از low به mid/high (`session.revoked` + جدول `revoked_sessions`)؛ سقف مطلق نشست `SESSION_MAX_AGE_SEC`؛ سقف OTP per-شماره/IP؛ cookie با `__Secure-` و بدون Domain؛ لاگ رخداد امنیتی 401/403؛ lastAudit فقط با `system.audit.view`؛ ETag با SHA-256؛ `safeNext` سخت‌شده و CSP هش‌محور در web-admin؛ pin کردن Actions به SHA، dependabot/CODEOWNERS/SECURITY.md، CodeQL+gitleaks؛ بستهٔ سرویس با `package-lock.json` و `npm ci`.
+  - **قبول‌شده/باز (توضیح در گزارش):** OTP ۵ رقمی (قفل مالک ۱۰)؛ حداقل رمز ۸ (قرارداد api-types)؛ step-up replay در TTL ۵ دقیقه؛ حذف/نگهداری PII (V8.1.6)؛ SBOM/SAST کامل.
+  - ⚠ **مهاجرت env:** `INTERNAL_SHARED_SECRET` حذف شد؛ با `scripts/gen-env.mjs` env جدید بسازید (secretهای جفتی)، `DB_PASSWORD` را خودتان پر کنید و هر سه سرویس را هم‌زمان استقرار دهید (migration جدید `revoked_sessions` در mid/high).
+
 ## در حال انجام (In progress)
 - کارstream فعال: API — auth + low برای web-main (فقط پیش‌نویس؛ mid/high/admin خارج از scope). پیش‌نویس: `docs-v2/15-api-low-web-main-draft.md` — منتظر قفل مالک (Q1–Q8 در §۹)
 - موجودی UI (فقط `web-main` بخش low): پیش‌نویس `docs-v2/16-ui-inventory-web-main-low-draft.md` — Q1=بله(mock)، Q2/Q10 تصمیم AI در §ح؛ منتظر تأیید §ح، سؤالات Q4–Q9/Q12 و design مالک؛ کد UI زده نشده. فونت‌ها در `design/fonts` آمدند (YekanBakhFaNum؛ نکات در §ح-۴)

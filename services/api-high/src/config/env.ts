@@ -1,12 +1,24 @@
 import { z } from 'zod';
+import { isWeakSecret } from './secrets';
 
 const bool = z.enum(['true', 'false']).transform((v) => v === 'true');
 const csv = z.string().transform((s) => s.split(',').map((x) => x.trim()).filter(Boolean));
 
+/** https الزامی؛ http فقط برای loopback (توسعه/تست). پارس واقعی URL (نه substring). */
+export function isSecureUrl(raw: string | undefined): boolean {
+  if (!raw) return false;
+  try {
+    const u = new URL(raw);
+    return u.protocol === 'https:' || (u.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname));
+  } catch {
+    return false;
+  }
+}
+
 /** env اعتبارسنجی‌شده در boot (fail-fast). توضیح: docs-v2/24-env-draft.md */
 export const EnvSchema = z
   .object({
-    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    NODE_ENV: z.enum(['development', 'test', 'production']).default('production'),
     PORT: z.coerce.number().int().min(1).max(65535).default(3003),
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
     TRUST_PROXY: z.coerce.number().int().min(0).max(5).default(0),
@@ -19,6 +31,7 @@ export const EnvSchema = z
     DB_POOL_MAX: z.coerce.number().int().min(1).max(100).default(10),
     DB_QUERY_TIMEOUT_MS: z.coerce.number().int().min(100).default(2000),
     DB_MIGRATIONS_RUN: bool.default(false),
+    DB_SSL: bool.default(false).describe('TLS به MySQL؛ برای DB_HOST غیر loopback در production الزامی است'),
 
     CORS_ORIGINS: csv.default([]),
     SWAGGER_ENABLED: bool.default(false),
@@ -28,7 +41,8 @@ export const EnvSchema = z
     JWT_AUDIENCE: z.string().min(1).default('isra'),
     JWKS_TIMEOUT_MS: z.coerce.number().int().min(200).max(10_000).default(3000),
 
-    INTERNAL_SHARED_SECRET: z.string().min(32),
+    INTERNAL_SECRET_LOW: z.string().min(32).describe('secret جفت‌سرویس high↔low (باید در دو سرویس یکسان و از بقیهٔ جفت‌ها متفاوت باشد)'),
+    INTERNAL_SECRET_MID: z.string().min(32).describe('secret جفت‌سرویس high↔mid (باید در دو سرویس یکسان و از بقیهٔ جفت‌ها متفاوت باشد)'),
     INTERNAL_URL_LOW: z.url().optional(),
     INTERNAL_URL_MID: z.url().optional(),
     INTERNAL_ALLOWED_IPS: csv.default([]).describe('اختیاری: فقط این IPها به مسیرهای internal دسترسی دارند'),
@@ -45,8 +59,15 @@ export const EnvSchema = z
     const need = (cond: boolean, path: string, message: string) => cond && ctx.addIssue({ code: 'custom', path: [path], message });
     need(prod && !e.INTERNAL_URL_LOW, 'INTERNAL_URL_LOW', 'در production الزامی است.');
     need(prod && !e.INTERNAL_URL_MID, 'INTERNAL_URL_MID', 'در production الزامی است.');
+    need(prod && !isSecureUrl(e.LOW_JWKS_URL), 'LOW_JWKS_URL', 'در production باید https (یا loopback) باشد.');
+    need(prod && !!e.INTERNAL_URL_LOW && !isSecureUrl(e.INTERNAL_URL_LOW), 'INTERNAL_URL_LOW', 'در production باید https (یا loopback) باشد.');
+    need(prod && !!e.INTERNAL_URL_MID && !isSecureUrl(e.INTERNAL_URL_MID), 'INTERNAL_URL_MID', 'در production باید https (یا loopback) باشد.');
     need(prod && e.CORS_ORIGINS.length === 0, 'CORS_ORIGINS', 'در production باید allowlist مشخص باشد.');
     need(prod && e.CORS_ORIGINS.some((o) => o === '*' || !o.startsWith('https://')), 'CORS_ORIGINS', 'در production فقط origin دقیق https مجاز است.');
+    const hostLoop = ['localhost', '127.0.0.1', '::1'].includes(e.DB_HOST);
+    need(prod && !hostLoop && !e.DB_SSL, 'DB_SSL', 'برای DB_HOST غیر loopback در production باید true باشد.');
+    need(e.INTERNAL_SECRET_LOW === e.INTERNAL_SECRET_MID, 'INTERNAL_SECRET_MID', 'secret هر جفت‌سرویس باید مستقل باشد.');
+    for (const k of ['INTERNAL_SECRET_LOW', 'INTERNAL_SECRET_MID'] as const) need(prod && isWeakSecret(e[k]), k, 'در production مقدار نمونه/ضعیف مجاز نیست؛ ۳۲+ نویسهٔ تصادفی بسازید.');
     need(prod && e.SWAGGER_ENABLED, 'SWAGGER_ENABLED', 'در production خاموش بماند.');
   });
 

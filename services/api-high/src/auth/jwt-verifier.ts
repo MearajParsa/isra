@@ -3,6 +3,7 @@ import { createRemoteJWKSet, errors, jwtVerify } from 'jose';
 import { AppError } from '../common/app-error';
 import { Clock } from '../common/clock';
 import { ENV, type Env } from '../config/env';
+import { RevocationService } from './revocation.service';
 
 export interface Principal {
   userId: string;
@@ -19,7 +20,8 @@ export class JwtVerifier {
 
   constructor(
     @Inject(ENV) private readonly env: Env,
-    private readonly clock: Clock
+    private readonly clock: Clock,
+    private readonly revoked: RevocationService
   ) {
     this.jwks = createRemoteJWKSet(new URL(env.LOW_JWKS_URL), { timeoutDuration: env.JWKS_TIMEOUT_MS, cooldownDuration: 15_000, cacheMaxAge: 10 * 60_000 });
   }
@@ -33,6 +35,7 @@ export class JwtVerifier {
     try {
       const { payload } = await this.decode(token);
       if (typeof payload.sub !== 'string' || typeof payload.sid !== 'string' || payload.lvl !== 'low') throw new AppError('AUTH_TOKEN_INVALID');
+      if (await this.revoked.isRevoked(payload.sid)) throw new AppError('AUTH_TOKEN_INVALID');
       return { userId: payload.sub, sessionId: payload.sid };
     } catch (e) {
       if (e instanceof AppError) throw e;

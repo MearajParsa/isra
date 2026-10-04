@@ -2,9 +2,11 @@
 /**
  * ساخت فایل‌های env production برای سه سرویس از روی یک فایل JSON محلی (خارج از ریپو؛ حاوی رمز/کلید):
  *   node scripts/gen-env.mjs <data.json> [outDir=deploy/env]
- * خروجی: <outDir>/api-low.env ، api-mid.env ، api-high.env  (+ secretهای تصادفی مشترک یک‌بار تولید می‌شوند).
+ * خروجی: <outDir>/api-low.env ، api-mid.env ، api-high.env.
+ * secret سرویس‌به‌سرویس برای هر جفت مستقل است (low↔mid، low↔high، mid↔high) و هر کدام فقط در دو فایل می‌آید.
+ * `DB_PASSWORD` عمداً **خالی** نوشته می‌شود (در data.json هم لازم نیست): مقدار را خودتان در cPanel پر کنید.
  * `deploy/` در .gitignore است؛ خروجی را commit/ارسال نکنید. هر خط `KEY=VALUE` را در cPanel ← Setup Node.js App ← Environment variables وارد کنید.
- * ساختار data.json: site_url, admin_url, BOOTSTRAP_DEVELOPER_PHONE[], jwt{access_expires_in,refresh_expires_in}, database{system|client|operation:{domain,db,user,password}},
+ * ساختار data.json: site_url, admin_url, BOOTSTRAP_DEVELOPER_PHONE[], jwt{access_expires_in,refresh_expires_in}, database{system|client|operation:{domain,db,user}},
  * farazsms{SMS_API_KEY,SMS_SENDER_LINE,SMS_OTP_PATTERN,SMS_API_BASE_URL,FARAZ_CODE_VAR?}. (کلیدهای JWT قدیمی/HS نادیده گرفته می‌شوند: سامانه RS256 است.)
  */
 import { generateKeyPairSync, randomBytes } from 'node:crypto';
@@ -41,7 +43,8 @@ const hosts = {
 const dbs = { low: d.database.client, mid: d.database.operation, high: d.database.system };
 
 const hex = (n = 32) => randomBytes(n).toString('hex');
-const shared = hex(32);
+// secret مستقل هر جفت‌سرویس؛ افشای یکی جعل جفت دیگر را ممکن نمی‌کند
+const pair = { lowMid: hex(32), lowHigh: hex(32), midHigh: hex(32) };
 const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 3072, privateKeyEncoding: { type: 'pkcs8', format: 'pem' }, publicKeyEncoding: { type: 'spki', format: 'pem' } });
 
 const accessTtl = d.jwt?.access_expires_in ? dur(d.jwt.access_expires_in, 'jwt.access_expires_in') : 900;
@@ -55,11 +58,13 @@ const common = (k) => [
   'DB_PORT=3306',
   `DB_NAME=${must(dbs[k].db, `${k}.db`)}`,
   `DB_USER=${must(dbs[k].user, `${k}.user`)}`,
-  `DB_PASSWORD=${must(dbs[k].password, `${k}.password`)}`,
+  '# رمز دیتابیس را خودتان پر کنید (ترجیحاً فقط حروف/عدد):',
+  'DB_PASSWORD=',
   'DB_MIGRATIONS_RUN=true',
   `CORS_ORIGINS=${site},${admin}`,
   'SWAGGER_ENABLED=false',
-  `INTERNAL_SHARED_SECRET=${shared}`
+  '# اختیاری ولی توصیه‌شده: IP خود سرور (مسیرهای internal فقط از همین IP پذیرفته شوند)',
+  '# INTERNAL_ALLOWED_IPS=<server-ip>'
 ];
 
 const files = {
@@ -67,7 +72,9 @@ const files = {
     '# api-low — Application URL: ' + hosts.low.replace('https://', '') + '/c',
     ...common('low'),
     `PUBLIC_BASE_URL=${hosts.low}`,
-    `COOKIE_DOMAIN=.${root}`,
+    'SESSION_MAX_AGE_SEC=7776000',
+    `INTERNAL_SECRET_MID=${pair.lowMid}`,
+    `INTERNAL_SECRET_HIGH=${pair.lowHigh}`,
     `JWT_PRIVATE_KEY_PEM=${privateKey.trim().replace(/\n/g, '\\n')}`,
     'JWT_KEY_ID=k1',
     `ACCESS_TTL_SEC=${accessTtl}`,
@@ -89,7 +96,9 @@ const files = {
     `LOW_JWKS_URL=${hosts.low}/c/.well-known/jwks.json`,
     'JWT_ISSUER=isra-low',
     'JWT_AUDIENCE=isra',
-    `INTERNAL_URL_LOW=${hosts.low}/c`
+    `INTERNAL_URL_LOW=${hosts.low}/c`,
+    `INTERNAL_SECRET_LOW=${pair.lowMid}`,
+    `INTERNAL_SECRET_HIGH=${pair.midHigh}`
   ],
   'api-high': [
     '# api-high — Application URL: ' + hosts.high.replace('https://', '') + '/s',
@@ -99,6 +108,8 @@ const files = {
     'JWT_AUDIENCE=isra',
     `INTERNAL_URL_LOW=${hosts.low}/c`,
     `INTERNAL_URL_MID=${hosts.mid}/o`,
+    `INTERNAL_SECRET_LOW=${pair.lowHigh}`,
+    `INTERNAL_SECRET_MID=${pair.midHigh}`,
     ...(d.BOOTSTRAP_DEVELOPER_PHONE?.length ? [`BOOTSTRAP_DEVELOPER_PHONE=${[].concat(d.BOOTSTRAP_DEVELOPER_PHONE).join(',')}`] : [])
   ]
 };
@@ -106,6 +117,7 @@ const files = {
 mkdirSync(out, { recursive: true });
 for (const [name, lines] of Object.entries(files)) writeFileSync(join(out, `${name}.env`), lines.join('\n') + '\n', { mode: 0o600 });
 console.log(`✓ ${Object.keys(files).length} فایل در ${out} ساخته شد (commit نکنید).`);
+console.log('⚠ DB_PASSWORD در هر سه فایل خالی است؛ پیش از استقرار پر کنید. هر سه سرویس باید با env جدید (secretهای جفتی) هم‌زمان بالا بیایند.');
 console.log('\nبیلد وب (آدرس‌ها عمومی‌اند، secret نیستند):');
 console.log(`  PUBLIC_API_LOW_URL=${hosts.low} PUBLIC_API_MID_URL=${hosts.mid} pnpm --filter @isra/web-main build && node scripts/pack-web.mjs  (ORIGIN=${site} روی هاست)`);
 console.log(`  VITE_API_LOW_URL=${hosts.low} VITE_API_HIGH_URL=${hosts.high} pnpm --filter @isra/web-admin build  → آپلود در ${admin}`);

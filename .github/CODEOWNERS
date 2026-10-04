@@ -1,0 +1,7 @@
+* @MearajParsa
+
+# مسیرهای حساس (صریح)
+/.github/ @MearajParsa
+/scripts/ @MearajParsa
+/services/*/src/internal/ @MearajParsa
+/services/*/src/auth/ @MearajParsa

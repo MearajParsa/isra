@@ -1,0 +1,20 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  # pnpm workspace: dependabot با ecosystem npm روی ریشه pnpm-lock.yaml را به‌روز می‌کند و workspaceها را پوشش می‌دهد
+  - package-ecosystem: npm
+    directories:
+      - /
+      - /services/*
+      - /apps/web-main
+      - /apps/web-admin
+      - /packages/*
+      - /e2e
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
