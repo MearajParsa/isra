@@ -1,0 +1,3370 @@
+{
+ "schema_version": 2,
+ "audit_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+ "skill_version": "2.6.1",
+ "git_head": "2f703146c46ac975182b864570d7e314a987bd15",
+ "created_at": "2026-10-04T09:34:52Z",
+ "methodology_coverage": {
+  "asvs_pct": 59.3,
+  "api_top10_counts": {
+   "API1:2023": 30,
+   "API2:2023": 20,
+   "API3:2023": 7,
+   "API4:2023": 4,
+   "API5:2023": 16,
+   "API6:2023": 0,
+   "API7:2023": 0,
+   "API8:2023": 17,
+   "API9:2023": 0,
+   "API10:2023": 0
+  },
+  "llm_top10_counts": {},
+  "linddun_counts": {
+   "RISK": 14,
+   "OK": 14
+  },
+  "unique_cwes": 32
+ },
+ "ignored": [],
+ "partition_manifest": [
+  {
+   "id": "services-api-low",
+   "path": "services/api-low",
+   "risk_score": 5,
+   "depth": "full"
+  },
+  {
+   "id": "services-api-high",
+   "path": "services/api-high",
+   "risk_score": 5,
+   "depth": "full"
+  },
+  {
+   "id": "services-api-mid",
+   "path": "services/api-mid",
+   "risk_score": 5,
+   "depth": "full"
+  },
+  {
+   "id": "apps-web-main",
+   "path": "apps/web-main",
+   "risk_score": 5,
+   "depth": "full"
+  },
+  {
+   "id": "apps-web-admin",
+   "path": "apps/web-admin",
+   "risk_score": 5,
+   "depth": "full"
+  },
+  {
+   "id": "packages-jwt-verify",
+   "path": "packages/jwt-verify",
+   "risk_score": 5,
+   "depth": "full"
+  },
+  {
+   "id": "ci-and-deploy",
+   "path": "scripts",
+   "risk_score": 5,
+   "depth": "full"
+  },
+  {
+   "id": "packages-api-types",
+   "path": "packages/api-types",
+   "risk_score": 5,
+   "depth": "full"
+  },
+  {
+   "id": "android-apps",
+   "path": "apps/android-low",
+   "risk_score": 5,
+   "depth": "inventory-only"
+  },
+  {
+   "id": "e2e",
+   "path": "e2e",
+   "risk_score": 5,
+   "depth": "inventory-only"
+  },
+  {
+   "id": "root-config",
+   "path": "package.json",
+   "risk_score": 5,
+   "depth": "inventory-only"
+  },
+  {
+   "id": "claude-dev-tooling",
+   "path": ".claude",
+   "risk_score": 5,
+   "depth": "inventory-only"
+  }
+ ],
+ "repo_topology": {
+  "kind": "monorepo",
+  "tool": "turborepo",
+  "partitions": [
+   "services-api-low",
+   "services-api-high",
+   "services-api-mid",
+   "apps-web-main",
+   "apps-web-admin",
+   "packages-jwt-verify",
+   "ci-and-deploy",
+   "packages-api-types",
+   "android-apps",
+   "e2e",
+   "root-config",
+   "claude-dev-tooling"
+  ]
+ },
+ "config": {
+  "cors_origins": [
+   "env.CORS_ORIGINS"
+  ],
+  "csp": null,
+  "cookie_flags": {
+   "httpOnly": true,
+   "secure": "prod",
+   "sameSite": "strict-or-lax"
+  },
+  "security_headers": {
+   "helmet": true,
+   "hsts": true
+  }
+ },
+ "scanner_versions": {
+  "semgrep": "offline-local-rules",
+  "pnpm-audit": "bundled"
+ },
+ "keystone_files": [
+  {
+   "path": "services/api-low/src/common/guards/endpoint.guard.ts",
+   "reason_count": 2
+  },
+  {
+   "path": "services/api-mid/src/common/guards/endpoint.guard.ts",
+   "reason_count": 2
+  },
+  {
+   "path": "services/api-high/src/common/guards/endpoint.guard.ts",
+   "reason_count": 2
+  },
+  {
+   "path": "services/api-low/src/internal/internal.guard.ts",
+   "reason_count": 2
+  },
+  {
+   "path": "services/api-mid/src/auth/jwt-verifier.ts",
+   "reason_count": 2
+  },
+  {
+   "path": "services/api-high/src/auth/jwt-verifier.ts",
+   "reason_count": 2
+  },
+  {
+   "path": "apps/web-main/svelte.config.js",
+   "reason_count": 2
+  },
+  {
+   "path": "services/api-high/src/app.module.ts",
+   "reason_count": 2
+  },
+  {
+   "path": "services/api-high/src/bootstrap.ts",
+   "reason_count": 2
+  },
+  {
+   "path": "services/api-high/src/config/env.ts",
+   "reason_count": 2
+  },
+  {
+   "path": "services/api-low/src/app.module.ts",
+   "reason_count": 2
+  },
+  {
+   "path": "services/api-low/src/auth/keys.service.ts",
+   "reason_count": 2
+  },
+  {
+   "path": "services/api-low/src/auth/token.service.ts",
+   "reason_count": 2
+  },
+  {
+   "path": "services/api-low/src/bootstrap.ts",
+   "reason_count": 2
+  },
+  {
+   "path": "services/api-low/src/config/env.ts",
+   "reason_count": 2
+  },
+  {
+   "path": "services/api-mid/src/app.module.ts",
+   "reason_count": 2
+  },
+  {
+   "path": "services/api-mid/src/bootstrap.ts",
+   "reason_count": 2
+  },
+  {
+   "path": "services/api-mid/src/config/env.ts",
+   "reason_count": 2
+  },
+  {
+   "path": "services/api-mid/src/live/live.service.ts",
+   "reason_count": 2
+  },
+  {
+   "path": "services/api-low/src/db/migrations/1727700000000-InitSchema.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-mid/src/db/migrations/1727800000000-InitSchema.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-high/src/db/migrations/1728000000000-InitSchema.ts",
+   "reason_count": 1
+  },
+  {
+   "path": ".github/workflows/ci.yml",
+   "reason_count": 1
+  },
+  {
+   "path": ".github/workflows/deploy.yml",
+   "reason_count": 1
+  },
+  {
+   "path": "apps/web-admin/scripts/gen-htaccess.mjs",
+   "reason_count": 1
+  },
+  {
+   "path": "apps/web-admin/src/lib/api/config.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "apps/web-admin/svelte.config.js",
+   "reason_count": 1
+  },
+  {
+   "path": "apps/web-admin/vite.config.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "apps/web-main/src/lib/api/config.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "apps/web-main/src/routes/privacy/+page.svelte",
+   "reason_count": 1
+  },
+  {
+   "path": "apps/web-main/vite.config.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "packages/api-types/src/low/endpoints.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "scripts/gen-env.mjs",
+   "reason_count": 1
+  },
+  {
+   "path": "scripts/gen-secrets.mjs",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-high/src/common/crypto.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-high/src/common/ep.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-high/src/common/exception.filter.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-high/src/common/ids.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-high/src/config/config.module.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-high/src/db/data-source.cli.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-high/src/internal/events.controller.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-high/src/internal/internal.guard.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-high/src/main.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-low/scripts/replay-user-events.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-low/src/auth/auth.controller.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-low/src/auth/auth.module.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-low/src/auth/auth.service.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-low/src/auth/password.service.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-low/src/auth/session.service.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-low/src/common/crypto.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-low/src/common/ep.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-low/src/common/exception.filter.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-low/src/common/ids.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-low/src/config/config.module.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-low/src/db/data-source.cli.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-low/src/infra/infra.controller.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-low/src/internal/events.controller.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-low/src/main.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-low/src/me/me.service.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-mid/src/common/crypto.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-mid/src/common/ep.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-mid/src/common/exception.filter.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-mid/src/common/ids.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-mid/src/config/config.module.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-mid/src/db/data-source.cli.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-mid/src/internal/internal.controller.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-mid/src/internal/internal.guard.ts",
+   "reason_count": 1
+  },
+  {
+   "path": "services/api-mid/src/main.ts",
+   "reason_count": 1
+  }
+ ],
+ "findings_carryover": [
+  {
+   "fingerprint": "5a447dcc28fb",
+   "title": "Step-up token cache survives logout / session reset",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "POSSIBLE",
+   "file": "apps/web-admin/src/lib/auth/auth.svelte.ts",
+   "line": 125,
+   "cwe": "CWE-613",
+   "category": "auth",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "90df3c7e56bb",
+   "title": "Admin CSP allows script-src 'unsafe-inline' while access token lives in JS memory",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "LIKELY",
+   "file": "apps/web-admin/scripts/gen-htaccess.mjs",
+   "line": 15,
+   "cwe": "CWE-79",
+   "category": "auth",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "0408f14e5425",
+   "title": "Refutation: no refresh/access token persisted in web storage",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "apps/web-admin/src/lib/auth/auth.svelte.ts",
+   "line": 1,
+   "cwe": "CWE-1007",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "be765a5ba6e6",
+   "title": "Refutation: post-login ?next redirect is same-origin only",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "apps/web-admin/src/lib/utils/nav.ts",
+   "line": 2,
+   "cwe": "CWE-601",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "83934e32f8d9",
+   "title": "Shared INTERNAL_SHARED_SECRET is sole guard of admin internal event ingest",
+   "severity": "CRITICAL",
+   "severity_asserted": "MEDIUM",
+   "severity_computed": "CRITICAL",
+   "confidence": "LIKELY",
+   "file": "services/api-high/src/internal/internal.guard.ts",
+   "line": 34,
+   "cwe": "CWE-287",
+   "category": "auth",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "CRITICAL",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "4d90a5faf137",
+   "title": "BOOTSTRAP_DEVELOPER_PHONE keeps granting developer on every matching registration, contradicting docs",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "POSSIBLE",
+   "file": "services/api-high/src/internal/events.service.ts",
+   "line": 75,
+   "cwe": "CWE-863",
+   "category": "auth",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "89bc74c0a5e2",
+   "title": "jwtVerify does not require exp, so expiry is optional for access and step-up tokens",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "POSSIBLE",
+   "file": "services/api-high/src/auth/jwt-verifier.ts",
+   "line": 28,
+   "cwe": "CWE-613",
+   "category": "auth",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "5da9bea082e5",
+   "title": "Step-up token is replayable for its whole TTL across all step-up endpoints",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "POSSIBLE",
+   "file": "services/api-high/src/auth/jwt-verifier.ts",
+   "line": 50,
+   "cwe": "CWE-345",
+   "category": "auth",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "38eaa748c527",
+   "title": "Global EndpointGuard fails open for handlers without @Route metadata",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "POSSIBLE",
+   "file": "services/api-high/src/common/guards/endpoint.guard.ts",
+   "line": 32,
+   "cwe": "CWE-636",
+   "category": "auth",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "6835674d27d8",
+   "title": "LOW_JWKS_URL (trust root for every admin token) is not required to be https in production",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "POSSIBLE",
+   "file": "services/api-high/src/config/env.ts",
+   "line": 26,
+   "cwe": "CWE-345",
+   "category": "auth",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "26a7b6adb5db",
+   "title": "Access JWT sid is not checked against session revocation; logout/revoked sessions stay valid for the access TTL",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "POSSIBLE",
+   "file": "services/api-high/src/auth/jwt-verifier.ts",
+   "line": 35,
+   "cwe": "CWE-613",
+   "category": "auth",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "824d09c86017",
+   "title": "Refutation: JWT verification pins RS256 and checks iss/aud; no alg none/header-trust",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-high/src/auth/jwt-verifier.ts",
+   "line": 28,
+   "cwe": "CWE-347",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "4580dd422b36",
+   "title": "Refutation: role/grant assignment cannot self-escalate to developer or remove last holder",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-high/src/domain/users.service.ts",
+   "line": 99,
+   "cwe": "CWE-863",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "2e5cf1982a0a",
+   "title": "Global daily SMS budget can be exhausted by anonymous callers, locking all OTP login",
+   "severity": "MEDIUM",
+   "severity_asserted": "MEDIUM",
+   "severity_computed": "MEDIUM",
+   "confidence": "LIKELY",
+   "file": "services/api-low/src/auth/otp.service.ts",
+   "line": 57,
+   "cwe": "CWE-770",
+   "category": "auth",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "MEDIUM",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "29f556f95778",
+   "title": "Single shared secret lets any internal peer forge system.role.changed and mint admin claims",
+   "severity": "CRITICAL",
+   "severity_asserted": "MEDIUM",
+   "severity_computed": "CRITICAL",
+   "confidence": "LIKELY",
+   "file": "services/api-low/src/internal/events.service.ts",
+   "line": 72,
+   "cwe": "CWE-863",
+   "category": "auth",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "CRITICAL",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "6c5947afe6b3",
+   "title": "Anonymous attacker can lock a victim's password login with a per-phone counter",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "LIKELY",
+   "file": "services/api-low/src/auth/auth.service.ts",
+   "line": 70,
+   "cwe": "CWE-307",
+   "category": "auth",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "3b180d44f1ee",
+   "title": "Refresh and access issuance never re-check users.status after login",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "POSSIBLE",
+   "file": "services/api-low/src/auth/session.service.ts",
+   "line": 99,
+   "cwe": "CWE-613",
+   "category": "auth",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "f21a00441d21",
+   "title": "Global guard fails open for handlers lacking an @Route marker",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "LIKELY",
+   "file": "services/api-low/src/common/guards/endpoint.guard.ts",
+   "line": 44,
+   "cwe": "CWE-636",
+   "category": "auth",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "6c2abcfb5144",
+   "title": "JWT verification pins RS256 and binds iss/aud and lvl (refuted: alg confusion / missing iss-aud)",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-low/src/auth/token.service.ts",
+   "line": 52,
+   "cwe": "CWE-1007",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "c9c946883feb",
+   "title": "Refresh rotation uses single-use hashed tokens with reuse detection (refuted: refresh replay/fixation)",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-low/src/auth/session.service.ts",
+   "line": 99,
+   "cwe": "CWE-1007",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "259d885742ca",
+   "title": "OTP verification counts attempts atomically and is single-use (refuted: parallel OTP brute force on one challenge)",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-low/src/auth/otp.service.ts",
+   "line": 92,
+   "cwe": "CWE-1007",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "b07fc93c6453",
+   "title": "Internal events endpoint does not bind event type to sender; one shared secret grants all event types",
+   "severity": "CRITICAL",
+   "severity_asserted": "MEDIUM",
+   "severity_computed": "CRITICAL",
+   "confidence": "POSSIBLE",
+   "file": "services/api-mid/src/internal/internal.controller.ts",
+   "line": 59,
+   "cwe": "CWE-863",
+   "category": "auth",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "CRITICAL",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "c61d94ff28be",
+   "title": "Documented dev internal secret satisfies the env length check and is not rejected in production",
+   "severity": "CRITICAL",
+   "severity_asserted": "LOW",
+   "severity_computed": "CRITICAL",
+   "confidence": "POSSIBLE",
+   "file": "services/api-mid/src/config/env.ts",
+   "line": 32,
+   "cwe": "CWE-798",
+   "category": "auth",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "CRITICAL",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "f238ffb5196e",
+   "title": "Global EndpointGuard fails open for handlers without @Route metadata",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "POSSIBLE",
+   "file": "services/api-mid/src/common/guards/endpoint.guard.ts",
+   "line": 32,
+   "cwe": "CWE-636",
+   "category": "auth",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "8ba7b17882f0",
+   "title": "Internal guard failure lockout is keyed on IP and also blocks callers presenting the valid token",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "POSSIBLE",
+   "file": "services/api-mid/src/internal/internal.guard.ts",
+   "line": 30,
+   "cwe": "CWE-307",
+   "category": "auth",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "ed80d3a4552f",
+   "title": "queue.turned socket broadcast discloses the current student's userId to every room member",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "POSSIBLE",
+   "file": "services/api-mid/src/domain/queue.service.ts",
+   "line": 346,
+   "cwe": "CWE-200",
+   "category": "auth",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "811be9d39c54",
+   "title": "Production JWKS transport check is a substring match",
+   "severity": "CRITICAL",
+   "severity_asserted": "LOW",
+   "severity_computed": "CRITICAL",
+   "confidence": "POSSIBLE",
+   "file": "services/api-mid/src/config/env.ts",
+   "line": 48,
+   "cwe": "CWE-345",
+   "category": "auth",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "CRITICAL",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "b77338639d29",
+   "title": "JWT verification pins RS256 and checks iss/aud/exp",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "LIKELY",
+   "file": "services/api-mid/src/auth/jwt-verifier.ts",
+   "line": 33,
+   "cwe": "CWE-347",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "945a0719a79a",
+   "title": "In-session RBAC derived from DB membership with per-handler permission checks",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "LIKELY",
+   "file": "services/api-mid/src/domain/access.service.ts",
+   "line": 65,
+   "cwe": "CWE-863",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "ca420c60147b",
+   "title": "Overview (H-01) returns last 5 audit entries without system.audit.view",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "POSSIBLE",
+   "file": "services/api-high/src/domain/overview.service.ts",
+   "line": 52,
+   "cwe": "CWE-863",
+   "category": "collection_scope",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "e387f486896c",
+   "title": "H-20 user list is admin-tier restricted",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-high/src/domain/users.service.ts",
+   "line": 67,
+   "cwe": "CWE-1220",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "6da186b305fa",
+   "title": "H-40 audit list is admin-tier restricted",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-high/src/domain/audit.service.ts",
+   "line": 80,
+   "cwe": "CWE-1220",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "3ac2584a1e2b",
+   "title": "H-10/H-11 role matrix is non-user data",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-high/src/domain/roles.service.ts",
+   "line": 36,
+   "cwe": "CWE-1220",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "06e178818fc5",
+   "title": "Snapshot refresh uses fixed LIMIT 500 with no ORDER BY over rows that stay in the window",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "POSSIBLE",
+   "file": "services/api-mid/src/domain/sessions.service.ts",
+   "line": 193,
+   "cwe": "CWE-770",
+   "category": "collection_scope",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "cf61aaa7f5c9",
+   "title": "Evaluations list is caller-scoped for non-staff",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-mid/src/domain/evaluations.service.ts",
+   "line": 116,
+   "cwe": "CWE-1220",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "22b18e48e34e",
+   "title": "Members, attendance, queue and my-sessions lists are scoped by session + DB permission or caller id",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-mid/src/domain/sessions.service.ts",
+   "line": 127,
+   "cwe": "CWE-1220",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "c093d5df815d",
+   "title": "Internal list/stat endpoints gated by shared secret and exclude drafts",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-mid/src/domain/sessions.service.ts",
+   "line": 167,
+   "cwe": "CWE-1220",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "87d8cf752c22",
+   "title": "Argon2 cost env floors permit sub-OWASP parameters",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "LIKELY",
+   "file": "services/api-low/src/config/env.ts",
+   "line": 58,
+   "cwe": "CWE-916",
+   "category": "crypto",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "8841901ffb03",
+   "title": "Committed example env contains predictable OTP_PEPPER and INTERNAL_SHARED_SECRET with no production guard",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "LIKELY",
+   "file": "services/api-low/.env.example",
+   "line": 19,
+   "cwe": "CWE-798",
+   "category": "crypto",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "a4fd21461b3e",
+   "title": "SHA-1 used only for ETag derivation (non-security)",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "CONFIRMED",
+   "file": "services/api-low/src/common/envelope.interceptor.ts",
+   "line": 51,
+   "cwe": "CWE-328",
+   "category": "crypto",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "be1a9fc62cd8",
+   "title": "Refutation: JWT algorithm is pinned and claims validated",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "LIKELY",
+   "file": "services/api-low/src/auth/token.service.ts",
+   "line": 52,
+   "cwe": "CWE-347",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "029401d37033",
+   "title": "Refutation: security randomness and comparisons use CSPRNG and constant-time compare",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "LIKELY",
+   "file": "services/api-low/src/common/crypto.ts",
+   "line": 16,
+   "cwe": "CWE-338",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "75398e0dff4b",
+   "title": "GitHub Actions referenced by mutable major tag, not commit SHA",
+   "severity": "MEDIUM",
+   "severity_asserted": "MEDIUM",
+   "severity_computed": "MEDIUM",
+   "confidence": "CONFIRMED",
+   "file": ".github/workflows/ci.yml",
+   "line": 38,
+   "cwe": "CWE-829",
+   "category": "deployment",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "MEDIUM",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "56c1637228b6",
+   "title": "Production host runs unlocked 'npm install' (semver ranges, lifecycle scripts enabled) at deploy time",
+   "severity": "MEDIUM",
+   "severity_asserted": "MEDIUM",
+   "severity_computed": "MEDIUM",
+   "confidence": "CONFIRMED",
+   "file": "scripts/deploy-ssh.sh",
+   "line": 191,
+   "cwe": "CWE-829",
+   "category": "deployment",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "MEDIUM",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "9f870cd206d4",
+   "title": "Deploy workflow is dispatchable from any ref and does not wait for CI; environment gate is optional",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "LIKELY",
+   "file": ".github/workflows/deploy.yml",
+   "line": 64,
+   "cwe": "CWE-284",
+   "category": "deployment",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "7b125e2ab49b",
+   "title": "rsync --delete to unvalidated, repo-variable destination paths",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "POSSIBLE",
+   "file": "scripts/deploy-ssh.sh",
+   "line": 159,
+   "cwe": "CWE-20",
+   "category": "deployment",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "974717c4b552",
+   "title": "Refuted: no pull_request_target / fork-secret exposure in workflows",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "LIKELY",
+   "file": ".github/workflows/ci.yml",
+   "line": 3,
+   "cwe": "CWE-829",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "81e6b49d9c20",
+   "title": "Refuted: secret-generation scripts do not persist secrets in tracked paths",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "LIKELY",
+   "file": "scripts/gen-env.mjs",
+   "line": 107,
+   "cwe": "CWE-732",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "a503ffc4d13f",
+   "title": "NODE_ENV defaults to development; all production fail-fast guards are keyed on NODE_ENV==='production'",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "POSSIBLE",
+   "file": "services/api-low/src/config/env.ts",
+   "line": 12,
+   "cwe": "CWE-1188",
+   "category": "deployment",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "53e3b1f642ce",
+   "title": "Refutation: id-param routes H-21/H-22/H-23 are admin-tier by design",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-high/src/domain/users.service.ts",
+   "line": 41,
+   "cwe": "CWE-639",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "dd52173765cb",
+   "title": "Refutation: mass-assignment and developer-role escalation guarded",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-high/src/domain/users.service.ts",
+   "line": 110,
+   "cwe": "CWE-915",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "36adc37536db",
+   "title": "Refutation: list endpoints (users, audit, roles) are admin-global, permission-gated",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-high/src/domain/audit.service.ts",
+   "line": 75,
+   "cwe": "CWE-284",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "1c9da287b5bf",
+   "title": "Refutation: id-param routes L-15 and L-19 are owner-scoped",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "LIKELY",
+   "file": "services/api-low/src/me/me.service.ts",
+   "line": 97,
+   "cwe": "CWE-639",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "87da68d07cd6",
+   "title": "Refutation: session-scoped id routes M-02..M-41 enforce membership/permission from DB",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-mid/src/domain/access.service.ts",
+   "line": 69,
+   "cwe": "CWE-639",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "96bcbb877c24",
+   "title": "refreshSnapshots fixed-size unordered scan can be starved by sessions whose next start is permanently NULL",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "POSSIBLE",
+   "file": "services/api-mid/src/domain/sessions.service.ts",
+   "line": 193,
+   "cwe": "CWE-770",
+   "category": "idor",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "16c42a82eca0",
+   "title": "safeNext open-redirect guard bypassable with tab/newline after leading slash",
+   "severity": "MEDIUM",
+   "severity_asserted": "MEDIUM",
+   "severity_computed": "MEDIUM",
+   "confidence": "LIKELY",
+   "file": "apps/web-main/src/lib/utils/nav.ts",
+   "line": 4,
+   "cwe": "CWE-601",
+   "category": "injection",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "MEDIUM",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "dcfe8f74f06f",
+   "title": "Refuted: session.location.routeUrl as href (javascript: URL XSS)",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "LIKELY",
+   "file": "apps/web-main/src/routes/sessions/[id]/+page.svelte",
+   "line": 69,
+   "cwe": "CWE-79",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "4280a5725ee0",
+   "title": "Refuted: {@html} in GuestLanding svelte:head",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "apps/web-main/src/lib/components/features/GuestLanding.svelte",
+   "line": 142,
+   "cwe": "CWE-79",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "4d73ee3d0aa6",
+   "title": "API base URLs and CSP fall back to plaintext http://localhost when env unset",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "POSSIBLE",
+   "file": "apps/web-main/src/lib/api/config.ts",
+   "line": 10,
+   "cwe": "CWE-319",
+   "category": "mitm",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "894d45b5c5e0",
+   "title": "No TLS verification bypass or legacy TLS reference in web-main (refuted)",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "LIKELY",
+   "file": "apps/web-main/src/hooks.server.ts",
+   "line": 11,
+   "cwe": "CWE-295",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "32abfebe970d",
+   "title": "Production env validation does not require https for FARAZ_BASE_URL / INTERNAL_URL_*",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "LIKELY",
+   "file": "services/api-low/src/config/env.ts",
+   "line": 51,
+   "cwe": "CWE-319",
+   "category": "mitm",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "9f539e138438",
+   "title": "Production env validation does not require https for INTERNAL_URL_LOW",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "LIKELY",
+   "file": "services/api-mid/src/config/env.ts",
+   "line": 47,
+   "cwe": "CWE-319",
+   "category": "mitm",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "1e99d8a40ab8",
+   "title": "LOW_JWKS_URL https check bypassable via substring match on loopback",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "LIKELY",
+   "file": "services/api-mid/src/config/env.ts",
+   "line": 48,
+   "cwe": "CWE-319",
+   "category": "mitm",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "9e6d2029b0af",
+   "title": "MySQL connection has no TLS option or remote-host guard",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "POSSIBLE",
+   "file": "services/api-mid/src/db/data-source.ts",
+   "line": 14,
+   "cwe": "CWE-319",
+   "category": "mitm",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "e96880249357",
+   "title": "No certificate verification disabling in api-mid",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "LIKELY",
+   "file": "services/api-mid/src",
+   "line": 1,
+   "cwe": "CWE-295",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "c1d6c9d9676d",
+   "title": "Throwaway MySQL credentials hardcoded in CI workflow (test fixtures)",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "LIKELY",
+   "file": ".github/workflows/ci.yml",
+   "line": 22,
+   "cwe": "CWE-798",
+   "category": "secret_sprawl",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "070e36f7ef9a",
+   "title": "Dev SMS provider logs full OTP code",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "CONFIRMED",
+   "file": "services/api-low/src/sms/console.provider.ts",
+   "line": 10,
+   "cwe": "CWE-532",
+   "category": "secret_sprawl",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "613829ee9366",
+   "title": "No tracked secrets or hardcoded credentials found in api-low",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "LIKELY",
+   "file": "services/api-low/.env.example",
+   "line": 1,
+   "cwe": "CWE-798",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "b0438ca4f5d9",
+   "title": "Mutable action tags in deploy workflow that holds SSH secrets",
+   "severity": "MEDIUM",
+   "severity_asserted": "MEDIUM",
+   "severity_computed": "MEDIUM",
+   "confidence": "CONFIRMED",
+   "file": ".github/workflows/deploy.yml",
+   "line": 32,
+   "cwe": "CWE-1104",
+   "category": "supply_chain",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "MEDIUM",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "1b6944d1844c",
+   "title": "Production host runs lockfile-less npm install, bypassing pnpm-lock integrity",
+   "severity": "MEDIUM",
+   "severity_asserted": "MEDIUM",
+   "severity_computed": "MEDIUM",
+   "confidence": "CONFIRMED",
+   "file": "scripts/deploy-ssh.sh",
+   "line": 60,
+   "cwe": "CWE-494",
+   "category": "supply_chain",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "MEDIUM",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "3431220cf846",
+   "title": "turbo devDependency uses the floating tag 'latest'",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "CONFIRMED",
+   "file": "package.json",
+   "line": 13,
+   "cwe": "CWE-1104",
+   "category": "supply_chain",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "52232c176d16",
+   "title": "Dependency audit gate only covers prod deps at high severity and is absent from deploy",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": ".github/workflows/ci.yml",
+   "line": 56,
+   "cwe": "CWE-1104",
+   "category": "supply_chain",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "f55fcb2e01e2",
+   "title": "api-high accepts access JWTs of revoked sessions (no session-status check)",
+   "severity": "MEDIUM",
+   "severity_asserted": "MEDIUM",
+   "severity_computed": "MEDIUM",
+   "confidence": "LIKELY",
+   "file": "services/api-high/src/common/guards/endpoint.guard.ts",
+   "line": 54,
+   "cwe": "CWE-613",
+   "category": "token_scope",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "MEDIUM",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "1bca779b2406",
+   "title": "Step-up token is not purpose-bound or single-use; any step-up satisfies all admin step-up endpoints",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "LIKELY",
+   "file": "services/api-high/src/auth/jwt-verifier.ts",
+   "line": 46,
+   "cwe": "CWE-863",
+   "category": "token_scope",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "21dcc7a8259e",
+   "title": "Refutation: no unscoped authenticated-only privileged endpoint in api-high",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-high/src/common/guards/endpoint.guard.ts",
+   "line": 59,
+   "cwe": "CWE-285",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "e664eea1d114",
+   "title": "Single unscoped INTERNAL_SHARED_SECRET authorizes every internal event type from any caller",
+   "severity": "CRITICAL",
+   "severity_asserted": "MEDIUM",
+   "severity_computed": "CRITICAL",
+   "confidence": "LIKELY",
+   "file": "services/api-low/src/internal/internal.guard.ts",
+   "line": 34,
+   "cwe": "CWE-863",
+   "category": "token_scope",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "CRITICAL",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "f0e281b6979f",
+   "title": "Refresh rotation has no absolute session lifetime; a refresh chain can live indefinitely",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "LIKELY",
+   "file": "services/api-low/src/auth/session.service.ts",
+   "line": 125,
+   "cwe": "CWE-613",
+   "category": "token_scope",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "8971278de15d",
+   "title": "Session revocation is enforced only in api-low; access JWT remains valid on mid/high until exp",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "LIKELY",
+   "file": "services/api-low/src/auth/token.service.ts",
+   "line": 60,
+   "cwe": "CWE-613",
+   "category": "token_scope",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "b4e4df063ad5",
+   "title": "Refuted: user JWT verification and permission use in api-mid",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "LIKELY",
+   "file": "services/api-mid/src/auth/jwt-verifier.ts",
+   "line": 38,
+   "cwe": "CWE-1007",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "38463cf4c213",
+   "title": "Refuted: contract-bound handler left without authentication in api-low",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-low/src/common/guards/endpoint.guard.ts",
+   "line": 48,
+   "cwe": "CWE-1007",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "a58448183177",
+   "title": "Refuted: tokens in URLs/logs and wildcard/ungated token minting in api-low",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-low/src/auth/cookie.ts",
+   "line": 14,
+   "cwe": "CWE-1007",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "cc928cac252e",
+   "title": "Internal shared secret unscoped: any holder can post any inbound event type incl. settings",
+   "severity": "CRITICAL",
+   "severity_asserted": "MEDIUM",
+   "severity_computed": "CRITICAL",
+   "confidence": "LIKELY",
+   "file": "services/api-mid/src/internal/internal.guard.ts",
+   "line": 43,
+   "cwe": "CWE-863",
+   "category": "token_scope",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "CRITICAL",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "45b63f50a3d4",
+   "title": "Byte-serving path to attendance_entries enforces a weaker gate than the resource requires",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-mid/src/domain/attendance.service.ts",
+   "line": 59,
+   "cwe": "CWE-862",
+   "category": "auth",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "2bbaabcb8ce8",
+   "title": "Byte-serving path to point_ledger enforces a weaker gate than the resource requires",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-mid/src/internal/internal.controller.ts",
+   "line": 53,
+   "cwe": "CWE-862",
+   "category": "auth",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "2dbd06b8a812",
+   "title": "Capability-only gate: point_ledger served on knowledge of an identifier alone",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-mid/src/internal/internal.controller.ts",
+   "line": 53,
+   "cwe": "CWE-639",
+   "category": "idor",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "07225a2544b5",
+   "title": "Byte-serving path to queue_items enforces a weaker gate than the resource requires",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-mid/src/domain/queue.service.ts",
+   "line": 34,
+   "cwe": "CWE-862",
+   "category": "auth",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "a1daea49aafd",
+   "title": "Byte-serving path to user_directory enforces a weaker gate than the resource requires",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-high/src/domain/high.controller.ts",
+   "line": 32,
+   "cwe": "CWE-862",
+   "category": "auth",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "6022496a2380",
+   "title": "Permission-shaped field in session_members handler with no filter",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-mid/src/domain/members.service.ts",
+   "line": 34,
+   "cwe": "CWE-863",
+   "category": "collection_scope",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "4b6876a6dd01",
+   "title": "scope_evidence for attendance_entries cites a predicate that is not at that line",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-mid/src/domain/attendance.service.ts",
+   "line": 59,
+   "cwe": "CWE-1007",
+   "category": "methodology",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "898ba2e4a787",
+   "title": "Permission-shaped field in attendance_entries handler with no filter",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-mid/src/domain/attendance.service.ts",
+   "line": 59,
+   "cwe": "CWE-863",
+   "category": "collection_scope",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "e4b8b2f9ac8c",
+   "title": "Permission-shaped field in queue_items handler with no filter",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-mid/src/domain/queue.service.ts",
+   "line": 38,
+   "cwe": "CWE-863",
+   "category": "collection_scope",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "4ab20b08d650",
+   "title": "Collection endpoint returns evaluations rows belonging to other principals",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-mid/src/domain/evaluations.service.ts",
+   "line": 38,
+   "cwe": "CWE-1220",
+   "category": "collection_scope",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "140329ba6735",
+   "title": "Permission-shaped field in evaluations handler with no filter",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-mid/src/domain/evaluations.service.ts",
+   "line": 38,
+   "cwe": "CWE-863",
+   "category": "collection_scope",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "93ea0dda4c52",
+   "title": "Permission-shaped field in auth_sessions handler with no filter",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-low/src/auth/session.service.ts",
+   "line": 75,
+   "cwe": "CWE-863",
+   "category": "collection_scope",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "693794e25b4a",
+   "title": "Row-scoping claimed for inbox_messages but no caller-derived predicate",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-low/src/me/me.service.ts",
+   "line": 89,
+   "cwe": "CWE-1220",
+   "category": "collection_scope",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "693794e25b4a",
+   "title": "Collection endpoint returns inbox_messages rows belonging to other principals",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-low/src/me/me.service.ts",
+   "line": 89,
+   "cwe": "CWE-1220",
+   "category": "collection_scope",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "8c46da12dee3",
+   "title": "Permission-shaped field in inbox_messages handler with no filter",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-low/src/me/me.service.ts",
+   "line": 89,
+   "cwe": "CWE-863",
+   "category": "collection_scope",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "17925a49ddf8",
+   "title": "Permission-shaped field in sessions handler with no filter",
+   "severity": "INFO",
+   "severity_asserted": "INFO",
+   "severity_computed": "INFO",
+   "confidence": "POSSIBLE",
+   "file": "services/api-mid/src/domain/sessions.service.ts",
+   "line": 132,
+   "cwe": "CWE-863",
+   "category": "collection_scope",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "INFO",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "fa6dd3651973",
+   "title": "No dependabot/renovate, CODEOWNERS or SECURITY.md in repository",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "CONFIRMED",
+   "file": ".github/workflows/ci.yml",
+   "line": 1,
+   "cwe": "CWE-1104",
+   "category": "config",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  },
+  {
+   "fingerprint": "f0f5e48b6c88",
+   "title": "web-admin static SPA CSP permits script-src unsafe-inline",
+   "severity": "LOW",
+   "severity_asserted": "LOW",
+   "severity_computed": "LOW",
+   "confidence": "CONFIRMED",
+   "file": "scripts/gen-htaccess.mjs",
+   "line": 15,
+   "cwe": "CWE-693",
+   "category": "config",
+   "first_seen_at": "2026-10-04T09:34:52Z",
+   "severity_history": [
+    {
+     "run_id": "8c09ce4601283b1b9aca5087ab60e86799d753009a5b7529705c4a2b50055ec8",
+     "at": "2026-10-04T09:34:52Z",
+     "severity": "LOW",
+     "reason": "first run"
+    }
+   ],
+   "lifecycle": {
+    "state": "open"
+   }
+  }
+ ],
+ "surface": [
+  {
+   "id": "services-api-low:http:0000",
+   "registration_file": "services/api-low/src/auth/auth.controller.ts",
+   "handler_file": "services/api-low/src/auth/auth.controller.ts",
+   "handler_hash": "710786dccfbb44e1ead072d411e1f8152dce385c"
+  },
+  {
+   "id": "services-api-low:http:0001",
+   "registration_file": "services/api-low/src/auth/auth.controller.ts",
+   "handler_file": "services/api-low/src/auth/auth.controller.ts",
+   "handler_hash": "cd03bbf34be19c738649f8df383fa439b91cf6eb"
+  },
+  {
+   "id": "services-api-low:http:0002",
+   "registration_file": "services/api-low/src/auth/auth.controller.ts",
+   "handler_file": "services/api-low/src/auth/auth.controller.ts",
+   "handler_hash": "786bfa63fe5d01ae3fc1e94d48293799847846b7"
+  },
+  {
+   "id": "services-api-low:http:0003",
+   "registration_file": "services/api-low/src/auth/auth.controller.ts",
+   "handler_file": "services/api-low/src/auth/auth.controller.ts",
+   "handler_hash": "dc45635541c86db5197936ca555ab2621741abdc"
+  },
+  {
+   "id": "services-api-low:http:0004",
+   "registration_file": "services/api-low/src/auth/auth.controller.ts",
+   "handler_file": "services/api-low/src/auth/auth.controller.ts",
+   "handler_hash": "ee7c69c924897557e7e547daaa1af89cacbcaca3"
+  },
+  {
+   "id": "services-api-low:http:0005",
+   "registration_file": "services/api-low/src/auth/auth.controller.ts",
+   "handler_file": "services/api-low/src/auth/auth.controller.ts",
+   "handler_hash": "60db2ed9cd5b00b07b54134b257df07ab529c269"
+  },
+  {
+   "id": "services-api-low:http:0006",
+   "registration_file": "services/api-low/src/auth/auth.controller.ts",
+   "handler_file": "services/api-low/src/auth/auth.controller.ts",
+   "handler_hash": "f16a862b624fbb3e0b318b0ae13613e8e9a49948"
+  },
+  {
+   "id": "services-api-low:http:0007",
+   "registration_file": "services/api-low/src/me/me.controller.ts",
+   "handler_file": "services/api-low/src/me/me.controller.ts",
+   "handler_hash": "98bff2390c8a1095ebd0f384ecb052213ed37370"
+  },
+  {
+   "id": "services-api-low:http:0008",
+   "registration_file": "services/api-low/src/me/me.controller.ts",
+   "handler_file": "services/api-low/src/me/me.controller.ts",
+   "handler_hash": "b801b869800ba7e3586d2fd4a8034f45ede1c078"
+  },
+  {
+   "id": "services-api-low:http:0009",
+   "registration_file": "services/api-low/src/me/me.controller.ts",
+   "handler_file": "services/api-low/src/me/me.controller.ts",
+   "handler_hash": "69baeb2dd5484e4b33cb37d0562ee821a3d429f9"
+  },
+  {
+   "id": "services-api-low:http:0010",
+   "registration_file": "services/api-low/src/me/me.controller.ts",
+   "handler_file": "services/api-low/src/me/me.controller.ts",
+   "handler_hash": "66494d2d43ded8d7788ac293a2f5ac5c76dc50de"
+  },
+  {
+   "id": "services-api-low:http:0011",
+   "registration_file": "services/api-low/src/me/me.controller.ts",
+   "handler_file": "services/api-low/src/me/me.controller.ts",
+   "handler_hash": "f96c7ec508976c07ce48fcd0984f4c53fe78e667"
+  },
+  {
+   "id": "services-api-low:http:0012",
+   "registration_file": "services/api-low/src/me/me.controller.ts",
+   "handler_file": "services/api-low/src/me/me.controller.ts",
+   "handler_hash": "d909fea1f7e9a4d5a950e35ffc3ef727fa9cb911"
+  },
+  {
+   "id": "services-api-low:http:0013",
+   "registration_file": "services/api-low/src/me/me.controller.ts",
+   "handler_file": "services/api-low/src/me/me.controller.ts",
+   "handler_hash": "eb33a1d0631d4e3e2453e4118356820c1fa9ab82"
+  },
+  {
+   "id": "services-api-low:http:0014",
+   "registration_file": "services/api-low/src/me/me.controller.ts",
+   "handler_file": "services/api-low/src/me/me.controller.ts",
+   "handler_hash": "3fc563bd4b678cf7ec442c6402b496f5e661c33f"
+  },
+  {
+   "id": "services-api-low:http:0015",
+   "registration_file": "services/api-low/src/me/me.controller.ts",
+   "handler_file": "services/api-low/src/me/me.controller.ts",
+   "handler_hash": "61375aae6350a5b1acae841596ac95f4444f1631"
+  },
+  {
+   "id": "services-api-low:http:0016",
+   "registration_file": "services/api-low/src/me/me.controller.ts",
+   "handler_file": "services/api-low/src/me/me.controller.ts",
+   "handler_hash": "f66b5779508e4cf4b35362a38cf31ae890b9e6de"
+  },
+  {
+   "id": "services-api-low:http:0017",
+   "registration_file": "services/api-low/src/me/me.controller.ts",
+   "handler_file": "services/api-low/src/me/me.controller.ts",
+   "handler_hash": "81b7f2b5baa1ed67befbdde8fdd596cdd796cb83"
+  },
+  {
+   "id": "services-api-low:http:0018",
+   "registration_file": "services/api-low/src/me/me.controller.ts",
+   "handler_file": "services/api-low/src/me/me.controller.ts",
+   "handler_hash": "05837130c865bef48eb540b7bd918714b2634891"
+  },
+  {
+   "id": "services-api-low:http:0019",
+   "registration_file": "services/api-low/src/public/public.controller.ts",
+   "handler_file": "services/api-low/src/public/public.controller.ts",
+   "handler_hash": "d8b242ebb2cab44e7d592e5e0832f76f8b87a527"
+  },
+  {
+   "id": "services-api-low:http:0020",
+   "registration_file": "services/api-low/src/public/public.controller.ts",
+   "handler_file": "services/api-low/src/public/public.controller.ts",
+   "handler_hash": "58fe4f48702ae3776edab6c4080c1d11da8c6d9f"
+  },
+  {
+   "id": "services-api-low:http:0021",
+   "registration_file": "services/api-low/src/infra/infra.controller.ts",
+   "handler_file": "services/api-low/src/infra/infra.controller.ts",
+   "handler_hash": "919d8a96d1e83a4786f25ac91239e132c77030cb"
+  },
+  {
+   "id": "services-api-low:http:0022",
+   "registration_file": "services/api-low/src/infra/infra.controller.ts",
+   "handler_file": "services/api-low/src/infra/infra.controller.ts",
+   "handler_hash": "61dcfae05c1049f01f8c1a76704649899fc09ff4"
+  },
+  {
+   "id": "services-api-low:http:0023",
+   "registration_file": "services/api-low/src/infra/infra.controller.ts",
+   "handler_file": "services/api-low/src/infra/infra.controller.ts",
+   "handler_hash": "50728439747e5b6ded289dc01ce7403d13876aec"
+  },
+  {
+   "id": "services-api-mid:http:0024",
+   "registration_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_hash": "907f7eaf3e3d777fb62b961c4f4f65d228bac127"
+  },
+  {
+   "id": "services-api-mid:http:0025",
+   "registration_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_hash": "3709971844cc2bf724895b7b1a4e3543e71f86d8"
+  },
+  {
+   "id": "services-api-mid:http:0026",
+   "registration_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_hash": "a76ff8be6e5a6077cb320228038c5f1315bea191"
+  },
+  {
+   "id": "services-api-mid:http:0027",
+   "registration_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_hash": "1f3e01feee5d942931cffd04d4385f6b287e75af"
+  },
+  {
+   "id": "services-api-mid:http:0028",
+   "registration_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_hash": "194c67a7087418a1312eb4102d6d5e82a58934b4"
+  },
+  {
+   "id": "services-api-mid:http:0029",
+   "registration_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_hash": "8f06cd6079b918ab0d9de2bf125437bd1e016c80"
+  },
+  {
+   "id": "services-api-mid:http:0030",
+   "registration_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_hash": "cd8336558bc06fe50222c7fb24e1be95f75d2123"
+  },
+  {
+   "id": "services-api-mid:http:0031",
+   "registration_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_hash": "3cd2ff620ca3b15304e2c3ae5355c0cfe4b4dd09"
+  },
+  {
+   "id": "services-api-mid:http:0032",
+   "registration_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_hash": "a62a0c3e3f1175a0dd469523d023a23bb3053a31"
+  },
+  {
+   "id": "services-api-mid:http:0033",
+   "registration_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_hash": "bf2d9901597498cab80210bea3c70ef242fdc42e"
+  },
+  {
+   "id": "services-api-mid:http:0034",
+   "registration_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_hash": "cbe36b519f842b247f1d3c99ec8b235c7fac6cfb"
+  },
+  {
+   "id": "services-api-mid:http:0035",
+   "registration_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_hash": "a52cb7193a9b722668d562aba680891673074dfa"
+  },
+  {
+   "id": "services-api-mid:http:0036",
+   "registration_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_hash": "b371d3e4f17c84fe336736e0e46d3fc58cee517c"
+  },
+  {
+   "id": "services-api-mid:http:0037",
+   "registration_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_hash": "6b8523586864bb5ec9ef7540e8d9eb3ff755f0bb"
+  },
+  {
+   "id": "services-api-mid:http:0038",
+   "registration_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_hash": "22262399c08c22d419c764ae103dd388874a57c9"
+  },
+  {
+   "id": "services-api-mid:http:0039",
+   "registration_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_hash": "6fc4b8a1e75aa0435880f6e91aa441fbb2bb13a0"
+  },
+  {
+   "id": "services-api-mid:http:0040",
+   "registration_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_hash": "a74a41e6fb93c71ccfcd28210c9b3e90467038f6"
+  },
+  {
+   "id": "services-api-mid:http:0041",
+   "registration_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_hash": "564a53e02a9de59956ac40b9519032655c99a678"
+  },
+  {
+   "id": "services-api-mid:http:0042",
+   "registration_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_hash": "6e35284768fe228d08f8b794ad23c4fe6ae68a04"
+  },
+  {
+   "id": "services-api-mid:http:0043",
+   "registration_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_file": "services/api-mid/src/domain/mid.controller.ts",
+   "handler_hash": "633f22510d5a9c5b218c2277c06de943735d5c69"
+  },
+  {
+   "id": "services-api-mid:http:0044",
+   "registration_file": "services/api-mid/src/infra/infra.controller.ts",
+   "handler_file": "services/api-mid/src/infra/infra.controller.ts",
+   "handler_hash": "61dcfae05c1049f01f8c1a76704649899fc09ff4"
+  },
+  {
+   "id": "services-api-mid:http:0045",
+   "registration_file": "services/api-mid/src/infra/infra.controller.ts",
+   "handler_file": "services/api-mid/src/infra/infra.controller.ts",
+   "handler_hash": "50728439747e5b6ded289dc01ce7403d13876aec"
+  },
+  {
+   "id": "services-api-high:http:0046",
+   "registration_file": "services/api-high/src/domain/high.controller.ts",
+   "handler_file": "services/api-high/src/domain/high.controller.ts",
+   "handler_hash": "28e6a7ca90b9844f3aeb14191d3a226a2c346376"
+  },
+  {
+   "id": "services-api-high:http:0047",
+   "registration_file": "services/api-high/src/domain/high.controller.ts",
+   "handler_file": "services/api-high/src/domain/high.controller.ts",
+   "handler_hash": "02642e7d68f30d1a9b734326c2c73c835e9bcebe"
+  },
+  {
+   "id": "services-api-high:http:0048",
+   "registration_file": "services/api-high/src/domain/high.controller.ts",
+   "handler_file": "services/api-high/src/domain/high.controller.ts",
+   "handler_hash": "8c3f899a8033054701b4d565b406cc853b3fefaf"
+  },
+  {
+   "id": "services-api-high:http:0049",
+   "registration_file": "services/api-high/src/domain/high.controller.ts",
+   "handler_file": "services/api-high/src/domain/high.controller.ts",
+   "handler_hash": "1ef54a18b2ddf8e8624fdb8e1c16525403e6b5b0"
+  },
+  {
+   "id": "services-api-high:http:0050",
+   "registration_file": "services/api-high/src/domain/high.controller.ts",
+   "handler_file": "services/api-high/src/domain/high.controller.ts",
+   "handler_hash": "842eb2610919f1d58bd8b81af09e52723d6b3a68"
+  },
+  {
+   "id": "services-api-high:http:0051",
+   "registration_file": "services/api-high/src/domain/high.controller.ts",
+   "handler_file": "services/api-high/src/domain/high.controller.ts",
+   "handler_hash": "c43d79713454d135d55dad5d7180ad176b1db89a"
+  },
+  {
+   "id": "services-api-high:http:0052",
+   "registration_file": "services/api-high/src/domain/high.controller.ts",
+   "handler_file": "services/api-high/src/domain/high.controller.ts",
+   "handler_hash": "7a4ba80b18a7c04a5b7ca06bb8b23c5abdb11ff0"
+  },
+  {
+   "id": "services-api-high:http:0053",
+   "registration_file": "services/api-high/src/domain/high.controller.ts",
+   "handler_file": "services/api-high/src/domain/high.controller.ts",
+   "handler_hash": "1035d2b70ca982c97aaec184519fe95da6b2d1b8"
+  },
+  {
+   "id": "services-api-high:http:0054",
+   "registration_file": "services/api-high/src/domain/high.controller.ts",
+   "handler_file": "services/api-high/src/domain/high.controller.ts",
+   "handler_hash": "5e0f5d2ca4178fd1565d06f3ae31545c214df618"
+  },
+  {
+   "id": "services-api-high:http:0055",
+   "registration_file": "services/api-high/src/domain/high.controller.ts",
+   "handler_file": "services/api-high/src/domain/high.controller.ts",
+   "handler_hash": "f25770cc687b84fe1a85f3a3d96ec5b75d9d734c"
+  },
+  {
+   "id": "services-api-high:http:0056",
+   "registration_file": "services/api-high/src/domain/high.controller.ts",
+   "handler_file": "services/api-high/src/domain/high.controller.ts",
+   "handler_hash": "c57799559425cb8b8bd1e08830e0a36ec1693229"
+  },
+  {
+   "id": "services-api-high:http:0057",
+   "registration_file": "services/api-high/src/domain/high.controller.ts",
+   "handler_file": "services/api-high/src/domain/high.controller.ts",
+   "handler_hash": "a74ea907189f66c66e11d5916025c277aff2c9b5"
+  },
+  {
+   "id": "services-api-high:http:0058",
+   "registration_file": "services/api-high/src/infra/infra.controller.ts",
+   "handler_file": "services/api-high/src/infra/infra.controller.ts",
+   "handler_hash": "61dcfae05c1049f01f8c1a76704649899fc09ff4"
+  },
+  {
+   "id": "services-api-high:http:0059",
+   "registration_file": "services/api-high/src/infra/infra.controller.ts",
+   "handler_file": "services/api-high/src/infra/infra.controller.ts",
+   "handler_hash": "50728439747e5b6ded289dc01ce7403d13876aec"
+  },
+  {
+   "id": "services-api-low:http:0060",
+   "registration_file": "services/api-low/src/internal/events.controller.ts",
+   "handler_file": "services/api-low/src/internal/events.controller.ts",
+   "handler_hash": "a5f17d8712aa0330c69c978e9d496bcb648ab775"
+  },
+  {
+   "id": "services-api-high:http:0061",
+   "registration_file": "services/api-high/src/internal/events.controller.ts",
+   "handler_file": "services/api-high/src/internal/events.controller.ts",
+   "handler_hash": "1db95eba6e9f8571841c4ed833556cde252f79a5"
+  },
+  {
+   "id": "services-api-mid:http:0062",
+   "registration_file": "services/api-mid/src/internal/internal.controller.ts",
+   "handler_file": "services/api-mid/src/internal/internal.controller.ts",
+   "handler_hash": "b43b27ce21f9f5e7539421554045cb289071860e"
+  },
+  {
+   "id": "services-api-mid:http:0063",
+   "registration_file": "services/api-mid/src/internal/internal.controller.ts",
+   "handler_file": "services/api-mid/src/internal/internal.controller.ts",
+   "handler_hash": "eaf4313ac7fa13e1ab0f3b8a5817a23a281cd343"
+  },
+  {
+   "id": "services-api-mid:http:0064",
+   "registration_file": "services/api-mid/src/internal/internal.controller.ts",
+   "handler_file": "services/api-mid/src/internal/internal.controller.ts",
+   "handler_hash": "270466323a906821495e3b26d846a42e1c197137"
+  },
+  {
+   "id": "services-api-mid:http:0065",
+   "registration_file": "services/api-mid/src/internal/internal.controller.ts",
+   "handler_file": "services/api-mid/src/internal/internal.controller.ts",
+   "handler_hash": "336b278bf6660fdc532e6f9a4db79f731a947857"
+  },
+  {
+   "id": "services-api-mid:http:0066",
+   "registration_file": "services/api-mid/src/internal/internal.controller.ts",
+   "handler_file": "services/api-mid/src/internal/internal.controller.ts",
+   "handler_hash": "1db95eba6e9f8571841c4ed833556cde252f79a5"
+  },
+  {
+   "id": "services-api-mid:websocket:0067",
+   "registration_file": "services/api-mid/src/live/live.service.ts",
+   "handler_file": "services/api-mid/src/live/live.service.ts",
+   "handler_hash": "1a4656377a49e95f2dbc9115a4a21b7c70511fd9"
+  },
+  {
+   "id": "services-api-low:scheduler:0068",
+   "registration_file": "services/api-low/src/outbox/outbox.service.ts",
+   "handler_file": "services/api-low/src/outbox/outbox.service.ts",
+   "handler_hash": "7b8c4863e5256b3aabda3489b3ea45317813f0f3"
+  },
+  {
+   "id": "services-api-low:scheduler:0069",
+   "registration_file": "services/api-low/src/outbox/maintenance.service.ts",
+   "handler_file": "services/api-low/src/outbox/maintenance.service.ts",
+   "handler_hash": "bd503e00c59b244e655c8e65f7c501dae3aa6fa9"
+  },
+  {
+   "id": "services-api-mid:scheduler:0070",
+   "registration_file": "services/api-mid/src/outbox/outbox.service.ts",
+   "handler_file": "services/api-mid/src/outbox/outbox.service.ts",
+   "handler_hash": "dbd3a742b1ff63fe2d82eace0853917be223d84c"
+  },
+  {
+   "id": "services-api-mid:scheduler:0071",
+   "registration_file": "services/api-mid/src/outbox/maintenance.service.ts",
+   "handler_file": "services/api-mid/src/outbox/maintenance.service.ts",
+   "handler_hash": "56db0eb544bb605c9cab6e1ef2ef18437d8f212a"
+  },
+  {
+   "id": "services-api-high:scheduler:0072",
+   "registration_file": "services/api-high/src/outbox/outbox.service.ts",
+   "handler_file": "services/api-high/src/outbox/outbox.service.ts",
+   "handler_hash": "fcdd223e9bda1181c06f96de522e6ddb726280a1"
+  },
+  {
+   "id": "services-api-high:scheduler:0073",
+   "registration_file": "services/api-high/src/outbox/maintenance.service.ts",
+   "handler_file": "services/api-high/src/outbox/maintenance.service.ts",
+   "handler_hash": "9db178165ffa88fbdb78c63c7e46596d7ad3d070"
+  },
+  {
+   "id": "services-api-low:cli_admin:0074",
+   "registration_file": "services/api-low/scripts/replay-user-events.ts",
+   "handler_file": "services/api-low/scripts/replay-user-events.ts",
+   "handler_hash": "636223c39065f6bb89d0c736b551fb06c3e22a06"
+  },
+  {
+   "id": "ci-and-deploy:cli_admin:0075",
+   "registration_file": "scripts/gen-env.mjs",
+   "handler_file": "scripts/gen-env.mjs",
+   "handler_hash": "fe7052c61849f5cfab6417ed49f185c9ca0f30d5"
+  },
+  {
+   "id": "ci-and-deploy:cli_admin:0076",
+   "registration_file": "scripts/gen-secrets.mjs",
+   "handler_file": "scripts/gen-secrets.mjs",
+   "handler_hash": "736ffbbc781747ae406e55e1172becb4e8c329e7"
+  },
+  {
+   "id": "ci-and-deploy:cli_admin:0077",
+   "registration_file": "scripts/deploy-ssh.sh",
+   "handler_file": "scripts/deploy-ssh.sh",
+   "handler_hash": "546142b920a41e040c7095216537fbf69e819b9d"
+  },
+  {
+   "id": "ci-and-deploy:cli_admin:0078",
+   "registration_file": "scripts/pack-service.mjs",
+   "handler_file": "scripts/pack-service.mjs",
+   "handler_hash": "6f7f17c704134df489f858d6ae62b8b4d0023931"
+  },
+  {
+   "id": "services-api-high:outbound_tls:0079",
+   "registration_file": "services/api-high/src/outbox/outbox.service.ts",
+   "handler_file": "services/api-high/src/outbox/outbox.service.ts",
+   "handler_hash": "fcdd223e9bda1181c06f96de522e6ddb726280a1"
+  },
+  {
+   "id": "services-api-high:outbound_tls:0080",
+   "registration_file": "services/api-high/src/domain/overview.service.ts",
+   "handler_file": "services/api-high/src/domain/overview.service.ts",
+   "handler_hash": "760a468ccbe253134b44705e24f271bf788d123a"
+  },
+  {
+   "id": "services-api-low:outbound_tls:0081",
+   "registration_file": "services/api-low/src/sms/faraz.provider.ts",
+   "handler_file": "services/api-low/src/sms/faraz.provider.ts",
+   "handler_hash": "849b31aa699aef5b46af9f8b74723f18404fcd4a"
+  },
+  {
+   "id": "services-api-low:outbound_tls:0082",
+   "registration_file": "services/api-low/src/outbox/outbox.service.ts",
+   "handler_file": "services/api-low/src/outbox/outbox.service.ts",
+   "handler_hash": "7b8c4863e5256b3aabda3489b3ea45317813f0f3"
+  },
+  {
+   "id": "services-api-low:outbound_tls:0083",
+   "registration_file": "services/api-low/src/mid/mid.client.ts",
+   "handler_file": "services/api-low/src/mid/mid.client.ts",
+   "handler_hash": "03f5cb3a14a5e8088dd07385d18e9334a7418e1f"
+  },
+  {
+   "id": "services-api-mid:outbound_tls:0084",
+   "registration_file": "services/api-mid/src/outbox/outbox.service.ts",
+   "handler_file": "services/api-mid/src/outbox/outbox.service.ts",
+   "handler_hash": "dbd3a742b1ff63fe2d82eace0853917be223d84c"
+  },
+  {
+   "id": "apps-web-admin:outbound_tls:0085",
+   "registration_file": "apps/web-admin/src/service-worker.ts",
+   "handler_file": "apps/web-admin/src/service-worker.ts",
+   "handler_hash": "9935e3fe5b8c508862e576cd2185dc6597e2aa6d"
+  },
+  {
+   "id": "apps-web-admin:outbound_tls:0086",
+   "registration_file": "apps/web-admin/src/lib/api/http.ts",
+   "handler_file": "apps/web-admin/src/lib/api/http.ts",
+   "handler_hash": "93c70caeea6f38465af4442d40711bd1846fe135"
+  },
+  {
+   "id": "apps-web-main:outbound_tls:0087",
+   "registration_file": "apps/web-main/src/service-worker.ts",
+   "handler_file": "apps/web-main/src/service-worker.ts",
+   "handler_hash": "9935e3fe5b8c508862e576cd2185dc6597e2aa6d"
+  },
+  {
+   "id": "apps-web-main:outbound_tls:0088",
+   "registration_file": "apps/web-main/src/lib/api/http.ts",
+   "handler_file": "apps/web-main/src/lib/api/http.ts",
+   "handler_hash": "93c70caeea6f38465af4442d40711bd1846fe135"
+  },
+  {
+   "id": "android-apps:mobile_ipc:0089",
+   "registration_file": "apps/android-mid/app/src/main/AndroidManifest.xml",
+   "handler_file": "apps/android-mid/app/src/main/AndroidManifest.xml",
+   "handler_hash": "696f3a33bc2ff479e5a8afd7dfc8a39def2d7547"
+  },
+  {
+   "id": "android-apps:mobile_ipc:0090",
+   "registration_file": "apps/android-high/app/src/main/AndroidManifest.xml",
+   "handler_file": "apps/android-high/app/src/main/AndroidManifest.xml",
+   "handler_hash": "696f3a33bc2ff479e5a8afd7dfc8a39def2d7547"
+  },
+  {
+   "id": "android-apps:mobile_ipc:0091",
+   "registration_file": "apps/android-low/app/src/main/AndroidManifest.xml",
+   "handler_file": "apps/android-low/app/src/main/AndroidManifest.xml",
+   "handler_hash": "696f3a33bc2ff479e5a8afd7dfc8a39def2d7547"
+  }
+ ]
+}
