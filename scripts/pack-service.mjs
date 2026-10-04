@@ -5,7 +5,7 @@
  * پیش‌نیاز: pnpm turbo build (و pnpm --filter @isra/api-types bundle) انجام شده باشد.
  * محتوا: dist/ + package.json (وابستگی workspace ⇒ vendor/api-types) + app.js (نقطهٔ ورود Passenger) — بدون node_modules/secret.
  */
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,8 +34,14 @@ cpSync(join(types, 'openapi'), join(vendor, 'openapi'), { recursive: true });
 const tp = JSON.parse(readFileSync(join(types, 'package.json'), 'utf8'));
 writeFileSync(join(vendor, 'package.json'), JSON.stringify({ name: tp.name, version: tp.version, private: true, type: tp.type, main: tp.main, types: tp.types, exports: tp.exports, dependencies: tp.dependencies }, null, 2));
 
+// api-types به‌صورت tarball (کپی واقعی) نصب می‌شود، نه symlink: روی cPanel/CloudLinux پوشهٔ node_modules فیزیکی در nodevenv است
+// و symlink نسبیِ `file:./vendor/...` می‌شکند (Cannot find module '@isra/api-types').
+const packed = execSync(`npm pack "${vendor}" --pack-destination "${join(out, 'vendor')}" --silent`, { encoding: 'utf8' }).trim().split(/\r?\n/).pop();
+renameSync(join(out, 'vendor', packed), join(out, 'vendor', 'isra-api-types.tgz'));
+rmSync(vendor, { recursive: true, force: true });
+
 const pkg = JSON.parse(readFileSync(join(src, 'package.json'), 'utf8'));
-const deps = { ...pkg.dependencies, '@isra/api-types': 'file:./vendor/api-types' };
+const deps = { ...pkg.dependencies, '@isra/api-types': 'file:./vendor/isra-api-types.tgz' };
 writeFileSync(
   join(out, 'package.json'),
   JSON.stringify({ name: pkg.name, version: pkg.version, private: true, main: 'app.js', engines: { node: '>=20.3' }, scripts: { start: 'node app.js' }, dependencies: deps }, null, 2)

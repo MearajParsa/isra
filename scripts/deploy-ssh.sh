@@ -52,7 +52,7 @@ deploy_api() { # <api-low|api-mid|api-high> <health-url>
 set -euo pipefail
 cd "$APPS_DIR/$app"
 mkdir -p tmp
-new="\$(cat package.json vendor/api-types/package.json 2>/dev/null | sha256sum | cut -d' ' -f1)"
+new="\$(cat package.json vendor/*.tgz 2>/dev/null | sha256sum | cut -d' ' -f1)"
 if [ ! -f .pkg.sha ] || [ "\$(cat .pkg.sha)" != "\$new" ] || [ ! -e node_modules ]; then
   echo "  npm install (وابستگی‌ها تغییر کرده یا اولین بار)"
   # shellcheck disable=SC1090
