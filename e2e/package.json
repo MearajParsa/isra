@@ -8,6 +8,6 @@
     "journey": "node journey.mjs"
   },
   "devDependencies": {
-    "playwright-core": "1.56.1"
+    "playwright-core": "1.63.0"
   }
 }
