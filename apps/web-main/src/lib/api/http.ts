@@ -99,7 +99,7 @@ export function createHttp(cfg: HttpConfig) {
       const details = { ...(e?.details ?? {}) } as Record<string, unknown>;
       const ra = Number(res.headers.get('Retry-After'));
       if (ra > 0 && details.retryAfterSec === undefined) details.retryAfterSec = ra;
-      throw new ApiError(code, e?.message ?? (code === 'SERVICE_UNAVAILABLE' ? 'سرویس در دسترس نیست. کمی بعد دوباره تلاش کنید.' : 'مشکلی در سرور پیش آمد. دوباره تلاش کنید.'), res.status, details);
+      throw new ApiError(code, e?.message ?? (code === 'SERVICE_UNAVAILABLE' ? 'سرویس موقتاً پاسخگو نیست. چند لحظه بعد دوباره تلاش کنید.' : 'مشکلی در سرور پیش آمد. دوباره تلاش کنید.'), res.status, details);
     }
     return { data: json.data as T, meta: json.meta ?? {} };
   }

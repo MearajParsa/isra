@@ -2,6 +2,10 @@
 
 فرمت: [Keep a Changelog](https://keepachangelog.com/fa/1.1.0/)؛ نسخه‌گذاری: [SemVer](https://semver.org/lang/fa/) روی قرارداد (جزئیات: `docs-v2/22-api-engineering-standards.md` §۵).
 
+## [1.3.2] — ۱۴۰۵/۰۷/۱۳
+### اصلاح (سازگار)
+- متن `SERVICE_UNAVAILABLE`: «در حال نگهداری» برای هر ۵۰۳ گمراه‌کننده بود (قطعی گذرای وابستگی هم ۵۰۳ است)؛ متن خنثی شد. حالت نگهداری واقعی پیام و `details.reason='maintenance'` جدا دارد.
+
 ## [1.3.1] — ۱۴۰۵/۰۷/۱۳
 ### اصلاح (سازگار)
 - OpenAPI `servers`: آدرس تولید هر سرویس ساب‌دامنهٔ خودش است (`capi|oapi|sapi.israapp.ir`)، نه `api.israapp.ir`؛ توضیح TTL توکن‌ها از پیکربندی سرور.

@@ -25,7 +25,7 @@ export const ERROR_CATALOG = {
   PAYLOAD_TOO_LARGE: { status: 413, retriable: false, messageFa: 'حجم درخواست بیش از حد مجاز است.' },
   UNSUPPORTED_MEDIA_TYPE: { status: 415, retriable: false, messageFa: 'نوع محتوا پشتیبانی نمی‌شود.' },
   INTERNAL_ERROR: { status: 500, retriable: true, messageFa: 'مشکلی در سرور پیش آمد. دوباره تلاش کنید.' },
-  SERVICE_UNAVAILABLE: { status: 503, retriable: true, messageFa: 'سرویس در حال نگهداری است. کمی بعد دوباره امتحان کنید.' }
+  SERVICE_UNAVAILABLE: { status: 503, retriable: true, messageFa: 'سرویس موقتاً پاسخگو نیست. چند لحظه بعد دوباره تلاش کنید.' }
 } as const;
 
 export type ErrorCode = keyof typeof ERROR_CATALOG;

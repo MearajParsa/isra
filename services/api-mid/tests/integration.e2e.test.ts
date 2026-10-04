@@ -276,6 +276,9 @@ describe('maintenance_mode از high', () => {
     const r = await a.get('/me', u);
     expect(r.status).toBe(503);
     expect(r.body.error.code).toBe('SERVICE_UNAVAILABLE');
+    expect(r.body.error.details.reason).toBe('maintenance'); // جدا از قطعی گذرای وابستگی
+    expect(r.body.error.message).not.toContain('503');
+    expect(r.headers['retry-after']).toBe('60');
     expect((await request(t.http).get('/o/health/live')).status).toBe(200);
     expect((await internalGet('/public/sessions')).status).toBe(200);
     await flags(51, false);

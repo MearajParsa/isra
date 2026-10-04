@@ -20,6 +20,12 @@ if (!hashes.length) throw new Error('CSP script hash در build/index.html پی�
 const csp = ["default-src 'self'", `script-src 'self' ${[...new Set(hashes)].join(' ')}`, "style-src 'self' 'unsafe-inline'", "img-src 'self' data:", "font-src 'self' data:", `connect-src ${connect}`, "manifest-src 'self'", "worker-src 'self'", "object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'"].join('; ');
 
 const out = `# تولیدشده توسط scripts/gen-htaccess.mjs — دستی ویرایش نکنید
+# خطای سرور/پروکسی: صفحهٔ فارسی خودکفا (بدون وابستگی به app)
+ErrorDocument 500 /error-503.html
+ErrorDocument 502 /error-503.html
+ErrorDocument 503 /error-503.html
+ErrorDocument 504 /error-503.html
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteCond %{REQUEST_FILENAME} !-f

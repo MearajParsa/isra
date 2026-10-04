@@ -132,7 +132,7 @@ export class EndpointGuard implements CanActivate {
   /** maintenance_mode (از high): همهٔ مسیرها ۵۰۳ مگر auth (ادمین باید بتواند وارد شود و خاموش کند)، JWKS و health */
   private async maintenance(def: EndpointDef) {
     if (def.internalOnly || def.id.startsWith('L-0') || def.id === 'L-90') return;
-    if ((await this.flags.get()).maintenanceMode) throw new AppError('SERVICE_UNAVAILABLE');
+    if ((await this.flags.get()).maintenanceMode) throw new AppError('SERVICE_UNAVAILABLE', { message: 'سامانه برای نگهداری موقتاً در دسترس نیست. کمی بعد برگردید.', details: { reason: 'maintenance', retryAfterSec: 60 } });
   }
 
   private async globalLimit(def: EndpointDef, req: IsraRequest) {
