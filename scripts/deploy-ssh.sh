@@ -41,7 +41,7 @@ health() { # <name> <url>
 }
 
 # فایل‌هایی که cPanel/Passenger/npm روی هاست می‌سازند و نباید حذف شوند
-APP_EXCLUDES=(--exclude=node_modules --exclude=tmp --exclude=stderr.log --exclude=.pkg.sha --exclude=.htaccess)
+APP_EXCLUDES=(--exclude=/node_modules --exclude=/tmp --exclude=/stderr.log --exclude=/.pkg.sha --exclude=/.htaccess)
 
 deploy_api() { # <api-low|api-mid|api-high> <health-url>
   local app="$1" url="${2:-}" src="$ROOT/deploy/$1"
@@ -52,7 +52,7 @@ deploy_api() { # <api-low|api-mid|api-high> <health-url>
 set -euo pipefail
 cd "$APPS_DIR/$app"
 mkdir -p tmp
-new="\$(cat package.json vendor/*.tgz 2>/dev/null | sha256sum | cut -d' ' -f1)"
+new="\$(cat package.json vendor/node_modules/@isra/api-types/package.json 2>/dev/null | sha256sum | cut -d' ' -f1)"
 if [ ! -f .pkg.sha ] || [ "\$(cat .pkg.sha)" != "\$new" ] || [ ! -e node_modules ]; then
   echo "  npm install (وابستگی‌ها تغییر کرده یا اولین بار)"
   # shellcheck disable=SC1090
