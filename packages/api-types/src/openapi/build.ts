@@ -239,7 +239,7 @@ export function buildOpenApi(service: ServiceKey): OpenApiDoc {
         '',
         '- قالب پاسخ: `{ success, data, meta.requestId }`؛ خطا: `{ success:false, error:{code,message,details}, meta }`. `message` فارسی، `code` پایدار.',
         '- زمان‌ها ISO-8601 با offset؛ منطق کسب‌وکار `Asia/Tehran`؛ هفته شنبه–جمعه.',
-        '- امنیت: JWT RS256 (access ۱۵ دقیقه)، refresh ۱۴ روز با rotation؛ اقدام حساس ⇒ `X-Step-Up-Token`.',
+        '- امنیت: JWT RS256 (TTL access/refresh از پیکربندی سرور؛ پیش‌فرض ۱۵ دقیقه / ۱۴ روز)، refresh با rotation؛ اقدام حساس ⇒ `X-Step-Up-Token`.',
         '- محدودیت‌ها: بدنهٔ JSON حداکثر ۱۶KB؛ `pageSize` ≤ سقف هر endpoint؛ بدنه‌های `strict` (فیلد ناشناخته ⇒ `VALIDATION_FAILED`).',
         '- نسخه‌بندی: تغییر ناسازگار فقط با نسخهٔ جدید مسیر (`v2`)؛ سیاست deprecation: هدرهای `Deprecation` و `Sunset` (حداقل ۱۸۰ روز).',
         ...(service === 'mid' ? ['', '**Realtime (Socket.IO):** ببینید `x-isra-realtime`.'] : [])
@@ -249,7 +249,7 @@ export function buildOpenApi(service: ServiceKey): OpenApiDoc {
       'x-isra-max-body-bytes': 16384
     },
     servers: [
-      { url: 'https://api.israapp.ir', description: 'تولید' },
+      { url: 'https://' + ({ low: 'capi', mid: 'oapi', high: 'sapi' } as const)[service] + '.israapp.ir', description: 'تولید' },
       { url: 'http://localhost:' + ({ low: 3001, mid: 3002, high: 3003 } as const)[service], description: 'توسعهٔ محلی (بدون Docker)' }
     ],
     tags: [...tags].sort().map((name) => ({ name })),
