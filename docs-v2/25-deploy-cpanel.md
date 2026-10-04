@@ -120,3 +120,15 @@ HEALTH_URL_LOW=https://capi.israapp.ir/c/health/ready HEALTH_URL_MID=https://oap
 bash scripts/deploy-ssh.sh
 ```
 رمز SSH هرگز در GitHub/چت گذاشته نمی‌شود؛ فقط کلید (مرحلهٔ بالا).
+
+## د) صفحهٔ خطای فارسی به‌جای «503» خام هاست
+- **API:** پاسخ‌های ۵۰۳ همچنان `503` هستند (معنای HTTP؛ health و کلاینت‌ها به آن وابسته‌اند) ولی بدنهٔ JSON فارسی و خنثی دارند؛ حالت نگهداری واقعی `details.reason="maintenance"` دارد.
+- **web-main / web-admin:** خطای ۵xx صفحهٔ فارسی «سرویس لحظه‌ای پاسخگو نیست» با دکمهٔ تلاش دوباره نشان می‌دهد (کد خطا نمایش داده نمی‌شود).
+- **وقتی خود اپ Node پایین است** (Passenger/LiteSpeed صفحهٔ خام 503 می‌دهد): فایل `error-503.html` را در docroot همان دامنه بگذارید و در `.htaccess` همان docroot اضافه کنید:
+  ```
+  ErrorDocument 500 /error-503.html
+  ErrorDocument 502 /error-503.html
+  ErrorDocument 503 /error-503.html
+  ErrorDocument 504 /error-503.html
+  ```
+  برای web-admin این خطوط در `.htaccess` تولیدشده هست و فایل داخل `build/` است. برای web-main فایل در `deploy/web-main/error-503.html` است. (روی LiteSpeed/CloudLinux بسته به تنظیم هاست ممکن است صفحهٔ خود هاست اولویت داشته باشد؛ در cPanel ← Errors Pages هم می‌توان صفحهٔ 503 دامنه را تنظیم کرد.)

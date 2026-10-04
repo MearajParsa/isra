@@ -21,4 +21,6 @@ mkdirSync(out, { recursive: true });
 cpSync(build, join(out, 'build'), { recursive: true });
 writeFileSync(join(out, 'package.json'), JSON.stringify({ name: 'isra-web-main', private: true, type: 'module', scripts: { start: 'node app.js' } }, null, 2) + '\n');
 writeFileSync(join(out, 'app.js'), "import './build/index.js';\n");
+// صفحهٔ خطای خودکفا برای وقتی که خود اپ Node پایین است (۵۰۲/۵۰۳ هاست): در docroot دامنه + ErrorDocument در .htaccess (docs-v2/25)
+if (existsSync(join(build, 'client', 'error-503.html'))) cpSync(join(build, 'client', 'error-503.html'), join(out, 'error-503.html'));
 console.log(`آماده: ${out}`);
