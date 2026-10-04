@@ -3,7 +3,10 @@
  * بستهٔ استقرار مستقل برای یک سرویس (مناسب cPanel «Setup Node.js App» که `npm install` اجرا می‌کند):
  *   node scripts/pack-service.mjs api-low        # خروجی: deploy/api-low/  (و deploy/api-low.zip اگر zip نصب باشد)
  * پیش‌نیاز: pnpm turbo build (و pnpm --filter @isra/api-types bundle) انجام شده باشد.
- * محتوا: dist/ + package.json (وابستگی workspace ⇒ vendor/api-types) + app.js (نقطهٔ ورود Passenger) — بدون node_modules/secret.
+ * محتوا: dist/ + package.json (وابستگی‌ها با نسخهٔ دقیق از pnpm-lock.yaml؛ api-types در vendor/node_modules) + package-lock.json + .npmrc
+ *         + app.js (نقطهٔ ورود Passenger) — بدون node_modules/secret.
+ * بازتولیدپذیری: هاست production باید با `npm ci --omit=dev` (یا «Run NPM Install» در cPanel که package-lock.json را رعایت می‌کند) نصب کند.
+ * نیاز به شبکه (registry) هنگام pack برای تولید package-lock.json.
  */
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
@@ -30,18 +33,51 @@ cpSync(join(src, 'dist'), join(out, 'dist'), { recursive: true });
 // نه `file:` dependency: روی cPanel/CloudLinux «Run NPM Install» مسیر نسبی `file:` را نسبت به nodevenv حل می‌کند و می‌شکند
 // (و symlink آن هم). این‌طور به npm/node_modules هاست وابسته نیست.
 const vendor = join(out, 'vendor', 'node_modules', '@isra', 'api-types');
+// نسخهٔ دقیق (بدون ^ و ~) از pnpm-lock.yaml برای importer مشخص؛ بدون وابستگی به کتابخانهٔ yaml
+const lockText = readFileSync(join(root, 'pnpm-lock.yaml'), 'utf8').split(/\r?\n/);
+function lockedDeps(importer, declared) {
+  const start = lockText.indexOf(`  ${importer}:`);
+  if (start < 0) throw new Error(`importer ${importer} در pnpm-lock.yaml نیست`);
+  const resolved = {};
+  let section = '';
+  let name = '';
+  for (let i = start + 1; i < lockText.length; i++) {
+    const l = lockText[i];
+    if (/^  \S/.test(l)) break; // importer بعدی
+    let m;
+    if ((m = /^    (dependencies|devDependencies|optionalDependencies):/.exec(l))) section = m[1];
+    else if ((m = /^      ['"]?([^'":]+)['"]?:\s*$/.exec(l))) name = m[1];
+    else if ((m = /^        version: (\S+)/.exec(l)) && section === 'dependencies') resolved[name] = m[1].replace(/\(.*$/, '');
+  }
+  const exact = {};
+  for (const [dep, range] of Object.entries(declared ?? {})) {
+    if (range.startsWith('workspace:')) continue;
+    const v = resolved[dep];
+    if (!v || !/^\d+\.\d+\.\d+/.test(v)) throw new Error(`نسخهٔ قفل‌شدهٔ ${dep} برای ${importer} پیدا نشد (${v ?? 'خالی'})`);
+    exact[dep] = v;
+  }
+  return exact;
+}
+
 mkdirSync(vendor, { recursive: true });
 cpSync(join(types, 'dist'), join(vendor, 'dist'), { recursive: true });
 cpSync(join(types, 'openapi'), join(vendor, 'openapi'), { recursive: true });
 const tp = JSON.parse(readFileSync(join(types, 'package.json'), 'utf8'));
-writeFileSync(join(vendor, 'package.json'), JSON.stringify({ name: tp.name, version: tp.version, private: true, type: tp.type, main: tp.main, types: tp.types, exports: tp.exports, dependencies: tp.dependencies }, null, 2));
+writeFileSync(join(vendor, 'package.json'), JSON.stringify({ name: tp.name, version: tp.version, private: true, type: tp.type, main: tp.main, types: tp.types, exports: tp.exports, dependencies: lockedDeps('packages/api-types', tp.dependencies) }, null, 2));
 
 const pkg = JSON.parse(readFileSync(join(src, 'package.json'), 'utf8'));
-const { '@isra/api-types': _workspace, ...deps } = { ...tp.dependencies, ...pkg.dependencies }; // zod و بقیه از npm نصب می‌شوند
+// workspace (@isra/api-types) در vendor/node_modules است؛ بقیه با نسخهٔ دقیق از قفل pnpm
+const deps = { ...lockedDeps('packages/api-types', tp.dependencies), ...lockedDeps(`services/${svc}`, pkg.dependencies) };
 writeFileSync(
   join(out, 'package.json'),
   JSON.stringify({ name: pkg.name, version: pkg.version, private: true, main: 'app.js', engines: { node: '>=20.3' }, scripts: { start: 'node app.js' }, dependencies: deps }, null, 2)
 );
+// .npmrc: بدون audit/fund و با save-exact. --ignore-scripts عمداً سراسری نیست (cPanel/CloudLinux)؛
+// بررسی: هیچ وابستگی مستقیم install script ندارد (@node-rs/argon2 باینری prebuilt می‌گیرد).
+writeFileSync(join(out, '.npmrc'), 'audit=false\nfund=false\nsave-exact=true\n');
+// package-lock.json: فقط فایل قفل (بدون نصب و بدون اجرای اسکریپت)
+execSync('npm install --package-lock-only --ignore-scripts', { cwd: out, stdio: 'inherit' });
+if (!existsSync(join(out, 'package-lock.json'))) throw new Error('package-lock.json ساخته نشد');
 // نقطهٔ ورود Passenger: env را cPanel می‌دهد؛ main.js خودش listen می‌کند (Passenger listen را به socket هدایت می‌کند)
 writeFileSync(
   join(out, 'app.js'),

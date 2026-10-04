@@ -93,7 +93,8 @@ export function testEnv(over: Record<string, string> = {}): Env {
     CORS_ORIGINS: 'http://localhost:5174',
     TRUST_PROXY: '1',
     LOW_JWKS_URL: 'http://127.0.0.1:1/jwks',
-    INTERNAL_SHARED_SECRET: 'test-internal-secret-test-internal-1234',
+    INTERNAL_SECRET_LOW: 'test-pair-low-high-0123456789abcdef0',
+    INTERNAL_SECRET_MID: 'test-pair-mid-high-0123456789abcdef0',
     OUTBOX_ENABLED: 'false',
     MAINTENANCE_ENABLED: 'false',
     ...over

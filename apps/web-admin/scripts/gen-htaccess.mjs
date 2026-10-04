@@ -5,14 +5,19 @@
  *  - کش: دارایی‌های hash‌دار immutable، HTML/service-worker/manifest بدون کش
  *  - فشرده‌سازی متن
  */
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 
 const low = (process.env.VITE_API_LOW_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
 const high = (process.env.VITE_API_HIGH_URL ?? 'http://localhost:3003').replace(/\/+$/, '');
 const connect = [...new Set(["'self'", low, high])].join(' ');
 const https = low.startsWith('https://') && high.startsWith('https://');
 
-const csp = ["default-src 'self'", "script-src 'self' 'unsafe-inline'", "style-src 'self' 'unsafe-inline'", "img-src 'self' data:", "font-src 'self' data:", `connect-src ${connect}`, "manifest-src 'self'", "worker-src 'self'", "object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'"].join('; ');
+// اسکریپت inline بوت‌استرپ SvelteKit با hash مجاز می‌شود (hash هر build متفاوت است؛ از خروجی index.html خوانده می‌شود)
+const html = readFileSync(new URL('../build/index.html', import.meta.url), 'utf8');
+const hashes = [...html.matchAll(/'(sha256-[A-Za-z0-9+/=]+)'/g)].map((m) => `'${m[1]}'`);
+if (!hashes.length) throw new Error('CSP script hash در build/index.html پیدا نشد (kit.csp mode=hash)');
+
+const csp = ["default-src 'self'", `script-src 'self' ${[...new Set(hashes)].join(' ')}`, "style-src 'self' 'unsafe-inline'", "img-src 'self' data:", "font-src 'self' data:", `connect-src ${connect}`, "manifest-src 'self'", "worker-src 'self'", "object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'"].join('; ');
 
 const out = `# تولیدشده توسط scripts/gen-htaccess.mjs — دستی ویرایش نکنید
 <IfModule mod_rewrite.c>

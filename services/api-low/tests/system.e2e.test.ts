@@ -3,7 +3,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ANDROID, type TestApp, freshIp, freshPhone, loginOtp, startApp } from './helpers/app';
 
-const SECRET = 'test-internal-secret-test-internal-1234';
+const SECRET = 'test-pair-low-high-0123456789abcdef0';
 let t: TestApp;
 beforeAll(async () => {
   t = await startApp();
@@ -13,6 +13,7 @@ afterAll(async () => t.close());
 const settings = (version: number, flags: { maintenance_mode: boolean; registration_open: boolean }) =>
   request(t.http)
     .post('/c/internal/v1/events')
+    .set('X-Internal-Caller', 'high')
     .set('X-Internal-Token', SECRET)
     .send({ eventId: randomUUID(), type: 'system.settings.changed', occurredAt: new Date().toISOString(), payload: { version, evalWeights: { voice: 40, tone: 30, tajweed: 30 }, badgeThresholds: [50, 150, 300, 500], flags } });
 
@@ -90,12 +91,13 @@ describe('رویداد ثبت‌نام برای high/mid', () => {
 
 describe('مسیر internal روی دامنهٔ عمومی', () => {
   it('حدس‌زدن secret: بعد از ۱۰ تلاش ناموفق per IP ⇒ 429 حتی با secret درست', async () => {
-    const hit = (token: string) => request(t.http).post('/c/internal/v1/events').set('X-Internal-Token', token).set('X-Forwarded-For', '203.0.113.9').send({});
+    const hit = (token: string) => request(t.http).post('/c/internal/v1/events').set('X-Internal-Caller', 'high').set('X-Internal-Token', token).set('X-Forwarded-For', '203.0.113.9').send({});
     for (let i = 0; i < 10; i++) expect((await hit('x'.repeat(40))).status).toBe(401);
     expect((await hit('x'.repeat(40))).status).toBe(429);
     expect((await hit(SECRET)).status).toBe(429);
     // IP دیگر تحت‌تأثیر نیست
-    const other = await request(t.http).post('/c/internal/v1/events').set('X-Internal-Token', SECRET).set('X-Forwarded-For', '203.0.113.10').send({ eventId: randomUUID(), type: 'future.x', occurredAt: new Date().toISOString(), payload: {} });
-    expect(other.status).toBe(202);
+    const other = await request(t.http).post('/c/internal/v1/events').set('X-Internal-Caller', 'high').set('X-Internal-Token', SECRET).set('X-Forwarded-For', '203.0.113.10').send({ eventId: randomUUID(), type: 'system.settings.changed', occurredAt: new Date().toISOString(), payload: {} });
+    expect(other.status).not.toBe(429); // مجاز (احراز شد؛ payload خالی ⇒ 400)
+    expect(other.status).not.toBe(401);
   });
 });

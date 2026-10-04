@@ -31,3 +31,10 @@ Thumbs.db
 
 # بستهٔ استقرار تولیدشده
 deploy/
+
+# claude-security-audit blackboard
+.claude-audit/
+
+# claude-security-audit: machine artifacts (v2.6.1)
+docs/security-audit-output/*.sarif
+docs/security-audit-output/*.cyclonedx.json

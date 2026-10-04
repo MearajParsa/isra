@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import { Clock } from '../common/clock';
 import { bufToUuid } from '../common/ids';
 import { ENV, type Env } from '../config/env';
+import { type Peer, internalHeaders } from '../internal/internal-auth';
 
 const BATCH = 50;
 const MAX_BACKOFF_SEC = 3600;
@@ -35,8 +36,9 @@ export class OutboxService implements OnApplicationBootstrap, OnApplicationShutd
   }
 
   /** رویدادهای mid فقط برای low (اینباکس) هستند */
-  private targets(): string[] {
-    return [this.env.INTERNAL_URL_LOW].filter((u): u is string => !!u);
+  private targets(): { peer: Peer; url: string }[] {
+    const all: [Peer, string | undefined][] = [['low', this.env.INTERNAL_URL_LOW]];
+    return all.filter((x): x is [Peer, string] => !!x[1]).map(([peer, url]) => ({ peer, url }));
   }
 
   /** یک دور پردازش؛ تعداد رویداد منتشرشده را برمی‌گرداند (تست‌پذیر) */
@@ -60,7 +62,7 @@ export class OutboxService implements OnApplicationBootstrap, OnApplicationShutd
           const eventId = bufToUuid(r.id);
           const payload = typeof r.payload === 'string' ? (JSON.parse(r.payload) as unknown) : r.payload;
           try {
-            for (const base of targets) await this.post(base, { eventId, type: r.type, occurredAt: r.created_at.toISOString(), payload });
+            for (const tg of targets) await this.post(tg, { eventId, type: r.type, occurredAt: r.created_at.toISOString(), payload });
             await m.query('UPDATE outbox_events SET published_at = ? WHERE id = ?', [now, r.id]);
             published++;
           } catch (e) {
@@ -79,10 +81,10 @@ export class OutboxService implements OnApplicationBootstrap, OnApplicationShutd
     }
   }
 
-  private async post(base: string, body: unknown): Promise<void> {
-    const res = await fetch(`${base}/internal/v1/events`, {
+  private async post(target: { peer: Peer; url: string }, body: unknown): Promise<void> {
+    const res = await fetch(`${target.url}/internal/v1/events`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Internal-Token': this.env.INTERNAL_SHARED_SECRET },
+      headers: { 'Content-Type': 'application/json', ...internalHeaders(this.env, target.peer) },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(this.env.INTERNAL_TIMEOUT_MS)
     });

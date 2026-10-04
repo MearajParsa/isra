@@ -1,4 +1,5 @@
 import type { Request } from 'express';
+import type { Peer } from '../internal/internal-auth';
 import { CLIENTS, type ClientId } from '@isra/api-types';
 
 export interface AuthedUser {
@@ -15,6 +16,8 @@ export interface RequestContext {
 }
 
 export type IsraRequest = Request & {
+  /** فرستندهٔ احرازشدهٔ internal (فقط پس از InternalGuard) */
+  internalCaller?: Peer;
   ctx: RequestContext;
   user?: AuthedUser;
   /** خروجی اعتبارسنجی zod طبق تعریف endpoint */

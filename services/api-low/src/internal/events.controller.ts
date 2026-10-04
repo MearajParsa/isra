@@ -1,6 +1,8 @@
-import { Body, Controller, HttpCode, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, HttpCode, Post, Req, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
+import type { IsraRequest } from '../common/request-context';
 import { InternalGuard } from './internal.guard';
+import { InternalCallers, InternalRoute, assertEventAllowed } from './internal-auth';
 import { EventsService } from './events.service';
 
 /** قرارداد داخلی رویداد ورودی (at-least-once + dedupe با eventId) */
@@ -12,14 +14,16 @@ export const InternalEvent = z.object({
 });
 
 @Controller('c/internal/v1')
+@InternalRoute()
 @UseGuards(InternalGuard)
 export class EventsController {
   constructor(private readonly events: EventsService) {}
 
   @Post('events')
   @HttpCode(202)
-  async receive(@Body() raw: unknown) {
+  async receive(@Body() raw: unknown, @Req() req: IsraRequest) {
     const e = InternalEvent.parse(raw);
+    assertEventAllowed(req.internalCaller, e.type);
     await this.events.handle(e);
     return { success: true, data: {} };
   }

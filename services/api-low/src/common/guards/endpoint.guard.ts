@@ -9,6 +9,7 @@ import { SessionStatusCache } from '../../auth/session-status.cache';
 import { FlagsService } from '../../system/flags.service';
 import { TokenService } from '../../auth/token.service';
 import { ENV, type Env } from '../../config/env';
+import { INTERNAL_KEY } from '../../internal/internal-auth';
 import { AppError } from '../app-error';
 import { EP_KEY, endpoint } from '../ep';
 import { normalizePhone, withNormalizedPhone } from '../phone';
@@ -41,7 +42,11 @@ export class EndpointGuard implements CanActivate {
 
   async canActivate(c: ExecutionContext): Promise<boolean> {
     const id = this.reflector.get<string | undefined>(EP_KEY, c.getHandler());
-    if (!id) return true;
+    if (!id) {
+      // fail-closed: مسیر بدون تعریف قرارداد فقط برای کنترلر internal مجاز است (احراز با InternalGuard)
+      if (this.reflector.getAllAndOverride<boolean | undefined>(INTERNAL_KEY, [c.getHandler(), c.getClass()])) return true;
+      throw new AppError('AUTH_FORBIDDEN');
+    }
     const def = endpoint(id);
     const req = c.switchToHttp().getRequest<IsraRequest>();
     const res = c.switchToHttp().getResponse<Response>();
@@ -69,7 +74,7 @@ export class EndpointGuard implements CanActivate {
    */
   private checkCsrf(def: EndpointDef, req: IsraRequest) {
     if (def.auth !== 'refreshCookie' && def.auth !== 'bearerOrCookie') return;
-    if (!readRefreshCookie(req, req.ctx.client)) return;
+    if (!readRefreshCookie(req, req.ctx.client, this.env.COOKIE_SECURE)) return;
     const origin = req.header('origin');
     if (!isWebClient(req.ctx.client) || !origin || !this.env.CORS_ORIGINS.includes(origin)) throw new AppError('AUTH_FORBIDDEN', { message: 'درخواست از مبدأ مجاز نیست.' });
   }

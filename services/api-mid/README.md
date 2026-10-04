@@ -11,10 +11,10 @@ cp services/api-mid/.env.example services/api-mid/.env.local   # ویندوز: c
 pnpm --filter @isra/api-mid migration:run
 pnpm --filter @isra/api-mid dev        # http://localhost:3002 — Swagger: /o/docs
 ```
-**اتصال low ⇄ mid (لوکال):** در `services/api-low/.env.local` خط `INTERNAL_URL_MID=http://127.0.0.1:3002` را اضافه کنید و `INTERNAL_SHARED_SECRET` هر دو سرویس **یکی** باشد. ورود فقط با OTP واقعی (api-low) انجام می‌شود؛ توکن همان‌جا گرفته و به mid داده می‌شود.
+**اتصال low ⇄ mid (لوکال):** در `services/api-low/.env.local` خط `INTERNAL_URL_MID=http://127.0.0.1:3002` را اضافه کنید و secret جفت (`INTERNAL_SECRET_*`) در هر دو سرویس **یکی** باشد. ورود فقط با OTP واقعی (api-low) انجام می‌شود؛ توکن همان‌جا گرفته و به mid داده می‌شود.
 اجازهٔ ساخت جلسه (`session.create`) از high می‌آید؛ تا ساخته‌شدن api-high در توسعه با رویداد داخلی به low داده می‌شود:
 ```bash
-curl -XPOST http://localhost:3001/c/internal/v1/events -H "content-type: application/json" -H "X-Internal-Token: <INTERNAL_SHARED_SECRET>" \
+curl -XPOST http://localhost:3001/c/internal/v1/events -H "content-type: application/json" -H "X-Internal-Caller: low" -H "X-Internal-Token: <INTERNAL_SECRET_LOW>" \
   -d '{"eventId":"grant-1","type":"system.role.changed","occurredAt":"2026-10-02T10:00:00+03:30","payload":{"userId":"<USER_ID>","systemRoles":[],"grants":["session.create"],"permVer":2}}'
 ```
 (بعد کاربر یک‌بار refresh کند یا دوباره وارد شود تا توکن جدید `session.create` را بگیرد.)
@@ -41,7 +41,7 @@ pnpm --filter @isra/api-mid test       # ۹۸ تست؛ نیاز به MySQL (TEST
 | low → mid | `GET /o/internal/v1/public/sessions`، `GET /o/internal/v1/public/sessions/{id}`، `GET /o/internal/v1/users/{id}/points`، `GET /o/internal/v1/stats/sessions` (برای high) |
 | low/high → mid | `POST /o/internal/v1/events` (`user.registered`، `user.profile.updated`، `system.settings.changed`) |
 | mid → low | `POST {INTERNAL_URL_LOW}/internal/v1/events` (`INTERNAL_URL_LOW` = `…/c`) (`inbox.message.created`) |
-هدر `X-Internal-Token`؛ فقط شبکهٔ خصوصی.
+هدرهای `X-Internal-Caller` + `X-Internal-Token` (secret per جفت‌سرویس؛ ACL نوع رویداد/مسیر per فرستنده)؛ فقط شبکهٔ خصوصی.
 
 ## محدودیت‌ها / بدهی
 - مکان جلسه فعلاً فقط برچسب متنی است؛ نقشه/جست‌وجوی **نشان (Neshan)** در قرارداد نیست و منتظر مستندات است.

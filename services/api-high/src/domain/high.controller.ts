@@ -36,8 +36,8 @@ export class HighController {
   }
 
   @Route('H-01')
-  getOverview() {
-    return this.overview.get();
+  getOverview(@Req() r: IsraRequest) {
+    return this.overview.get(!!r.user?.perms.includes('system.audit.view'));
   }
 
   @Route('H-10')

@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, type OnApplicationBootstrap, type OnApplicationShutdown } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import { RevocationService } from '../auth/revocation.service';
 import { Clock } from '../common/clock';
 import { RateLimitService } from '../common/rate-limit/rate-limit.service';
 import { ENV, type Env } from '../config/env';
@@ -17,6 +18,7 @@ export class MaintenanceService implements OnApplicationBootstrap, OnApplication
     private readonly ds: DataSource,
     private readonly clock: Clock,
     private readonly limiter: RateLimitService,
+    private readonly revocation: RevocationService,
     private readonly sessions: SessionsService,
     @Inject(ENV) private readonly env: Env
   ) {}
@@ -39,6 +41,7 @@ export class MaintenanceService implements OnApplicationBootstrap, OnApplication
     try {
       out.idempotency = await del('DELETE FROM idempotency_keys WHERE created_at < ? LIMIT 5000', ago(DAY));
       out.outbox = await del('DELETE FROM outbox_events WHERE published_at < ? LIMIT 5000', ago(7 * DAY));
+      out.revokedSessions = await this.revocation.purgeExpired();
       out.inboxEvents = await del('DELETE FROM inbox_events WHERE received_at < ? LIMIT 5000', ago(30 * DAY));
       out.counters = await this.limiter.purgeOlderThan(ago(2 * DAY));
       if (this.env.SCHEDULER_ENABLED) out.snapshots = await this.sessions.refreshSnapshots();

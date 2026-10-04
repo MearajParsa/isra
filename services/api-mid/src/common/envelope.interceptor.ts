@@ -48,7 +48,7 @@ export class EnvelopeInterceptor implements NestInterceptor {
         if (typeof cache === 'object' && cache.etag) {
           // ETag روی data (meta.requestId هر بار فرق دارد)
           const stable = def.raw ? body : (body as { data: unknown }).data;
-          const etag = `"${createHash('sha1').update(JSON.stringify(stable)).digest('base64url').slice(0, 27)}"`;
+          const etag = `"${createHash('sha256').update(JSON.stringify(stable)).digest('base64url').slice(0, 27)}"`;
           res.setHeader(HEADERS.etag, etag);
           if (req.header(HEADERS.ifNoneMatch) === etag) {
             res.status(304);

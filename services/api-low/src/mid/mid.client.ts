@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { PointsSummary, PublicSession } from '@isra/api-types';
 import { AppError } from '../common/app-error';
 import { Clock } from '../common/clock';
+import { internalHeaders } from '../internal/internal-auth';
 import { ENV, type Env } from '../config/env';
 
 type Public = z.infer<typeof PublicSession>;
@@ -108,7 +109,7 @@ export class MidClient {
   private async fetchOnce<S extends z.ZodType>(path: string, schema: S, ttlMs: number, notFoundIs404: boolean, now: number): Promise<z.infer<S>> {
     try {
       const res = await fetch(`${this.env.INTERNAL_URL_MID}${path}`, {
-        headers: { 'X-Internal-Token': this.env.INTERNAL_SHARED_SECRET, Accept: 'application/json' },
+        headers: { ...internalHeaders(this.env, 'mid'), Accept: 'application/json' },
         signal: AbortSignal.timeout(this.env.INTERNAL_TIMEOUT_MS)
       });
       if (res.status === 404 && notFoundIs404) {

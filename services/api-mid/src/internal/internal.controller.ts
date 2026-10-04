@@ -1,11 +1,13 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { AppError } from '../common/app-error';
 import { isUuid } from '../common/ids';
+import type { IsraRequest } from '../common/request-context';
 import { PointsService } from '../domain/points.service';
 import { SessionsService } from '../domain/sessions.service';
 import { EventsService } from './events.service';
 import { InternalGuard } from './internal.guard';
+import { InternalCallers, InternalRoute, assertEventAllowed } from './internal-auth';
 
 const InternalEvent = z.object({
   eventId: z.string().min(8).max(64),
@@ -24,6 +26,7 @@ const ListQuery = z.object({
  * خارج از OpenAPI عمومی (docs-v2/22 API9).
  */
 @Controller('o/internal/v1')
+@InternalRoute()
 @UseGuards(InternalGuard)
 export class InternalController {
   constructor(
@@ -32,6 +35,7 @@ export class InternalController {
     private readonly events: EventsService
   ) {}
 
+  @InternalCallers('low')
   @Get('public/sessions')
   async list(@Query() raw: unknown) {
     const q = ListQuery.parse(raw);
@@ -39,17 +43,20 @@ export class InternalController {
     return { success: true, data: r.items, meta: { page: r.page, pageSize: r.pageSize, total: r.total } };
   }
 
+  @InternalCallers('low')
   @Get('public/sessions/:id')
   async one(@Param('id') id: string) {
     if (!isUuid(id)) throw new AppError('NOT_FOUND');
     return { success: true, data: await this.sessions.publicOne(id) };
   }
 
+  @InternalCallers('high')
   @Get('stats/sessions')
   async stats() {
     return { success: true, data: await this.sessions.stats() };
   }
 
+  @InternalCallers('low')
   @Get('users/:id/points')
   async userPoints(@Param('id') id: string) {
     if (!isUuid(id)) throw new AppError('NOT_FOUND');
@@ -58,8 +65,10 @@ export class InternalController {
 
   @Post('events')
   @HttpCode(202)
-  async receive(@Body() raw: unknown) {
-    await this.events.handle(InternalEvent.parse(raw));
+  async receive(@Body() raw: unknown, @Req() req: IsraRequest) {
+    const e = InternalEvent.parse(raw);
+    assertEventAllowed(req.internalCaller, e.type);
+    await this.events.handle(e);
     return { success: true, data: {} };
   }
 }

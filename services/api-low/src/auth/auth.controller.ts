@@ -48,7 +48,7 @@ export class AuthController {
   @Route('L-04')
   async refresh(@In() { body }: Body<typeof low.RefreshBody>, @Req() req: IsraRequest, @Res({ passthrough: true }) res: Response) {
     const web = isWebClient(req.ctx.client);
-    const raw = web ? readRefreshCookie(req, req.ctx.client) : body.refreshToken;
+    const raw = web ? readRefreshCookie(req, req.ctx.client, this.env.COOKIE_SECURE) : body.refreshToken;
     if (!raw) throw new AppError('AUTH_REFRESH_INVALID');
     try {
       return this.finish(req, res, await this.auth.refresh(raw, req.ctx.client));
@@ -60,7 +60,7 @@ export class AuthController {
 
   @Route('L-05')
   async logout(@Req() req: IsraRequest, @Res({ passthrough: true }) res: Response) {
-    await this.auth.logout(req.user?.sessionId, readRefreshCookie(req, req.ctx.client));
+    await this.auth.logout(req.user?.sessionId, readRefreshCookie(req, req.ctx.client, this.env.COOKIE_SECURE));
     clearRefreshCookie(res, this.env, req.ctx.client);
     return {};
   }

@@ -2,10 +2,11 @@ import 'reflect-metadata';
 import { DataSource, type DataSourceOptions } from 'typeorm';
 import type { Env } from '../config/env';
 import { InitSchema1728000000000 } from './migrations/1728000000000-InitSchema';
+import { RevokedSessions1728200000001 } from './migrations/1728200000001-RevokedSessions';
 import { SnakeNamingStrategy } from './naming';
 import { SafeTypeOrmLogger } from './typeorm.logger';
 
-export const MIGRATIONS = [InitSchema1728000000000];
+export const MIGRATIONS = [InitSchema1728000000000, RevokedSessions1728200000001];
 
 /** دسترسی به DB با SQL پارامتری (ds.query)؛ entity نداریم تا schema فقط در migration نسخه‌دار تعریف شود */
 export function dataSourceOptions(env: Env): DataSourceOptions {
@@ -26,6 +27,7 @@ export function dataSourceOptions(env: Env): DataSourceOptions {
     logger: new SafeTypeOrmLogger(),
     logging: ['error', 'warn', 'migration'],
     maxQueryExecutionTime: 500,
+    ssl: env.DB_SSL ? { rejectUnauthorized: true, minVersion: 'TLSv1.2' } : undefined,
     extra: { connectionLimit: env.DB_POOL_MAX, connectTimeout: 5000 }
   };
 }

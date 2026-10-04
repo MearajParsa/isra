@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, type OnApplicationBootstrap } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { z } from 'zod';
+import { RevocationService } from '../auth/revocation.service';
 import { Clock } from '../common/clock';
 import { uuidToBuf } from '../common/ids';
 import { ENV, type Env } from '../config/env';
@@ -15,6 +16,7 @@ export interface InboundEvent {
   payload: Record<string, unknown>;
 }
 
+const SessionRevoked = z.object({ sessionIds: z.array(z.uuid()).min(1).max(50), expiresAt: z.iso.datetime({ offset: true }) });
 const UserRegistered = z.object({ userId: z.uuid(), phone: z.string().regex(/^09\d{9}$/), firstName: z.string().max(40).default(''), lastName: z.string().max(40).default(''), createdAt: z.iso.datetime({ offset: true }).optional() });
 const ProfileUpdated = z.object({ userId: z.uuid(), firstName: z.string().max(40).optional(), lastName: z.string().max(40).optional() });
 
@@ -31,6 +33,7 @@ export class EventsService implements OnApplicationBootstrap {
     private readonly clock: Clock,
     private readonly audit: AuditService,
     private readonly claims: ClaimsService,
+    private readonly revocation: RevocationService,
     @Inject(ENV) private readonly env: Env
   ) {}
 
@@ -56,6 +59,9 @@ export class EventsService implements OnApplicationBootstrap {
       } else if (e.type === 'user.profile.updated') {
         const p = ProfileUpdated.parse(e.payload);
         await m.query('UPDATE user_directory SET first_name = COALESCE(?, first_name), last_name = COALESCE(?, last_name), updated_at = ? WHERE user_id = ?', [p.firstName ?? null, p.lastName ?? null, now, uuidToBuf(p.userId)]);
+      } else if (e.type === 'session.revoked') {
+        const p = SessionRevoked.parse(e.payload);
+        await this.revocation.add(m, p.sessionIds, new Date(p.expiresAt));
       } else {
         this.log.debug({ type: e.type }, 'نوع رویداد ناشناخته؛ نادیده');
       }

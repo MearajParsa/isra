@@ -2,6 +2,7 @@ import { type DynamicModule, Global, Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 import { JwtVerifier } from './auth/jwt-verifier';
+import { RevocationService } from './auth/revocation.service';
 import { Clock } from './common/clock';
 import { AllExceptionsFilter } from './common/exception.filter';
 import { EnvelopeInterceptor } from './common/envelope.interceptor';
@@ -28,7 +29,7 @@ import { LiveService } from './live/live.service';
 import { MaintenanceService } from './outbox/maintenance.service';
 import { OutboxService } from './outbox/outbox.service';
 
-const PROVIDERS = [JwtVerifier, RateLimitService, MembersAccess, SettingsService, PointsService, LiveService, SessionsService, MembersService, AttendanceService, QueueService, EvaluationsService, EventsService, InternalGuard, OutboxService, MaintenanceService, EndpointGuard];
+const PROVIDERS = [RevocationService, JwtVerifier, RateLimitService, MembersAccess, SettingsService, PointsService, LiveService, SessionsService, MembersService, AttendanceService, QueueService, EvaluationsService, EventsService, InternalGuard, OutboxService, MaintenanceService, EndpointGuard];
 
 @Global()
 @Module({ providers: PROVIDERS, exports: PROVIDERS })

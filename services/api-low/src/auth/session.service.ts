@@ -77,9 +77,20 @@ export class SessionService {
         revoked.push(bufToUuid(r.id));
         await m.query('UPDATE auth_sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL', [now, r.id]);
       }
+      await this.publishRevoked(m, revoked, now);
     });
     this.cache.invalidate(...revoked);
     return { sessionId, refreshToken };
+  }
+
+  /**
+   * revoke فقط در low ثبت می‌شود؛ mid/high با این رویداد (outbox) نشست را تا انقضای access رد می‌کنند.
+   * `expiresAt` = حداکثر عمر access توکن‌های موجود (+ حاشیه).
+   */
+  private async publishRevoked(m: EntityManager, ids: string[], now: Date) {
+    if (!ids.length) return;
+    const payload = { sessionIds: ids, expiresAt: new Date(now.getTime() + (this.env.ACCESS_TTL_SEC + 120) * 1000).toISOString() };
+    await m.query('INSERT INTO outbox_events (id, type, payload, created_at, attempts, next_attempt_at) VALUES (?, ?, ?, ?, 0, ?)', [uuidToBuf(uuidv7(now.getTime())), 'session.revoked', JSON.stringify(payload), now, now]);
   }
 
   private async insertRefresh(m: EntityManager, sessionId: string, raw: string, now: Date) {
@@ -110,9 +121,11 @@ export class SessionService {
       const t = rows[0];
       if (!t) return { kind: 'invalid' };
       const sessionId = bufToUuid(t.session_id);
-      const s = (await m.query('SELECT user_id, device_id, revoked_at FROM auth_sessions WHERE id = ?', [t.session_id])) as { user_id: Buffer; device_id: string; revoked_at: Date | null }[];
+      const s = (await m.query('SELECT user_id, device_id, revoked_at, created_at FROM auth_sessions WHERE id = ?', [t.session_id])) as { user_id: Buffer; device_id: string; revoked_at: Date | null; created_at: Date }[];
       const sess = s[0];
       if (!sess || sess.revoked_at || t.expires_at.getTime() <= now.getTime()) return { kind: 'invalid' };
+      // سقف مطلق عمر نشست: refresh لغزان است؛ بدون سقف یک نشست هرگز منقضی نمی‌شد
+      if (now.getTime() - sess.created_at.getTime() > this.env.SESSION_MAX_AGE_SEC * 1000) return { kind: 'invalid' };
       const base = { userId: bufToUuid(sess.user_id), sessionId, deviceId: sess.device_id };
 
       if (t.rotated_at) {
@@ -151,9 +164,15 @@ export class SessionService {
   }
 
   async revoke(sessionId: string): Promise<boolean> {
-    const r = (await this.ds.query('UPDATE auth_sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL', [this.clock.now(), uuidToBuf(sessionId)])) as { affectedRows?: number };
+    const now = this.clock.now();
+    const changed = await this.ds.transaction(async (m) => {
+      const r = (await m.query('UPDATE auth_sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL', [now, uuidToBuf(sessionId)])) as { affectedRows?: number };
+      const ok = (r.affectedRows ?? 0) > 0;
+      if (ok) await this.publishRevoked(m, [sessionId], now);
+      return ok;
+    });
     this.cache.invalidate(sessionId);
-    return (r.affectedRows ?? 0) > 0;
+    return changed;
   }
 
   /** revoke نشست متعلق به کاربر؛ نشست دیگران ⇒ false (بدون نشت وجود) */
@@ -164,9 +183,15 @@ export class SessionService {
   }
 
   async revokeOthers(userId: string, keepSessionId: string): Promise<void> {
-    const ids = (await this.ds.query('SELECT id FROM auth_sessions WHERE user_id = ? AND id <> ? AND revoked_at IS NULL', [uuidToBuf(userId), uuidToBuf(keepSessionId)])) as { id: Buffer }[];
-    await this.ds.query('UPDATE auth_sessions SET revoked_at = ? WHERE user_id = ? AND id <> ? AND revoked_at IS NULL', [this.clock.now(), uuidToBuf(userId), uuidToBuf(keepSessionId)]);
-    this.cache.invalidate(...ids.map((r) => bufToUuid(r.id)));
+    const now = this.clock.now();
+    const ids = await this.ds.transaction(async (m) => {
+      const rows = (await m.query('SELECT id FROM auth_sessions WHERE user_id = ? AND id <> ? AND revoked_at IS NULL FOR UPDATE', [uuidToBuf(userId), uuidToBuf(keepSessionId)])) as { id: Buffer }[];
+      await m.query('UPDATE auth_sessions SET revoked_at = ? WHERE user_id = ? AND id <> ? AND revoked_at IS NULL', [now, uuidToBuf(userId), uuidToBuf(keepSessionId)]);
+      const out = rows.map((r) => bufToUuid(r.id));
+      for (let i = 0; i < out.length; i += 20) await this.publishRevoked(m, out.slice(i, i + 20), now);
+      return out;
+    });
+    this.cache.invalidate(...ids);
   }
 
   async list(userId: string, page: number, pageSize: number, currentSid: string) {

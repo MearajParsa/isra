@@ -7,7 +7,8 @@ import { SessionStatusCache } from '../src/auth/session-status.cache';
 import { ANDROID, type TestApp, freshIp, loginOtp, resetDb, startApp } from './helpers/app';
 import { type FakeMid, startFakeMid } from './helpers/fake-mid';
 
-const SECRET = 'test-internal-secret-test-internal-1234';
+const SECRET = 'test-pair-low-mid-0123456789abcdef01'; // جفت low↔mid
+const HIGH_SECRET = 'test-pair-low-high-0123456789abcdef0'; // جفت low↔high
 let t: TestApp;
 let mid: FakeMid;
 
@@ -34,9 +35,12 @@ beforeEach(() => {
 });
 
 const event = (type: string, payload: Record<string, unknown>, eventId = randomUUID()) => ({ eventId, type, occurredAt: new Date().toISOString(), payload });
-const send = (body: unknown, token: string | null = SECRET) => {
-  const r = request(t.http).post('/c/internal/v1/events');
-  return (token ? r.set('X-Internal-Token', token) : r).send(body as object);
+/** system.* از high؛ inbox.* از mid (ACL فرستنده) */
+const send = (body: unknown, token?: string | null, caller?: 'mid' | 'high') => {
+  const sys = String((body as { type?: unknown }).type ?? '').startsWith('system.');
+  const r = request(t.http).post('/c/internal/v1/events').set('X-Internal-Caller', caller ?? (sys ? 'high' : 'mid'));
+  const tok = token === undefined ? (sys ? HIGH_SECRET : SECRET) : token;
+  return (tok ? r.set('X-Internal-Token', tok) : r).send(body as object);
 };
 
 describe('رویدادهای داخلی', () => {
@@ -61,9 +65,13 @@ describe('رویدادهای داخلی', () => {
     expect((await request(t.http).get('/c/v1/me/inbox?unreadOnly=true').set(u.headers)).body.data).toHaveLength(0);
   });
 
-  it('payload نامعتبر ⇒ 400؛ نوع ناشناخته پذیرفته و نادیده (سازگاری رو‌به‌جلو)', async () => {
+  it('payload نامعتبر ⇒ 400؛ نوع خارج از allow-list فرستنده ⇒ 403', async () => {
     expect((await send(event('inbox.message.created', { userId: 'x' }))).status).toBe(400);
-    expect((await send(event('future.event.v9', { a: 1 }))).status).toBe(202);
+    expect((await send(event('future.event.v9', { a: 1 }))).status).toBe(403);
+    // mid اجازهٔ ارسال system.* را ندارد (حتی با secret درست جفت خودش)
+    expect((await send(event('system.role.changed', { userId: randomUUID(), systemRoles: ['super_admin'], grants: [], permVer: 9 }), SECRET, 'mid')).status).toBe(403);
+    // high اجازهٔ ارسال inbox.* را ندارد
+    expect((await send(event('inbox.message.created', { userId: randomUUID() }), HIGH_SECRET, 'high')).status).toBe(403);
   });
 
   it('system.role.changed: claim در access بعدی می‌آید؛ رویداد قدیمی‌تر (permVer کمتر) اثر ندارد', async () => {

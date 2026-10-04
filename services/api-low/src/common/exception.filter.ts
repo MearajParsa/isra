@@ -77,6 +77,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
       this.log.error({ requestId, err: exception instanceof Error ? { name: exception.name, message: exception.message, stack: exception.stack } : String(exception) }, 'unhandled');
     }
 
+    // رویداد امنیتی (ASVS V7.1/V7.2): شکست احراز/مجوز/محدودیت نرخ؛ بدون توکن/OTP/شماره
+    if (code.startsWith('AUTH_') || code.startsWith('OTP_') || code === 'RATE_LIMITED') {
+      this.log.warn({ event: 'security', code, requestId, method: req.method, path: (req.route as { path?: string } | undefined)?.path ?? 'unmatched', ip: req.ctx?.ip, userId: req.user?.userId }, 'security event');
+    }
     const status = ERROR_CATALOG[code].status;
     const retry = typeof details?.retryAfterSec === 'number' ? (details.retryAfterSec as number) : undefined;
     if (retry !== undefined) res.setHeader(HEADERS.retryAfter, String(Math.max(1, Math.ceil(retry))));

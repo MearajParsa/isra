@@ -86,7 +86,18 @@ describe('env (fail-fast)', () => {
   });
   it('production: INTERNAL_URL_LOW و CORS الزامی', () => {
     expect(() =>
-      loadEnv({ NODE_ENV: 'production', DB_HOST: 'h', DB_USER: 'u', DB_PASSWORD: 'p', LOW_JWKS_URL: 'https://api.israapp.ir/c/.well-known/jwks.json', INTERNAL_SHARED_SECRET: 'x'.repeat(32) })
+      loadEnv({ NODE_ENV: 'production', DB_HOST: 'h', DB_USER: 'u', DB_PASSWORD: 'p', LOW_JWKS_URL: 'https://api.israapp.ir/c/.well-known/jwks.json', INTERNAL_SECRET_LOW: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6', INTERNAL_SECRET_HIGH: 'f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1' })
     ).toThrow(/INTERNAL_URL_LOW|CORS_ORIGINS/);
+  });
+  it('production: secret نمونه/ضعیف، تکراری و URL غیر https رد می‌شود', () => {
+    const base = { NODE_ENV: 'production', DB_HOST: 'localhost', DB_USER: 'u', DB_PASSWORD: 'p', LOW_JWKS_URL: 'https://api.israapp.ir/c/.well-known/jwks.json', INTERNAL_URL_LOW: 'https://api.israapp.ir/c', CORS_ORIGINS: 'https://israapp.ir', INTERNAL_SECRET_LOW: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6', INTERNAL_SECRET_HIGH: 'f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1' };
+    expect(loadEnv(base).NODE_ENV).toBe('production');
+    expect(() => loadEnv({ ...base, INTERNAL_SECRET_LOW: 'dev-pair-low-mid-0123456789abcdef0123' })).toThrow(/INTERNAL_SECRET_LOW/);
+    expect(() => loadEnv({ ...base, INTERNAL_SECRET_HIGH: base.INTERNAL_SECRET_LOW })).toThrow(/مستقل/);
+    expect(() => loadEnv({ ...base, LOW_JWKS_URL: 'http://evil.example/?x=localhost' })).toThrow(/LOW_JWKS_URL/);
+    expect(() => loadEnv({ ...base, DB_HOST: 'db.example.com' })).toThrow(/DB_SSL/);
+  });
+  it('NODE_ENV پیش‌فرض production است (fail-closed)', () => {
+    expect(() => loadEnv({ DB_HOST: 'h', DB_USER: 'u', DB_PASSWORD: 'p', LOW_JWKS_URL: 'http://localhost/jwks', INTERNAL_SECRET_LOW: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6', INTERNAL_SECRET_HIGH: 'f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1' })).toThrow(/CORS_ORIGINS|INTERNAL_URL_LOW/);
   });
 });

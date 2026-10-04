@@ -3,11 +3,13 @@ import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { dataSourceOptions } from '../src/db/data-source';
+import { OverviewService } from '../src/domain/overview.service';
 import { OutboxService } from '../src/outbox/outbox.service';
 import { MaintenanceService } from '../src/outbox/maintenance.service';
 import { type TestApp, api, mkUser, resetDb, startApp, testEnv } from './helpers/app';
 
-const SECRET = 'test-internal-secret-test-internal-1234';
+const SECRET = 'test-pair-low-high-0123456789abcdef0'; // جفت low↔high
+const MID_SECRET = 'test-pair-mid-high-0123456789abcdef0'; // جفت mid↔high
 let t: TestApp;
 let a: ReturnType<typeof api>;
 beforeAll(async () => {
@@ -18,7 +20,7 @@ afterAll(async () => t.close());
 beforeEach(async () => resetDb(t.ds));
 
 const send = (body: object, token: string | null = SECRET) => {
-  const r = request(t.http).post('/s/internal/v1/events');
+  const r = request(t.http).post('/s/internal/v1/events').set('X-Internal-Caller', 'low');
   return (token ? r.set('X-Internal-Token', token) : r).send(body);
 };
 const ev = (type: string, payload: object, eventId = randomUUID()) => ({ eventId, type, occurredAt: new Date().toISOString(), payload });
@@ -28,7 +30,9 @@ describe('رویدادهای ورودی از low', () => {
     expect((await send(ev('user.registered', {}), null)).status).toBe(401);
     expect((await send(ev('user.registered', {}), 'wrong'.repeat(10))).status).toBe(401);
     expect((await send(ev('user.registered', { userId: 'x', phone: '1' }))).status).toBe(400);
-    expect((await send(ev('future.event', { a: 1 }))).status).toBe(202);
+    expect((await send(ev('future.event', { a: 1 }))).status).toBe(403); // allow-list نوع رویداد
+    const midCaller = await request(t.http).post('/s/internal/v1/events').set('X-Internal-Caller', 'mid').set('X-Internal-Token', MID_SECRET).send(ev('user.registered', { userId: randomUUID(), phone: '09120000001' }));
+    expect(midCaller.status).toBe(403); // mid اجازهٔ ارسال user.* به high را ندارد
   });
 
   it('user.registered ⇒ در فهرست کاربران؛ dedupe؛ profile.updated جزئی نام را می‌پاشد؟ خیر', async () => {
@@ -65,7 +69,9 @@ describe('outbox به low و mid', () => {
     expect(await svc.tick()).toBe(1);
     // دو مقصد (در تست هر دو به همان سرور جعلی اشاره می‌کنند)
     expect(t.fake.events).toHaveLength(2);
-    expect(t.fake.events[0]!.headers['x-internal-token']).toBe(SECRET);
+    expect(t.fake.events[0]!.headers['x-internal-token']).toBe(SECRET); // → low
+    expect(t.fake.events[0]!.headers['x-internal-caller']).toBe('high');
+    expect(t.fake.events[1]!.headers['x-internal-token']).toBe(MID_SECRET); // → mid (secret جدا)
     expect(t.fake.events[0]!.body).toMatchObject({ type: 'system.role.changed', payload: { userId: u.id, grants: ['session.create'] } });
     expect(t.fake.events[0]!.body.eventId).toBe(t.fake.events[1]!.body.eventId);
     expect(await svc.tick()).toBe(0);
@@ -96,15 +102,38 @@ describe('migration و seed', () => {
       expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(7);
       expect(await count("SELECT COUNT(*) AS n FROM role_permissions WHERE role_key = 'developer' AND locked = 1")).toBe(7);
       await expect(ds.query("INSERT INTO system_roles (role_key, title, description, undeletable) VALUES ('x', 't', 'd', 0)")).rejects.toThrow();
-      await ds.undoLastMigration();
+      await ds.undoLastMigration(); // RevokedSessions
+      await ds.undoLastMigration(); // InitSchema
       expect(await count('SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name <> "migrations"')).toBe(0);
       await ds.runMigrations();
-      expect(await count('SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name <> "migrations"')).toBe(11);
+      expect(await count('SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name <> "migrations"')).toBe(12);
       expect(await count('SELECT COUNT(*) AS n FROM system_settings')).toBe(1);
       const uq = (await ds.query("SELECT non_unique AS nu FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'user_directory' AND index_name = 'uq_directory_phone'")) as { nu: string | number }[];
       expect(Number(uq[0]!.nu)).toBe(0);
     } finally {
       await ds.destroy();
     }
+  });
+});
+
+describe('session.revoked از low', () => {
+  it('توکن نشست باطل‌شده در high رد می‌شود؛ نشست دیگر سالم', async () => {
+    const u = await mkUser(t, 'الف', ['developer']);
+    const v = await mkUser(t, 'ب', ['developer']);
+    expect((await a.get('/system/users', u)).status).toBe(200);
+    const r = await send(ev('session.revoked', { sessionIds: [u.sid], expiresAt: new Date(Date.now() + 600_000).toISOString() }));
+    expect(r.status).toBe(202);
+    expect((await a.get('/system/users', u)).status).toBe(401);
+    expect((await a.get('/system/users', v)).status).toBe(200);
+  });
+});
+
+describe('overview: آخرین audit فقط با system.audit.view', () => {
+  it('بدون مجوز ⇒ lastAudit خالی', async () => {
+    const dev = await mkUser(t, 'توسعه', ['developer']);
+    const svc = t.app.get(OverviewService);
+    expect((await svc.get(false)).lastAudit).toEqual([]);
+    expect(Array.isArray((await svc.get(true)).lastAudit)).toBe(true);
+    expect((await a.get('/system/overview', dev)).status).toBe(200);
   });
 });

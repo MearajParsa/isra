@@ -5,8 +5,9 @@ import { InitSchema1727800000000 } from './migrations/1727800000000-InitSchema';
 import { SnakeNamingStrategy } from './naming';
 import { SafeTypeOrmLogger } from './typeorm.logger';
 import { SessionRouteUrl1728100000000 } from './migrations/1728100000000-SessionRouteUrl';
+import { RevokedSessions1728200000000 } from './migrations/1728200000000-RevokedSessions';
 
-export const MIGRATIONS = [InitSchema1727800000000, SessionRouteUrl1728100000000];
+export const MIGRATIONS = [InitSchema1727800000000, SessionRouteUrl1728100000000, RevokedSessions1728200000000];
 
 /** دسترسی به DB با SQL پارامتری (ds.query)؛ entity نداریم تا schema فقط در migration نسخه‌دار تعریف شود */
 export function dataSourceOptions(env: Env): DataSourceOptions {
@@ -27,6 +28,7 @@ export function dataSourceOptions(env: Env): DataSourceOptions {
     logger: new SafeTypeOrmLogger(),
     logging: ['error', 'warn', 'migration'],
     maxQueryExecutionTime: 500,
+    ssl: env.DB_SSL ? { rejectUnauthorized: true, minVersion: 'TLSv1.2' } : undefined,
     extra: { connectionLimit: env.DB_POOL_MAX, connectTimeout: 5000 }
   };
 }
