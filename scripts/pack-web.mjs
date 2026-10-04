@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * بستهٔ استقرار web-main (SvelteKit adapter-node) برای cPanel «Setup Node.js App»:
- *   PUBLIC_API_LOW_URL=https://api.israapp.ir PUBLIC_API_MID_URL=https://api.israapp.ir pnpm --filter @isra/web-main build
+ *   PUBLIC_API_LOW_URL=https://capi.israapp.ir PUBLIC_API_MID_URL=https://oapi.israapp.ir pnpm --filter @isra/web-main build
  *   node scripts/pack-web.mjs          # خروجی: deploy/web-main/
  * بستهٔ build مستقل است (وابستگی‌ها bundle شده‌اند)؛ node_modules لازم نیست. app.js نقطهٔ ورود Passenger است.
  */

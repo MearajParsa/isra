@@ -67,9 +67,9 @@ jobs:
           ADMIN_DOCROOT: ${{ vars.ADMIN_DOCROOT || 'panel.israapp.ir' }}
           NODE_VERSION: ${{ vars.NODE_VERSION || '22' }}
           TARGETS: ${{ github.event.inputs.targets || 'api-low api-mid api-high web-main web-admin' }}
-          HEALTH_URL_LOW: ${{ env.API_LOW_URL }}/c/health
-          HEALTH_URL_MID: ${{ env.API_MID_URL }}/o/health
-          HEALTH_URL_HIGH: ${{ env.API_HIGH_URL }}/s/health
+          HEALTH_URL_LOW: ${{ env.API_LOW_URL }}/c/health/ready
+          HEALTH_URL_MID: ${{ env.API_MID_URL }}/o/health/ready
+          HEALTH_URL_HIGH: ${{ env.API_HIGH_URL }}/s/health/ready
         run: |
           export SSH_KEY_FILE="$HOME/.ssh/deploy_key" SSH_KNOWN_HOSTS="$HOME/.ssh/known_hosts"
           bash scripts/deploy-ssh.sh

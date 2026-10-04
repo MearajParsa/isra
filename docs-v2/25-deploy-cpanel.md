@@ -42,15 +42,15 @@
 ```
 pnpm install && pnpm turbo build && pnpm --filter @isra/api-types bundle
 node scripts/pack-service.mjs api-low   # api-mid / api-high
-PUBLIC_API_LOW_URL=https://api.israapp.ir PUBLIC_API_MID_URL=https://api.israapp.ir \
+PUBLIC_API_LOW_URL=https://capi.israapp.ir PUBLIC_API_MID_URL=https://oapi.israapp.ir \
   pnpm --filter @isra/web-main build && node scripts/pack-web.mjs
-VITE_API_LOW_URL=https://api.israapp.ir VITE_API_HIGH_URL=https://api.israapp.ir \
+VITE_API_LOW_URL=https://capi.israapp.ir VITE_API_HIGH_URL=https://sapi.israapp.ir \
   pnpm --filter @isra/web-admin build     # خروجی static: apps/web-admin/build (با .htaccess)
 ```
 (آدرس‌ها بدون پیشوند مسیر هستند؛ کلاینت‌ها خودشان `/c/v1`، `/o/v1`، `/s/v1` را اضافه می‌کنند.)
 
 ### ۴) سه API (Setup Node.js App)
-برای هر سرویس: Node 22، Application root = پوشهٔ آپلودشدهٔ `deploy/api-*`، Application URL = `api.israapp.ir/c` (یا `/o`، `/s`)، Startup file = `app.js` → «Run NPM Install» → env را وارد کنید → Restart.
+برای هر سرویس: Node 22، Application root = پوشهٔ آپلودشدهٔ `deploy/api-*`، Application URL = `capi.israapp.ir/c` (یا `oapi.israapp.ir/o`، `sapi.israapp.ir/s`)، Startup file = `app.js` → «Run NPM Install» → env را وارد کنید → Restart.
 
 **نصب بازتولیدپذیر:** `pack-service.mjs` در بسته `package.json` با نسخه‌های دقیق (از `pnpm-lock.yaml`؛ بدون `^`/`~`)، `package-lock.json` (با `npm install --package-lock-only --ignore-scripts`) و `.npmrc` (`audit=false`, `fund=false`, `save-exact=true`) می‌گذارد. دکمهٔ «Run NPM Install» در cPanel وجود `package-lock.json` را رعایت می‌کند و همان درخت وابستگی را نصب می‌کند؛ روی SSH معادل آن `npm ci --omit=dev --ignore-scripts` است. هیچ وابستگی‌ای install script ندارد (`@node-rs/argon2` باینری prebuilt می‌گیرد)، پس `--ignore-scripts` امن است؛ اگر در آینده وابستگی‌ای script لازم داشت، این فلگ را از `deploy-ssh.sh` بردارید. توجه: ساخت `package-lock.json` هنگام pack به دسترسی شبکه به registry نیاز دارد و نسخهٔ transitiveها را در همان لحظه قفل می‌کند؛ lock را همراه بسته آپلود کنید و دستی `npm install` نزنید.
 
@@ -60,16 +60,16 @@ VITE_API_LOW_URL=https://api.israapp.ir VITE_API_HIGH_URL=https://api.israapp.ir
 | `TRUST_PROXY=1` | ✓ | ✓ | ✓ | پشت Passenger/Apache |
 | `DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME` | ✓ | ✓ | ✓ | دیتابیس همان سرویس |
 | `DB_MIGRATIONS_RUN=true` | ✓ | ✓ | ✓ | در نصب/ارتقا |
-| `CORS_ORIGINS=https://israapp.ir,https://admin.israapp.ir` | ✓ | ✓ | ✓ | |
+| `CORS_ORIGINS=https://israapp.ir,https://panel.israapp.ir` | ✓ | ✓ | ✓ | |
 | `SWAGGER_ENABLED=false` | ✓ | ✓ | ✓ | (در صورت نیاز true) |
 | `INTERNAL_SECRET_MID` / `_HIGH` (low)، `_LOW` / `_HIGH` (mid)، `_LOW` / `_MID` (high) | ✓ | ✓ | ✓ | per جفت؛ دو سر یکسان |
 | `JWT_PRIVATE_KEY_PEM`، `OTP_PEPPER` | ✓ | | | از gen-secrets |
 | `PUBLIC_BASE_URL=https://capi.israapp.ir`، `SESSION_MAX_AGE_SEC=7776000` | ✓ | | | |
 | `SMS_PROVIDER=faraz`، `FARAZ_API_KEY`، `FARAZ_SENDER`، `FARAZ_PATTERN_CODE`، `FARAZ_CODE_VAR` | ✓ | | | کلید Faraz فقط اینجا |
-| `LOW_JWKS_URL=https://api.israapp.ir/c/.well-known/jwks.json`، `JWT_ISSUER`، `JWT_AUDIENCE` | | ✓ | ✓ | |
-| `INTERNAL_URL_LOW=https://api.israapp.ir/c` | | ✓ | ✓ | |
-| `INTERNAL_URL_MID=https://api.israapp.ir/o` | ✓ | | ✓ | |
-| `INTERNAL_URL_HIGH=https://api.israapp.ir/s` | ✓ | | | |
+| `LOW_JWKS_URL=https://capi.israapp.ir/c/.well-known/jwks.json`، `JWT_ISSUER`، `JWT_AUDIENCE` | | ✓ | ✓ | |
+| `INTERNAL_URL_LOW=https://capi.israapp.ir/c` | | ✓ | ✓ | |
+| `INTERNAL_URL_MID=https://oapi.israapp.ir/o` | ✓ | | ✓ | |
+| `INTERNAL_URL_HIGH=https://sapi.israapp.ir/s` | ✓ | | | |
 | `BOOTSTRAP_DEVELOPER_PHONE` | | | ✓ | شمارهٔ شما |
 
 ترتیب راه‌اندازی: low ← mid ← high. سپس با شمارهٔ bootstrap وارد پنل ادمین شوید.
@@ -78,10 +78,10 @@ VITE_API_LOW_URL=https://api.israapp.ir VITE_API_HIGH_URL=https://api.israapp.ir
 Node app با Application URL = `israapp.ir`، root = `deploy/web-main`، Startup = `app.js`. env: `ORIGIN=https://israapp.ir`، `PUBLIC_API_LOW_URL`، `PUBLIC_API_MID_URL` (همان مقدار زمان build). نیازی به npm install نیست.
 
 ### ۶) web-admin
-محتوای `apps/web-admin/build` را در docroot ساب‌دامنهٔ `admin.israapp.ir` آپلود کنید (`.htaccess` شامل fallback SPA است).
+محتوای `apps/web-admin/build` را در docroot ساب‌دامنهٔ `panel.israapp.ir` آپلود کنید (`.htaccess` شامل fallback SPA است).
 
 ### ۷) تأیید
-- `https://api.israapp.ir/c/health` (و `/o`، `/s`) = 200؛ `/c/.well-known/jwks.json` کلید می‌دهد.
+- `https://capi.israapp.ir/c/health/ready` (و `https://oapi.israapp.ir/o/health/ready`، `https://sapi.israapp.ir/s/health/ready`) = 200 (مسیر `/c/health` وجود ندارد)؛ `/c/.well-known/jwks.json` کلید می‌دهد.
 - ثبت‌نام با OTP واقعی، ساخت جلسه، ورود ادمین با step-up.
 - `https://israapp.ir/manifest.webmanifest` و نصب PWA.
 
@@ -108,3 +108,15 @@ Node app با Application URL = `israapp.ir`، root = `deploy/web-main`، Startu
 | Variable (اختیاری) | `SSH_PORT`، `APPS_DIR` (apps)، `ADMIN_DOCROOT` (panel.israapp.ir)، `NODE_VERSION` (22)، `API_LOW_URL`/`API_MID_URL`/`API_HIGH_URL` | |
 
 Environment variables اپ‌ها (رمز دیتابیس، کلید Faraz …) **فقط در پنل cPanel** می‌مانند و هرگز به GitHub نمی‌روند. اگر `NODE_VERSION` یا مسیر `~/nodevenv/<approot>/<نسخه>` روی هاست فرق دارد، با `ls ~/nodevenv/apps/api-low` بررسی کنید.
+
+**اگر GitHub به SSH هاست نرسید:** بسیاری از هاست‌های ایرانی IPهای خارج از کشور (از جمله runnerهای GitHub) را در فایروال می‌بندند (خطای `Connection timed out` در مرحلهٔ «استقرار»). راه‌حل جایگزین — استقرار از سیستم خودتان (WSL/لینوکس/مک با `rsync` و `ssh`):
+```
+pnpm install && pnpm turbo build --filter='!@isra/web-main' --filter='!@isra/web-admin' && pnpm --filter @isra/api-types bundle
+for s in api-low api-mid api-high; do node scripts/pack-service.mjs $s; done
+PUBLIC_API_LOW_URL=https://capi.israapp.ir PUBLIC_API_MID_URL=https://oapi.israapp.ir pnpm --filter @isra/web-main build && node scripts/pack-web.mjs
+VITE_API_LOW_URL=https://capi.israapp.ir VITE_API_HIGH_URL=https://sapi.israapp.ir pnpm --filter @isra/web-admin build
+SSH_TARGET=user@host SSH_KEY_FILE=~/.ssh/isra_deploy SSH_KNOWN_HOSTS=~/.ssh/known_hosts \
+HEALTH_URL_LOW=https://capi.israapp.ir/c/health/ready HEALTH_URL_MID=https://oapi.israapp.ir/o/health/ready HEALTH_URL_HIGH=https://sapi.israapp.ir/s/health/ready \
+bash scripts/deploy-ssh.sh
+```
+رمز SSH هرگز در GitHub/چت گذاشته نمی‌شود؛ فقط کلید (مرحلهٔ بالا).
