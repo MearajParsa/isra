@@ -1,0 +1,22 @@
+name: ssh-probe
+# موقت: فقط بررسی دسترسی شبکه از runner گیت‌هاب به هاست (بدون secret)
+on:
+  push:
+    paths: ['.github/workflows/ssh-probe.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: |
+          echo "runner egress IP: $(curl -s -m 8 https://api.ipify.org)"
+          for p in 22 2222 2200 2020 21098; do
+            if timeout 8 bash -c "</dev/tcp/45.138.133.184/$p" 2>/dev/null; then echo "PORT $p: OPEN"; else echo "PORT $p: closed/filtered"; fi
+          done
+          echo "--- host keys (public) ---"
+          ssh-keyscan -T 8 -p 22 45.138.133.184 2>&1 | head -5 || true
+          echo "--- https from runner ---"
+          curl -s -m 10 -o /dev/null -w "capi health: %{http_code}\n" https://capi.israapp.ir/c/health/ready || true
