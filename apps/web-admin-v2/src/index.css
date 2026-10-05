@@ -1,0 +1,134 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   YekanBakh Font Face Declarations (Self-hosted)
+   ========================================================================== */
+@font-face {
+  font-family: 'YekanBakh';
+  src: url('/fonts/YekanBakhFaNum-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'YekanBakh';
+  src: url('/fonts/YekanBakhFaNum-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ==========================================================================
+   Design Tokens & CSS Variables
+   ========================================================================== */
+:root {
+  --font-sans: 'YekanBakh', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, sans-serif;
+  
+  /* Canvas & Containers derived from reference image */
+  --canvas-bg: #F0F3F7;
+  --surface-card: #FFFFFF;
+  --surface-card-subtle: #F8FAFC;
+  --border-card: #E5E9F0;
+  --border-subtle: #EEF2F6;
+  
+  /* Brand Palettes */
+  --brand-navy: #251D59;
+  --brand-violet: #6E56CF;
+  --brand-purple-grad-start: #7928CA;
+  --brand-purple-grad-end: #9B51E0;
+  
+  /* Accents */
+  --accent-emerald: #10B981;
+  --accent-emerald-light: #D1FAE5;
+  --accent-amber: #F59E0B;
+  --accent-amber-light: #FEF3C7;
+  --accent-sky: #0EA5E9;
+  --accent-sky-light: #E0F2FE;
+  --accent-rose: #EF4444;
+  --accent-rose-light: #FEE2E2;
+
+  /* Elevation */
+  --shadow-ambient: 0 10px 30px -8px rgba(15, 23, 42, 0.05);
+  --shadow-floating: 0 20px 45px -12px rgba(15, 23, 42, 0.08);
+  --shadow-inset-subtle: inset 0 1px 2px rgba(0, 0, 0, 0.03);
+
+  /* Radius */
+  --radius-shell: 2rem;
+  --radius-card: 1.5rem;
+  --radius-item: 0.875rem;
+}
+
+.dark {
+  --canvas-bg: #0B0F19;
+  --surface-card: #131A2B;
+  --surface-card-subtle: #192238;
+  --border-card: #232E47;
+  --border-subtle: #1C263B;
+
+  --shadow-ambient: 0 10px 30px -8px rgba(0, 0, 0, 0.35);
+  --shadow-floating: 0 20px 45px -12px rgba(0, 0, 0, 0.5);
+  --shadow-inset-subtle: inset 0 1px 2px rgba(255, 255, 255, 0.03);
+}
+
+/* ==========================================================================
+   Global Reset & Defaults
+   ========================================================================== */
+html {
+  font-family: var(--font-sans);
+  direction: rtl;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--canvas-bg);
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  overscroll-behavior-y: none;
+}
+
+/* Ensure Persian numerals and LTR isolate for phones */
+bdi, .ltr-isolate {
+  direction: ltr;
+  unicode-bidi: isolate;
+  display: inline-block;
+}
+
+/* Custom Sleek Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+/* Striped calendar background pattern from reference image */
+.bg-stripes-muted {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(148, 163, 184, 0.08),
+    rgba(148, 163, 184, 0.08) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+}
+
+/* Safe area padding utilities */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
