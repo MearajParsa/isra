@@ -2,6 +2,16 @@
 
 فرمت: [Keep a Changelog](https://keepachangelog.com/fa/1.1.0/)؛ نسخه‌گذاری: [SemVer](https://semver.org/lang/fa/) روی قرارداد (جزئیات: `docs-v2/22-api-engineering-standards.md` §۵).
 
+## [1.4.0] — ۱۴۰۵/۰۷/۱۴
+### افزوده شد (سازگار)
+- **مدیریت کاربر در پنل (high):** H-24 ساخت، H-25 ویرایش، H-26 فعال/غیرفعال، H-27 حذف نرم+ناشناس، H-28 رمز موقت/حذف رمز، H-29 خروج اجباری، H-50/H-51 نشست‌های کاربر. `SystemUser.status`؛ `H-21` ⇒ `SystemUserDetail`؛ فیلترهای تازهٔ `H-20` (grant/status/createdFrom/createdTo/sort).
+- **حساب من (high):** H-02..H-07 (نام، رمز، نشست‌ها) — مطابق قفل #8 همهٔ اقدام‌های ادمین از `/s/v1`.
+- **مدیریت جلسه (high ⇒ mid):** H-60..H-72 (فهرست/جزئیات/ساخت/ویرایش/وضعیت/حذف نرم/اعضا/حضور/صف/ارزیابی).
+- **گزارش‌های تحلیلی:** H-80..H-84؛ فیلترهای تازهٔ audit (actorId/targetType/targetId/from/to).
+- مجوزهای تازه: `system.users.manage`، `system.sessions.view`، `system.sessions.manage`، `system.reports.view`.
+- low: `Me.mustChangePassword`، `SetPasswordBody.currentPassword`؛ خطاهای `AUTH_PASSWORD_CHANGE_REQUIRED`، `AUTH_ACCOUNT_DISABLED`؛ دلایل CONFLICT: `PHONE_TAKEN`، `SELF_PROTECTED`، `USER_NOT_ACTIVE`.
+- قرارداد internal بین‌سرویسی (`internal.*` در بستهٔ api-types؛ خارج از OpenAPI): مسیرهای `LOW_ADMIN`/`MID_ADMIN` و رویدادهای `user.phone.changed`، `user.status.changed`.
+
 ## [1.3.2] — ۱۴۰۵/۰۷/۱۳
 ### اصلاح (سازگار)
 - متن `SERVICE_UNAVAILABLE`: «در حال نگهداری» برای هر ۵۰۳ گمراه‌کننده بود (قطعی گذرای وابستگی هم ۵۰۳ است)؛ متن خنثی شد. حالت نگهداری واقعی پیام و `details.reason='maintenance'` جدا دارد.
