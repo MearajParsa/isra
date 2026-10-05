@@ -8,13 +8,15 @@ class AccountStore {
   status = $state<'idle' | 'loading' | 'ready' | 'error'>('idle');
 
   async load() {
-    this.status = 'loading';
+    // بارگذاری مجدد بی‌صدا: تغییر ready→loading لایهٔ boot را برمی‌گرداند و صفحه را بازسازی می‌کند (حلقهٔ درخواست)
+    if (this.status !== 'ready') this.status = 'loading';
     try {
       const a = await auth.withAuth((t) => api.system.account(t));
       this.data = a;
       auth.mustChangePassword = a.mustChangePassword;
       this.status = 'ready';
     } catch (e) {
+      if (this.status === 'ready' && this.data) return;
       this.status = e instanceof ApiError && e.code === 'AUTH_PASSWORD_CHANGE_REQUIRED' ? 'ready' : 'error';
     }
   }

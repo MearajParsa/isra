@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { api, type Page, type UserDeviceSession } from '$lib/api';
   import { auth } from '$lib/auth/auth.svelte';
   import { account } from '$lib/auth/account.svelte';
@@ -21,8 +22,9 @@
   import DevicesList from '$lib/components/features/DevicesList.svelte';
 
   const acct = $derived(account.data);
+  // فقط یک‌بار هنگام ورود به صفحه؛ untrack تا خواندن توکن در load حلقهٔ درخواست نسازد
   $effect(() => {
-    void account.load();
+    untrack(() => void account.load());
   });
 
   // ───────── پروفایل ─────────
@@ -102,7 +104,7 @@
   const devices = new Resource<Page<UserDeviceSession>>();
   const loadDevices = () => devices.loadLatest((signal) => auth.withAuth((t) => api.system.mySessions(t, { signal })));
   $effect(() => {
-    void loadDevices();
+    untrack(() => void loadDevices());
   });
   let busyId = $state<string | null>(null);
   let othersAsk = $state(false);
