@@ -7,7 +7,9 @@ import { build, files, version } from '$service-worker';
 
 const sw = self as unknown as ServiceWorkerGlobalScope;
 
-const CACHE = `isra-${version}`;
+// پیشوند اختصاصی هر اپ: web-main و web-admin ممکن است یک origin را شریک شوند (پنل زیر /s) و CacheStorage مشترک است
+const PREFIX = 'isra-main-';
+const CACHE = `${PREFIX}${version}`;
 const OFFLINE_URL = '/offline.html';
 const ASSETS = [...build, ...files.filter((f) => !f.endsWith('.map')), OFFLINE_URL];
 
@@ -24,7 +26,7 @@ sw.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && (k.startsWith(PREFIX) || /^isra-\d+$/.test(k))).map((k) => caches.delete(k))))
       .then(() => sw.clients.claim())
   );
 });
