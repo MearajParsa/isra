@@ -21,6 +21,7 @@ describe('migration', () => {
     expect((await tables()).length).toBe(12);
     await ds.undoLastMigration();
     await ds.undoLastMigration();
+    await ds.undoLastMigration();
     expect(await tables()).toEqual([]);
     await ds.runMigrations();
     expect(await tables()).toEqual(

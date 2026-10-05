@@ -19,7 +19,7 @@ export const ACCEPTED_CALLERS: readonly Peer[] = ['low', 'high'];
 
 /** نوع رویدادهای مجاز هر فرستنده به `/internal/v1/events` این سرویس (allow-list) */
 export const EVENT_ACL: Readonly<Partial<Record<Peer, readonly string[]>>> = {
-  low: ['user.registered', 'user.profile.updated', 'session.revoked'],
+  low: ['user.registered', 'user.profile.updated', 'session.revoked', 'user.phone.changed', 'user.status.changed'],
   high: ['system.role.changed', 'system.settings.changed']
 };
 

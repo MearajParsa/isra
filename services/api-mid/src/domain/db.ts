@@ -11,8 +11,14 @@ export const conflict = (reason: string, message: string) => new AppError('CONFL
 
 export const displayName = (first?: string | null, last?: string | null): string => `${first ?? ''} ${last ?? ''}`.trim() || 'کاربر';
 
+/** نام نمایشی کاربر حذف‌شده/ناشناس‌شده (user.status.changed با status=deleted) */
+export const DELETED_NAME = 'کاربر حذف‌شده';
+
+/** ستون‌های نام از user_directory با alias داده‌شده؛ کاربر حذف‌شده ⇒ «کاربر حذف‌شده»؛ نبود نام ⇒ رشتهٔ خالی (فراخوان displayName() می‌گذارد) */
+export const nameSql = (alias: string): string => `IF(${alias}.deleted = 1, '${DELETED_NAME}', TRIM(CONCAT(COALESCE(${alias}.first_name,''), ' ', COALESCE(${alias}.last_name,''))))`;
+
 /** ستون‌های نام از user_directory با alias d */
-export const NAME_SQL = "TRIM(CONCAT(COALESCE(d.first_name,''), ' ', COALESCE(d.last_name,'')))";
+export const NAME_SQL = nameSql('d');
 
 const RETRYABLE = new Set([1213, 1205]); // deadlock، lock-wait timeout
 

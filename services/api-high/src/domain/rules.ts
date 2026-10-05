@@ -7,15 +7,31 @@ export type Grant = z.infer<typeof high.Grant>;
 
 export const ROLE_KEYS: readonly SystemRoleKey[] = ['developer', 'super_admin'];
 
-export const ALL_PERMISSIONS: readonly PermissionKey[] = ['system.users.view', 'system.role.assign', 'system.permission.edit', 'system.settings.view', 'system.settings.edit', 'system.audit.view', 'session.create'];
+export const ALL_PERMISSIONS: readonly PermissionKey[] = [
+  'system.users.view',
+  'system.users.manage',
+  'system.role.assign',
+  'system.permission.edit',
+  'system.settings.view',
+  'system.settings.edit',
+  'system.audit.view',
+  'system.sessions.view',
+  'system.sessions.manage',
+  'system.reports.view',
+  'session.create'
+];
 
 export const PERMISSION_TITLES: Record<PermissionKey, { title: string; group: 'system' | 'session' }> = {
   'system.users.view': { title: 'دیدن کاربران', group: 'system' },
+  'system.users.manage': { title: 'مدیریت کاربران (ساخت، ویرایش، غیرفعال‌سازی، حذف، رمز و نشست‌ها)', group: 'system' },
   'system.role.assign': { title: 'تخصیص و برداشتن نقش سیستم و مجوز کاربر', group: 'system' },
   'system.permission.edit': { title: 'ویرایش ماتریس مجوز نقش‌ها', group: 'system' },
   'system.settings.view': { title: 'دیدن تنظیمات سراسری', group: 'system' },
   'system.settings.edit': { title: 'ویرایش تنظیمات سراسری', group: 'system' },
   'system.audit.view': { title: 'دیدن گزارش اقدام‌ها', group: 'system' },
+  'system.sessions.view': { title: 'دیدن همهٔ جلسه‌ها (اعضا، حضور، صف و ارزیابی)', group: 'system' },
+  'system.sessions.manage': { title: 'مدیریت جلسه‌ها (ساخت، ویرایش، حذف و اعضا)', group: 'system' },
+  'system.reports.view': { title: 'دیدن گزارش‌های تحلیلی', group: 'system' },
   'session.create': { title: 'ساخت جلسه', group: 'session' }
 };
 
@@ -27,7 +43,7 @@ export const LOCKED: Record<SystemRoleKey, readonly PermissionKey[]> = {
 
 export const DEFAULT_ROLE_PERMS: Record<SystemRoleKey, readonly PermissionKey[]> = {
   developer: ALL_PERMISSIONS,
-  super_admin: ['system.users.view', 'system.role.assign', 'system.permission.edit', 'system.settings.view', 'system.settings.edit', 'system.audit.view', 'session.create']
+  super_admin: ['system.users.view', 'system.role.assign', 'system.permission.edit', 'system.settings.view', 'system.settings.edit', 'system.audit.view', 'system.sessions.view', 'system.reports.view', 'session.create']
 };
 
 export const ROLE_TEXT: Record<SystemRoleKey, { title: string; description: string }> = {

@@ -41,6 +41,8 @@ export class JwtVerifier {
         currentDate: this.clock.now()
       });
       if (typeof payload.sub !== 'string' || typeof payload.sid !== 'string' || payload.lvl !== 'low') throw new AppError('AUTH_TOKEN_INVALID');
+      // رمز موقت: کاربر باید اول در low رمز را عوض کند (docs-v2/26)؛ در mid هیچ مسیری مجاز نیست
+      if (payload.mcp === true) throw new AppError('AUTH_PASSWORD_CHANGE_REQUIRED');
       if (await this.revoked.isRevoked(payload.sid)) throw new AppError('AUTH_TOKEN_INVALID');
       const strs = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
       return { userId: payload.sub, sessionId: payload.sid, roles: strs(payload.roles), perms: strs(payload.perms), expiresAt: (payload.exp ?? 0) * 1000 };

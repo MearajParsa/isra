@@ -20,6 +20,8 @@ import { type IsraRequest, isWebClient } from '../request-context';
 const DURABLE_TAG = 'احراز هویت';
 const DURABLE_IDS = new Set(['L-06', 'L-07', 'L-13']);
 const GLOBAL_IP_LIMIT: RateLimit = { limit: 600, windowSec: 60, key: 'ip' };
+/** مسیرهای مجاز برای کاربر با رمز موقت (L-10 حساب من، L-13 تغییر رمز، L-05 خروج) */
+const MUST_CHANGE_ALLOWED = new Set(['L-10', 'L-13', 'L-05']);
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH']);
 
 /**
@@ -103,10 +105,19 @@ export class EndpointGuard implements CanActivate {
       if (optional) return;
       throw new AppError('AUTH_TOKEN_INVALID');
     }
+    // حساب غیرفعال/حذف‌شده: هر درخواست احرازشده رد می‌شود (logout idempotent می‌ماند)
+    if (st.userStatus !== 'active') {
+      if (optional) return;
+      throw new AppError('AUTH_ACCOUNT_DISABLED');
+    }
+    // رمز موقت مدیر: فقط GET /me، PUT /me/password، logout (و refresh که bearer ندارد)؛ وضعیت از DB/cache نه فقط claim
+    if (st.mustChange && !MUST_CHANGE_ALLOWED.has(def.id)) throw new AppError('AUTH_PASSWORD_CHANGE_REQUIRED');
     req.user = { userId: v.userId, sessionId: v.sessionId, deviceId: v.deviceId };
     this.sessions.touch(v.sessionId);
 
-    if (def.stepUp) await this.auth.assertStepUp(v.sessionId, st, req.header(HEADERS.stepUp));
+    // استثنای step-up فقط برای L-13 در حالت رمز موقت با currentPassword؛ MeService خودش رمز را تطبیق می‌دهد و وضعیت را از DB بازبینی می‌کند
+    const currentPwMode = def.id === 'L-13' && st.mustChange && typeof (req.body as { currentPassword?: unknown } | undefined)?.currentPassword === 'string';
+    if (def.stepUp && !currentPwMode) await this.auth.assertStepUp(v.sessionId, st, req.header(HEADERS.stepUp));
   }
 
   private keyOf(kind: RateLimit['key'], req: IsraRequest): string | null {

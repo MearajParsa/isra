@@ -32,9 +32,10 @@ export const sortRoles = (r: Iterable<string>): SessionRole[] => ROLE_ORDER.filt
 export class MembersAccess {
   constructor(private readonly ds: DataSource) {}
 
-  async session(q: Q, sessionId: string, lock = false): Promise<SessionRow | null> {
+  /** جلسهٔ حذف‌نرم‌شده مثل «وجود ندارد» است مگر `includeDeleted` (فقط مسیرهای ادمین) */
+  async session(q: Q, sessionId: string, lock = false, includeDeleted = false): Promise<SessionRow | null> {
     if (!isUuid(sessionId)) return null;
-    const rows = (await q.query(`SELECT id, title, description, status, schedule, location_label, location_route_url, created_by, created_at, next_starts_at FROM sessions WHERE id = ?${lock ? ' FOR UPDATE' : ''}`, [uuidToBuf(sessionId)])) as (Omit<SessionRow, 'id' | 'created_by'> & { id: Buffer; created_by: Buffer })[];
+    const rows = (await q.query(`SELECT id, title, description, status, schedule, location_label, location_route_url, created_by, created_at, next_starts_at FROM sessions WHERE id = ?${includeDeleted ? '' : ' AND deleted_at IS NULL'}${lock ? ' FOR UPDATE' : ''}`, [uuidToBuf(sessionId)])) as (Omit<SessionRow, 'id' | 'created_by'> & { id: Buffer; created_by: Buffer })[];
     const r = rows[0];
     return r ? { ...r, id: bufToUuid(r.id), created_by: bufToUuid(r.created_by) } : null;
   }
@@ -51,6 +52,7 @@ export class MembersAccess {
 
   async isApprovedMember(sessionId: string, userId: string): Promise<boolean> {
     if (!isUuid(sessionId)) return false;
+    if (!(await this.session(this.ds, sessionId))) return false;
     return (await this.membership(this.ds, sessionId, userId))?.status === 'approved';
   }
 

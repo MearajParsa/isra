@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { z } from 'zod';
+import { internal } from '@isra/api-types';
 import { RevocationService } from '../auth/revocation.service';
 import { Clock } from '../common/clock';
 import { uuidToBuf } from '../common/ids';
@@ -45,9 +46,22 @@ export class EventsService {
         const p = ProfileUpdated.parse(e.payload);
         await m.query(
           `INSERT INTO user_directory (user_id, first_name, last_name, updated_at) VALUES (?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE first_name = COALESCE(?, first_name), last_name = COALESCE(?, last_name), updated_at = VALUES(updated_at)`,
+           ON DUPLICATE KEY UPDATE first_name = IF(deleted = 1, '', COALESCE(?, first_name)), last_name = IF(deleted = 1, '', COALESCE(?, last_name)), updated_at = VALUES(updated_at)`,
           [uuidToBuf(p.userId), p.firstName ?? '', p.lastName ?? '', now, p.firstName ?? null, p.lastName ?? null]
         );
+      } else if (e.type === 'user.status.changed') {
+        // حذف کاربر (برگشت‌ناپذیر): نام پاک و ردیف علامت «حذف‌شده» ⇒ همه‌جا «کاربر حذف‌شده». active/disabled فقط مربوط به high است.
+        const p = internal.UserStatusChanged.parse(e.payload);
+        if (p.status === 'deleted') {
+          await m.query(
+            `INSERT INTO user_directory (user_id, first_name, last_name, deleted, updated_at) VALUES (?, '', '', 1, ?)
+             ON DUPLICATE KEY UPDATE first_name = '', last_name = '', deleted = 1, updated_at = VALUES(updated_at)`,
+            [uuidToBuf(p.userId), now]
+          );
+        }
+      } else if (e.type === 'user.phone.changed') {
+        // شماره در mid نگه‌داری نمی‌شود (فقط high دایرکتوری شماره دارد) ⇒ پذیرفته و نادیده (dedupe ثبت می‌شود)
+        this.log.debug({ type: e.type }, 'نادیده');
       } else if (e.type === 'session.revoked') {
         const p = SessionRevoked.parse(e.payload);
         await this.revocation.add(m, p.sessionIds, new Date(p.expiresAt));

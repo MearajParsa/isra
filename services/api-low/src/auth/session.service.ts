@@ -93,6 +93,22 @@ export class SessionService {
     await m.query('INSERT INTO outbox_events (id, type, payload, created_at, attempts, next_attempt_at) VALUES (?, ?, ?, ?, 0, ?)', [uuidToBuf(uuidv7(now.getTime())), 'session.revoked', JSON.stringify(payload), now, now]);
   }
 
+  /**
+   * revoke همهٔ نشست‌های فعال یک کاربر (به‌جز `except`) داخل تراکنش فراخوان + refreshهای آن‌ها منقضی + رویداد `session.revoked`.
+   * فراخوان پس از commit باید cache را invalidate کند (`SessionStatusCache.invalidateUser`).
+   */
+  async revokeAllInTx(m: EntityManager, userId: string, now: Date, except?: string): Promise<string[]> {
+    const uid = uuidToBuf(userId);
+    const keep = except ? uuidToBuf(except) : null;
+    const rows = (await m.query(`SELECT id FROM auth_sessions WHERE user_id = ? AND revoked_at IS NULL${keep ? ' AND id <> ?' : ''} FOR UPDATE`, keep ? [uid, keep] : [uid])) as { id: Buffer }[];
+    const ids = rows.map((r) => bufToUuid(r.id));
+    if (!ids.length) return ids;
+    await m.query(`UPDATE auth_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL${keep ? ' AND id <> ?' : ''}`, keep ? [now, uid, keep] : [now, uid]);
+    await m.query(`UPDATE refresh_tokens SET expires_at = LEAST(expires_at, ?) WHERE session_id IN (SELECT id FROM auth_sessions WHERE user_id = ? AND revoked_at = ?)`, [now, uid, now]);
+    for (let i = 0; i < ids.length; i += 20) await this.publishRevoked(m, ids.slice(i, i + 20), now);
+    return ids;
+  }
+
   private async insertRefresh(m: EntityManager, sessionId: string, raw: string, now: Date) {
     await m.query('INSERT INTO refresh_tokens (id, session_id, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)', [
       uuidToBuf(uuidv7(now.getTime())),
@@ -149,7 +165,8 @@ export class SessionService {
 
   async issueAccess(userId: string, sessionId: string, deviceId: string) {
     const c = await this.claims(userId);
-    return this.tokens.signAccess({ userId, sessionId, deviceId, roles: c.roles, grants: c.grants, permVer: c.permVer });
+    const u = (await this.ds.query('SELECT must_change_password AS mcp FROM users WHERE id = ?', [uuidToBuf(userId)])) as { mcp: number | string | boolean }[];
+    return this.tokens.signAccess({ userId, sessionId, deviceId, roles: c.roles, grants: c.grants, permVer: c.permVer, mustChangePassword: Number(u[0]?.mcp ?? 0) > 0 });
   }
 
   private async claims(userId: string): Promise<{ roles: string[]; grants: string[]; permVer: number }> {

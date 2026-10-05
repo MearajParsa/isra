@@ -1,6 +1,13 @@
 import { tableOptions } from '../table-options';
 import type { MigrationInterface, QueryRunner } from 'typeorm';
-import { ALL_PERMISSIONS, DEFAULT_FLAGS, DEFAULT_ROLE_PERMS, DEFAULT_THRESHOLDS, DEFAULT_WEIGHTS, LOCKED, PERMISSION_TITLES, ROLE_KEYS, ROLE_TEXT } from '../../domain/rules';
+import { DEFAULT_FLAGS, DEFAULT_THRESHOLDS, DEFAULT_WEIGHTS, PERMISSION_TITLES, ROLE_KEYS, ROLE_TEXT, type PermissionKey } from '../../domain/rules';
+
+/** مجوزهای v1 (۷ مورد)؛ ثابت و مستقل از rules.ts تا migrationهای بعدی (مجوزهای ۱.۴) دوباره درج نکنند */
+const V1_PERMISSIONS: readonly PermissionKey[] = ['system.users.view', 'system.role.assign', 'system.permission.edit', 'system.settings.view', 'system.settings.edit', 'system.audit.view', 'session.create'];
+const V1_SUPER_ADMIN: readonly PermissionKey[] = ['system.users.view', 'system.role.assign', 'system.permission.edit', 'system.settings.view', 'system.settings.edit', 'system.audit.view', 'session.create'];
+const V1_SUPER_ADMIN_LOCKED: readonly PermissionKey[] = ['system.users.view', 'system.role.assign', 'system.permission.edit', 'system.audit.view'];
+const v1Perms = (r: (typeof ROLE_KEYS)[number]): readonly PermissionKey[] => (r === 'developer' ? V1_PERMISSIONS : V1_SUPER_ADMIN);
+const v1Locked = (r: (typeof ROLE_KEYS)[number], p: PermissionKey) => (r === 'developer' ? true : V1_SUPER_ADMIN_LOCKED.includes(p));
 
 /**
  * schema_high v1 (docs-v2/23) + دادهٔ پایهٔ سیستم (seed واقعی، نه نمونه): نقش‌های undeletable، مجوزها، ماتریس پیش‌فرض، تنظیمات اولیه.
@@ -112,8 +119,8 @@ export class InitSchema1728000000000 implements MigrationInterface {
 
     // دادهٔ پایه (سیستم بدون آن کار نمی‌کند)
     for (const r of ROLE_KEYS) await q.query('INSERT INTO system_roles (role_key, title, description, undeletable) VALUES (?, ?, ?, 1)', [r, ROLE_TEXT[r].title, ROLE_TEXT[r].description]);
-    for (const p of ALL_PERMISSIONS) await q.query('INSERT INTO permissions (permission_key, title, perm_group) VALUES (?, ?, ?)', [p, PERMISSION_TITLES[p].title, PERMISSION_TITLES[p].group]);
-    for (const r of ROLE_KEYS) for (const p of DEFAULT_ROLE_PERMS[r]) await q.query('INSERT INTO role_permissions (role_key, permission_key, locked) VALUES (?, ?, ?)', [r, p, LOCKED[r].includes(p) ? 1 : 0]);
+    for (const p of V1_PERMISSIONS) await q.query('INSERT INTO permissions (permission_key, title, perm_group) VALUES (?, ?, ?)', [p, PERMISSION_TITLES[p].title, PERMISSION_TITLES[p].group]);
+    for (const r of ROLE_KEYS) for (const p of v1Perms(r)) await q.query('INSERT INTO role_permissions (role_key, permission_key, locked) VALUES (?, ?, ?)', [r, p, v1Locked(r, p) ? 1 : 0]);
     await q.query("INSERT INTO system_settings (setting_key, version, eval_weights, badge_thresholds, flags, updated_by, updated_at) VALUES ('global', 1, ?, ?, ?, 'سیستم', UTC_TIMESTAMP(3))", [JSON.stringify(DEFAULT_WEIGHTS), JSON.stringify(DEFAULT_THRESHOLDS), JSON.stringify(DEFAULT_FLAGS)]);
   }
 
