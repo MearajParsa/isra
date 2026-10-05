@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
  * بستهٔ استقرار web-admin به‌صورت اپ Node (cPanel «Setup Node.js App»؛ مثلاً Application URL = israapp.ir/s):
- *   BASE_PATH=/s VITE_API_LOW_URL=https://capi.israapp.ir VITE_API_HIGH_URL=https://sapi.israapp.ir pnpm --filter @isra/web-admin build
- *   BASE_PATH=/s VITE_API_LOW_URL=... VITE_API_HIGH_URL=... node scripts/pack-web-admin.mjs     # خروجی: deploy/web-admin/
+ * ساده‌ترین راه (build + pack با یک دستور، مستقل از نوع shell): node scripts/build-web-admin.mjs [--base /s] [--low URL] [--high URL]
+ * دستی: BASE_PATH/VITE_API_LOW_URL/VITE_API_HIGH_URL را هم هنگام build و هم هنگام این اسکریپت بدهید؛ خروجی: deploy/web-admin/
  * پنل SPA استاتیک است؛ app.js یک سرور بدون وابستگی (فقط ماژول‌های Node) برای سرو build با fallback به index.html،
  * هدرهای امنیتی و CSP (hash اسکریپت از خود build) است. npm install لازم نیست. env هاست لازم نیست.
  */
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -19,13 +19,39 @@ if (!existsSync(join(build, 'index.html'))) {
 }
 const base = (process.env.BASE_PATH ?? '').replace(/\/+$/, '');
 if (base && !/^\/[A-Za-z0-9._~-]+(\/[A-Za-z0-9._~-]+)*$/.test(base)) throw new Error(`BASE_PATH نامعتبر: ${base}`);
-const clean = (u, d) => (process.env[u] ?? d).replace(/\/+$/, '');
-const low = clean('VITE_API_LOW_URL', 'http://localhost:3001');
-const high = clean('VITE_API_HIGH_URL', 'http://localhost:3003');
+const clean = (u) => (process.env[u] ?? '').replace(/\/+$/, '');
+const low = clean('VITE_API_LOW_URL');
+const high = clean('VITE_API_HIGH_URL');
+if (!low || !high) {
+  console.error('VITE_API_LOW_URL و VITE_API_HIGH_URL الزامی‌اند (همان مقدارهای زمان build). ساده‌تر: node scripts/build-web-admin.mjs');
+  process.exit(1);
+}
 
-// base زمان build باید با base زمان pack یکی باشد: index.html مسیرهای دارایی را با base دارد
+// ناسازگاری build با تنظیمات pack را همین‌جا بگیر (وگرنه پنل روی هاست «بالا نمی‌آید»: دارایی‌ها از مسیر اشتباه یا API از localhost)
 const html = readFileSync(join(build, 'index.html'), 'utf8');
-if (base && !html.includes(`${base}/`)) throw new Error(`build با BASE_PATH=${base} ساخته نشده است؛ دوباره build کنید (BASE_PATH را هنگام build هم بدهید).`);
+if (base && !html.includes(`import("${base}/_app/`)) {
+  console.error(`✗ build با BASE_PATH=${base} ساخته نشده است (دارایی‌ها از ${base}/_app/ بارگذاری نمی‌شوند). دوباره build کنید: node scripts/build-web-admin.mjs`);
+  process.exit(1);
+}
+if (!base && !html.includes('import("/_app/')) {
+  console.error('✗ build با BASE_PATH ساخته شده ولی pack بدون BASE_PATH اجرا شد. هر دو را یکسان بدهید: node scripts/build-web-admin.mjs');
+  process.exit(1);
+}
+const jsAll = [];
+(function walk(d) {
+  for (const e of readdirSync(d, { withFileTypes: true })) {
+    const f = join(d, e.name);
+    if (e.isDirectory()) walk(f);
+    else if (f.endsWith('.js')) jsAll.push(readFileSync(f, 'utf8'));
+  }
+})(join(build, '_app'));
+const bundle = jsAll.join('\n');
+for (const u of [low, high]) {
+  if (!bundle.includes(u)) {
+    console.error(`✗ آدرس API «${u}» داخل build نیست؛ build با VITE_API_*_URL دیگری ساخته شده. دوباره build کنید: node scripts/build-web-admin.mjs`);
+    process.exit(1);
+  }
+}
 
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
