@@ -134,12 +134,12 @@ bash scripts/deploy-ssh.sh
   برای web-admin این خطوط در `.htaccess` تولیدشده هست و فایل داخل `build/` است. برای web-main فایل در `deploy/web-main/error-503.html` است. (روی LiteSpeed/CloudLinux بسته به تنظیم هاست ممکن است صفحهٔ خود هاست اولویت داشته باشد؛ در cPanel ← Errors Pages هم می‌توان صفحهٔ 503 دامنه را تنظیم کرد.)
 
 ## هـ) web-admin زیر مسیر (مثلاً `israapp.ir/s`) با اپ Node
-پنل SPA استاتیک است؛ برای سرو زیر یک مسیر، `BASE_PATH` را هم هنگام build و هم هنگام pack بدهید و خروجی را با سرور کوچک بدون‌وابستگی `app.js` اجرا کنید (fallback به `index.html`، هدرهای امنیتی، CSP با hash، بدون `npm install`):
+پنل SPA استاتیک است؛ برای سرو زیر یک مسیر، `BASE_PATH` و آدرس APIها در **زمان build** داخل فایل‌ها ثبت می‌شوند و بعداً با env هاست قابل‌تغییر نیستند. با **یک دستور** (مستقل از shell) build و pack کنید:
 ```
-$env:BASE_PATH="/s"; $env:VITE_API_LOW_URL="https://capi.israapp.ir"; $env:VITE_API_HIGH_URL="https://sapi.israapp.ir"
-pnpm --filter @isra/web-admin build
-node scripts/pack-web-admin.mjs        # خروجی: deploy/web-admin/
+node scripts/build-web-admin.mjs            # پیش‌فرض: --base /s ، capi.israapp.ir ، sapi.israapp.ir
+# سفارشی: node scripts/build-web-admin.mjs --base /admin --low https://capi.example.ir --high https://sapi.example.ir
 ```
+خروجی `deploy/web-admin/` یک اپ Node بدون وابستگی است (`app.js`: fallback به `index.html`، هدرهای امنیتی، CSP با hash). اسکریپت pack اگر build با base/آدرس‌های دیگری ساخته شده باشد خطا می‌دهد (نشانهٔ «اپ بالا است ولی پنل بالا نمی‌آید»: دارایی‌ها از `/_app/...` ریشهٔ دامنه خوانده می‌شوند و API روی `localhost` است).
 - cPanel ← Setup Node.js App: Application root = `apps/web-admin`، Application URL = `israapp.ir/s`، Startup file = `app.js`؛ محتوای `deploy/web-admin` را آپلود و Restart کنید. env لازم نیست.
 - `CORS_ORIGINS` سه API باید `https://israapp.ir` را داشته باشد (origin بدون مسیر است).
 - ورود/نگهداری توکن مثل قبل است؛ ولی admin و web-main اگر هر دو روی `israapp.ir` باشند یک origin را شریک می‌شوند (localStorage/Service Worker/Cache مشترک؛ نام cacheها پیشوند اختصاصی دارد). برای جداسازی کامل، بعداً می‌توان به `panel.israapp.ir` منتقل کرد (بدون BASE_PATH؛ بخش ب-۶).
