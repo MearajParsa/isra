@@ -1,0 +1,18 @@
+name: web-probe
+# موقت: بررسی پاسخ سایت از بیرون (بدون secret)
+on:
+  push:
+    paths: ['.github/workflows/web-probe.yml']
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: |
+          for u in https://israapp.ir/s https://israapp.ir/s/ https://israapp.ir/s/login https://israapp.ir/s/manifest.webmanifest https://israapp.ir/s/_app/version.json https://israapp.ir/ http://israapp.ir/s https://capi.israapp.ir/c/health/ready; do
+            echo "=================== $u"
+            curl -sS -m 15 -D - -o /tmp/b "$u" 2>&1 | head -25
+            echo "--- body (first 300 bytes)"; head -c 300 /tmp/b 2>/dev/null | tr -d '\r'; echo
+          done
