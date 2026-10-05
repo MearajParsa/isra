@@ -199,7 +199,7 @@ export class AdminService {
       const cur = await this.lock(m, id);
       if (cur.status === 'deleted') return;
       let anon = '';
-      for (const c of [hex.slice(0, 10), hex.slice(-10), hex.slice(10, 20)]) {
+      for (const c of [hex.slice(-10), hex.slice(0, 10), hex.slice(10, 20)]) {
         const used = (await m.query('SELECT 1 AS x FROM users WHERE phone = ?', [`d${c}`])) as unknown[];
         if (!used.length) {
           anon = `d${c}`;
