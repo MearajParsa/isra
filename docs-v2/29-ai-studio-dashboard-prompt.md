@@ -85,14 +85,14 @@ Token handling (security-critical)
 3. STEP-UP (CRITICAL BUSINESS RULE)
 ════════════════════════════════════════
 Sensitive actions may require a fresh identity confirmation (OTP) = "step-up". The decision is made by the SERVER from a policy that admins edit in this panel:
-- Users with the `developer` role NEVER need step-up for anything. `GET /s/v1/system/me` returns `stepUpExempt` (true for developers) and `stepUp` (map permission → "required" | "none").
+- Users with the `developer` role need NO step-up for anything EXCEPT changing their own password (H-04, always OTP). `GET /s/v1/system/me` returns `stepUpExempt` (true for developers) and `stepUp` (map permission → "required" | "none").
 - For everyone else, an endpoint that is step-up-capable needs it only when `stepUp[permission] === 'required'`.
 UI behaviour:
 1. After login load `/system/me` (H-00). Store `stepUpExempt` and `stepUp`.
 2. Before an action: if `stepUpExempt` or `stepUp[perm]==='none'` → call the API directly (no dialog).
 3. Otherwise (or when the server answers `AUTH_STEP_UP_REQUIRED` anyway — the server is authoritative) → show the Step-up bottom-sheet/dialog: request OTP (`L-06`), 5-digit OTP input (auto-advance, paste support, `autocomplete="one-time-code"`, `inputmode="numeric"`), resend countdown (honour the server's wait), attempts-left from `details.attemptsLeft`, verify (`L-07`) → get `stepUpToken` → replay the original request with header `X-Step-Up-Token`. Cache the token in memory until expiry so several consecutive sensitive actions don't re-prompt.
 4. Provide a UX-friendly "pending action" promise queue so concurrent step-up-requiring requests share ONE dialog.
-5. Developers must never see this dialog; hide any "step-up" hints for them.
+5. Developers never see this dialog except for H-04 (own password change) — always run the step-up flow there; hide any "step-up" hints for them.
 
 ════════════════════════════════════════
 4. SCREENS & FEATURES (all of it is required)

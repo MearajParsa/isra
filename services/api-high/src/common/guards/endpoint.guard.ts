@@ -4,7 +4,7 @@ import type { Response } from 'express';
 import { HEADERS, type EndpointDef, type RateLimit } from '@isra/api-types';
 import { JwtVerifier } from '../../auth/jwt-verifier';
 import { ENV, type Env } from '../../config/env';
-import { isDeveloper, stepUpRequired, type StepUpPolicy } from '../../domain/access/policy';
+import { ALWAYS_STEP_UP, isDeveloper, stepUpRequired, type StepUpPolicy } from '../../domain/access/policy';
 import { RbacService } from '../../domain/rbac.service';
 import { INTERNAL_KEY } from '../../internal/internal-auth';
 import { AppError } from '../app-error';
@@ -69,8 +69,8 @@ export class EndpointGuard implements CanActivate {
     if (def.permission && !a.permissions.includes(def.permission as never)) throw new AppError('AUTH_FORBIDDEN');
     if (def.stepUp) {
       // قاعدهٔ docs-v2/27 §4: developer هرگز؛ بدون permission ⇒ لازم؛ وگرنه از سیاست منابع مجوز (کش حافظه؛ بدون query اضافه)
-      const policy = !who.mcp && isDeveloper(a) ? EMPTY_POLICY : await this.rbac.policy();
-      if (!stepUpRequired(a, policy, def, who.mcp)) {
+      const policy = !who.mcp && isDeveloper(a) && !ALWAYS_STEP_UP.has(def.id) ? EMPTY_POLICY : await this.rbac.policy();
+      if (!stepUpRequired(a, policy, { id: def.id, permission: def.permission }, who.mcp)) {
         // معاف از step-up: low برای H-04 «تأییدشده» می‌خواهد؛ معافیت (developer) همان اثر را دارد
         req.user.stepUpVerified = true;
       } else {
