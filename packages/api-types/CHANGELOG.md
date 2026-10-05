@@ -2,6 +2,13 @@
 
 فرمت: [Keep a Changelog](https://keepachangelog.com/fa/1.1.0/)؛ نسخه‌گذاری: [SemVer](https://semver.org/lang/fa/) روی قرارداد (جزئیات: `docs-v2/22-api-engineering-standards.md` §۵).
 
+## [1.5.0] — ۱۴۰۵/۰۷/۱۴
+### افزوده شد
+- **RBAC پویا:** نقش، مجوز و ماژول قابل ساخت/ویرایش/حذف (H-13..H-18، H-85..H-91)؛ ماتریس یک‌جا H-92؛ دسترسی مؤثر H-93/H-94؛ step-up per نقش×مجوز؛ developer از step-up معاف.
+- مجوزهای سیستمی تازه: `system.role.manage`، `system.permission.manage`، `system.stepup.manage`.
+- تغییر شکل (سازگار با کلاینت‌های فعلی): `SystemRoleKey`/`PermissionKey`/`Grant` از enum به string با الگو؛ `SystemRole` فیلدهای `modules`/`effectivePermissions`/`stepUpRules` گرفت؛ `PermissionInfo` فیلد `group` را به `moduleKey` و … تغییر داد؛ `SystemMe.stepUpExempt`/`stepUp`.
+- دلایل CONFLICT: `KEY_TAKEN`، `SYSTEM_PROTECTED`، `ROLE_IN_USE`، `MODULE_NOT_EMPTY`.
+
 ## [1.4.0] — ۱۴۰۵/۰۷/۱۴
 ### افزوده شد (سازگار)
 - **مدیریت کاربر در پنل (high):** H-24 ساخت، H-25 ویرایش، H-26 فعال/غیرفعال، H-27 حذف نرم+ناشناس، H-28 رمز موقت/حذف رمز، H-29 خروج اجباری، H-50/H-51 نشست‌های کاربر. `SystemUser.status`؛ `H-21` ⇒ `SystemUserDetail`؛ فیلترهای تازهٔ `H-20` (grant/status/createdFrom/createdTo/sort).

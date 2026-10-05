@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "اسراء — api-high (نقش‌ها، مجوزها، تنظیمات سراسری، audit)",
-    "version": "1.4.0",
+    "version": "1.5.0",
     "summary": "قرارداد api-high — نسخهٔ مسیر v1",
     "description": "قرارداد REST سرویس **api-high** (پیشوند `/s/v1`). تولیدشده از schemaهای zod در `@isra/api-types`؛ **دستی ویرایش نکنید**.\n\n- قالب پاسخ: `{ success, data, meta.requestId }`؛ خطا: `{ success:false, error:{code,message,details}, meta }`. `message` فارسی، `code` پایدار.\n- زمان‌ها ISO-8601 با offset؛ منطق کسب‌وکار `Asia/Tehran`؛ هفته شنبه–جمعه.\n- امنیت: JWT RS256 (TTL access/refresh از پیکربندی سرور؛ پیش‌فرض ۱۵ دقیقه / ۱۴ روز)، refresh با rotation؛ اقدام حساس ⇒ `X-Step-Up-Token`.\n- محدودیت‌ها: بدنهٔ JSON حداکثر ۱۶KB؛ `pageSize` ≤ سقف هر endpoint؛ بدنه‌های `strict` (فیلد ناشناخته ⇒ `VALIDATION_FAILED`).\n- نسخه‌بندی: تغییر ناسازگار فقط با نسخهٔ جدید مسیر (`v2`)؛ سیاست deprecation: هدرهای `Deprecation` و `Sunset` (حداقل ۱۸۰ روز).",
     "license": {
@@ -37,6 +37,9 @@
     },
     {
       "name": "نقش‌ها و مجوزها"
+    },
+    {
+      "name": "نقش‌ها، ماژول‌ها و سطح دسترسی"
     },
     {
       "name": "هویت سیستمی"
@@ -761,6 +764,187 @@
         },
         "x-isra-id": "H-00",
         "x-isra-since": "1.0.0",
+        "x-isra-slo-p95-ms": 60
+      }
+    },
+    "/s/v1/system/me/access": {
+      "get": {
+        "operationId": "H_94",
+        "summary": "دسترسی مؤثر من (مجوز، منبع و نیاز به step-up)",
+        "tags": [
+          "نقش‌ها، ماژول‌ها و سطح دسترسی"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "موفق",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/EffectiveAccess"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMeta"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_REQUIRED",
+                        "message": "برای ادامه وارد شوید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "AUTH_FORBIDDEN",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_FORBIDDEN": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_FORBIDDEN",
+                        "message": "برای این کار مجوز ندارید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "مشکلی در سرور پیش آمد. دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "SERVICE_UNAVAILABLE": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "SERVICE_UNAVAILABLE",
+                        "message": "سرویس موقتاً پاسخگو نیست. چند لحظه بعد دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-isra-id": "H-94",
+        "x-isra-since": "1.5.0",
         "x-isra-slo-p95-ms": 60
       }
     },
@@ -2354,6 +2538,1325 @@
         "x-isra-idempotency": "natural"
       }
     },
+    "/s/v1/system/modules": {
+      "get": {
+        "operationId": "H_88",
+        "summary": "فهرست ماژول‌ها",
+        "tags": [
+          "نقش‌ها، ماژول‌ها و سطح دسترسی"
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "موفق",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Cache-Control": {
+                "description": "private, max-age=60",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "description": "برای If-None-Match ⇒ 304",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ModuleInfo"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PageMeta"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "تغییری نکرده (If-None-Match)"
+          },
+          "400": {
+            "description": "VALIDATION_FAILED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "VALIDATION_FAILED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "VALIDATION_FAILED",
+                        "message": "اطلاعات واردشده معتبر نیست."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_REQUIRED",
+                        "message": "برای ادامه وارد شوید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "AUTH_FORBIDDEN",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_FORBIDDEN": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_FORBIDDEN",
+                        "message": "برای این کار مجوز ندارید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "مشکلی در سرور پیش آمد. دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "SERVICE_UNAVAILABLE": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "SERVICE_UNAVAILABLE",
+                        "message": "سرویس موقتاً پاسخگو نیست. چند لحظه بعد دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-isra-id": "H-88",
+        "x-isra-since": "1.5.0",
+        "x-isra-slo-p95-ms": 60
+      },
+      "post": {
+        "operationId": "H_89",
+        "summary": "ساخت ماژول",
+        "tags": [
+          "نقش‌ها، ماژول‌ها و سطح دسترسی"
+        ],
+        "description": "کلید یکتا ⇒ CONFLICT(KEY_TAKEN).",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "کلید تکرار امن (UUID)؛ همان کلید ⇒ همان نتیجه، بدون اثر مضاعف (۲۴ ساعت).",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "X-Step-Up-Token",
+            "in": "header",
+            "required": true,
+            "description": "توکن step-up (۵ دقیقه) از L-07",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateModuleBody"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [],
+            "stepUp": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "موفق",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "RateLimit-Limit": {
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "RateLimit-Remaining": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ModuleInfo"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMeta"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "VALIDATION_FAILED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "VALIDATION_FAILED",
+                        "message": "اطلاعات واردشده معتبر نیست."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_REQUIRED",
+                        "message": "برای ادامه وارد شوید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "AUTH_FORBIDDEN | AUTH_STEP_UP_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_FORBIDDEN": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_FORBIDDEN",
+                        "message": "برای این کار مجوز ندارید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  },
+                  "AUTH_STEP_UP_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_STEP_UP_REQUIRED",
+                        "message": "برای این کار باید هویت خود را دوباره تأیید کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "CONFLICT": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "CONFLICT",
+                        "message": "درخواست با وضعیت فعلی منابع سازگار نیست."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "PAYLOAD_TOO_LARGE",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "PAYLOAD_TOO_LARGE": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "PAYLOAD_TOO_LARGE",
+                        "message": "حجم درخواست بیش از حد مجاز است."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "تعداد درخواست‌ها زیاد است. کمی بعد دوباره امتحان کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "مشکلی در سرور پیش آمد. دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "SERVICE_UNAVAILABLE": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "SERVICE_UNAVAILABLE",
+                        "message": "سرویس موقتاً پاسخگو نیست. چند لحظه بعد دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-isra-id": "H-89",
+        "x-isra-since": "1.5.0",
+        "x-isra-slo-p95-ms": 200,
+        "x-isra-permission": "system.permission.manage",
+        "x-isra-step-up": true,
+        "x-isra-rate-limit": [
+          "30 درخواست / 60ث per user"
+        ],
+        "x-isra-idempotency": "key"
+      }
+    },
+    "/s/v1/system/modules/{key}": {
+      "patch": {
+        "operationId": "H_90",
+        "summary": "ویرایش ماژول",
+        "tags": [
+          "نقش‌ها، ماژول‌ها و سطح دسترسی"
+        ],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ModuleKey"
+            }
+          },
+          {
+            "name": "X-Step-Up-Token",
+            "in": "header",
+            "required": true,
+            "description": "توکن step-up (۵ دقیقه) از L-07",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateModuleBody"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [],
+            "stepUp": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "موفق",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "RateLimit-Limit": {
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "RateLimit-Remaining": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ModuleInfo"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMeta"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "VALIDATION_FAILED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "VALIDATION_FAILED",
+                        "message": "اطلاعات واردشده معتبر نیست."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_REQUIRED",
+                        "message": "برای ادامه وارد شوید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "AUTH_FORBIDDEN | AUTH_STEP_UP_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_FORBIDDEN": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_FORBIDDEN",
+                        "message": "برای این کار مجوز ندارید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  },
+                  "AUTH_STEP_UP_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_STEP_UP_REQUIRED",
+                        "message": "برای این کار باید هویت خود را دوباره تأیید کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "NOT_FOUND",
+                        "message": "پیدا نشد."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "PAYLOAD_TOO_LARGE",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "PAYLOAD_TOO_LARGE": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "PAYLOAD_TOO_LARGE",
+                        "message": "حجم درخواست بیش از حد مجاز است."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "تعداد درخواست‌ها زیاد است. کمی بعد دوباره امتحان کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "مشکلی در سرور پیش آمد. دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "SERVICE_UNAVAILABLE": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "SERVICE_UNAVAILABLE",
+                        "message": "سرویس موقتاً پاسخگو نیست. چند لحظه بعد دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-isra-id": "H-90",
+        "x-isra-since": "1.5.0",
+        "x-isra-slo-p95-ms": 200,
+        "x-isra-permission": "system.permission.manage",
+        "x-isra-step-up": true,
+        "x-isra-rate-limit": [
+          "30 درخواست / 60ث per user"
+        ],
+        "x-isra-idempotency": "natural"
+      },
+      "delete": {
+        "operationId": "H_91",
+        "summary": "حذف ماژول",
+        "tags": [
+          "نقش‌ها، ماژول‌ها و سطح دسترسی"
+        ],
+        "description": "ماژول سیستمی ⇒ CONFLICT(SYSTEM_PROTECTED)؛ دارای مجوز ⇒ CONFLICT(MODULE_NOT_EMPTY).",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ModuleKey"
+            }
+          },
+          {
+            "name": "X-Step-Up-Token",
+            "in": "header",
+            "required": true,
+            "description": "توکن step-up (۵ دقیقه) از L-07",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": [],
+            "stepUp": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "موفق",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "RateLimit-Limit": {
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "RateLimit-Remaining": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ModuleInfo"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMeta"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "VALIDATION_FAILED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "VALIDATION_FAILED",
+                        "message": "اطلاعات واردشده معتبر نیست."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_REQUIRED",
+                        "message": "برای ادامه وارد شوید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "AUTH_FORBIDDEN | AUTH_STEP_UP_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_FORBIDDEN": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_FORBIDDEN",
+                        "message": "برای این کار مجوز ندارید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  },
+                  "AUTH_STEP_UP_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_STEP_UP_REQUIRED",
+                        "message": "برای این کار باید هویت خود را دوباره تأیید کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "NOT_FOUND",
+                        "message": "پیدا نشد."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "CONFLICT": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "CONFLICT",
+                        "message": "درخواست با وضعیت فعلی منابع سازگار نیست."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "تعداد درخواست‌ها زیاد است. کمی بعد دوباره امتحان کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "مشکلی در سرور پیش آمد. دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "SERVICE_UNAVAILABLE": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "SERVICE_UNAVAILABLE",
+                        "message": "سرویس موقتاً پاسخگو نیست. چند لحظه بعد دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-isra-id": "H-91",
+        "x-isra-since": "1.5.0",
+        "x-isra-slo-p95-ms": 200,
+        "x-isra-permission": "system.permission.manage",
+        "x-isra-step-up": true,
+        "x-isra-rate-limit": [
+          "30 درخواست / 60ث per user"
+        ],
+        "x-isra-idempotency": "natural"
+      }
+    },
     "/s/v1/system/overview": {
       "get": {
         "operationId": "H_01",
@@ -2537,7 +4040,7 @@
     "/s/v1/system/permissions": {
       "get": {
         "operationId": "H_11",
-        "summary": "فهرست مجوزها",
+        "summary": "فهرست مجوزها (رجیستری پویا؛ هر مجوز در یک ماژول)",
         "tags": [
           "نقش‌ها و مجوزها"
         ],
@@ -2777,6 +4280,1583 @@
         "x-isra-id": "H-11",
         "x-isra-since": "1.0.0",
         "x-isra-slo-p95-ms": 40
+      },
+      "post": {
+        "operationId": "H_85",
+        "summary": "ساخت مجوز پویا",
+        "tags": [
+          "نقش‌ها، ماژول‌ها و سطح دسترسی"
+        ],
+        "description": "کلید یکتا ⇒ CONFLICT(KEY_TAKEN)؛ ماژول ناموجود ⇒ NOT_FOUND. مجوز پویا فقط داده است و در JWT/claim برای سرویس‌های مصرف‌کننده می‌آید؛ endpointهای سیستمی فقط مجوزهای سیستمی را اعمال می‌کنند.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "کلید تکرار امن (UUID)؛ همان کلید ⇒ همان نتیجه، بدون اثر مضاعف (۲۴ ساعت).",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "X-Step-Up-Token",
+            "in": "header",
+            "required": true,
+            "description": "توکن step-up (۵ دقیقه) از L-07",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePermissionBody"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [],
+            "stepUp": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "موفق",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "RateLimit-Limit": {
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "RateLimit-Remaining": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PermissionInfo"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMeta"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "VALIDATION_FAILED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "VALIDATION_FAILED",
+                        "message": "اطلاعات واردشده معتبر نیست."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_REQUIRED",
+                        "message": "برای ادامه وارد شوید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "AUTH_FORBIDDEN | AUTH_STEP_UP_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_FORBIDDEN": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_FORBIDDEN",
+                        "message": "برای این کار مجوز ندارید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  },
+                  "AUTH_STEP_UP_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_STEP_UP_REQUIRED",
+                        "message": "برای این کار باید هویت خود را دوباره تأیید کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "NOT_FOUND",
+                        "message": "پیدا نشد."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "CONFLICT": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "CONFLICT",
+                        "message": "درخواست با وضعیت فعلی منابع سازگار نیست."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "PAYLOAD_TOO_LARGE",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "PAYLOAD_TOO_LARGE": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "PAYLOAD_TOO_LARGE",
+                        "message": "حجم درخواست بیش از حد مجاز است."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "تعداد درخواست‌ها زیاد است. کمی بعد دوباره امتحان کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "مشکلی در سرور پیش آمد. دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "SERVICE_UNAVAILABLE": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "SERVICE_UNAVAILABLE",
+                        "message": "سرویس موقتاً پاسخگو نیست. چند لحظه بعد دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-isra-id": "H-85",
+        "x-isra-since": "1.5.0",
+        "x-isra-slo-p95-ms": 200,
+        "x-isra-permission": "system.permission.manage",
+        "x-isra-step-up": true,
+        "x-isra-rate-limit": [
+          "30 درخواست / 60ث per user"
+        ],
+        "x-isra-idempotency": "key"
+      }
+    },
+    "/s/v1/system/permissions/{key}": {
+      "patch": {
+        "operationId": "H_86",
+        "summary": "ویرایش مجوز",
+        "tags": [
+          "نقش‌ها، ماژول‌ها و سطح دسترسی"
+        ],
+        "description": "مجوز سیستمی: فقط عنوان/توضیح/step-up پیش‌فرض/grantable؛ جابه‌جایی ماژول فقط برای مجوز پویا.",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PermissionKey"
+            }
+          },
+          {
+            "name": "X-Step-Up-Token",
+            "in": "header",
+            "required": true,
+            "description": "توکن step-up (۵ دقیقه) از L-07",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePermissionBody"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [],
+            "stepUp": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "موفق",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "RateLimit-Limit": {
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "RateLimit-Remaining": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PermissionInfo"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMeta"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "VALIDATION_FAILED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "VALIDATION_FAILED",
+                        "message": "اطلاعات واردشده معتبر نیست."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_REQUIRED",
+                        "message": "برای ادامه وارد شوید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "AUTH_FORBIDDEN | AUTH_STEP_UP_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_FORBIDDEN": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_FORBIDDEN",
+                        "message": "برای این کار مجوز ندارید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  },
+                  "AUTH_STEP_UP_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_STEP_UP_REQUIRED",
+                        "message": "برای این کار باید هویت خود را دوباره تأیید کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "NOT_FOUND",
+                        "message": "پیدا نشد."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "CONFLICT": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "CONFLICT",
+                        "message": "درخواست با وضعیت فعلی منابع سازگار نیست."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "PAYLOAD_TOO_LARGE",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "PAYLOAD_TOO_LARGE": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "PAYLOAD_TOO_LARGE",
+                        "message": "حجم درخواست بیش از حد مجاز است."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "تعداد درخواست‌ها زیاد است. کمی بعد دوباره امتحان کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "مشکلی در سرور پیش آمد. دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "SERVICE_UNAVAILABLE": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "SERVICE_UNAVAILABLE",
+                        "message": "سرویس موقتاً پاسخگو نیست. چند لحظه بعد دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-isra-id": "H-86",
+        "x-isra-since": "1.5.0",
+        "x-isra-slo-p95-ms": 200,
+        "x-isra-permission": "system.permission.manage",
+        "x-isra-step-up": true,
+        "x-isra-rate-limit": [
+          "30 درخواست / 60ث per user"
+        ],
+        "x-isra-idempotency": "natural"
+      },
+      "delete": {
+        "operationId": "H_87",
+        "summary": "حذف مجوز پویا",
+        "tags": [
+          "نقش‌ها، ماژول‌ها و سطح دسترسی"
+        ],
+        "description": "مجوز سیستمی ⇒ CONFLICT(SYSTEM_PROTECTED). حذف از همهٔ نقش‌ها، grantها و قواعد step-up؛ claim دارندگان تازه می‌شود.",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PermissionKey"
+            }
+          },
+          {
+            "name": "X-Step-Up-Token",
+            "in": "header",
+            "required": true,
+            "description": "توکن step-up (۵ دقیقه) از L-07",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": [],
+            "stepUp": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "موفق",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "RateLimit-Limit": {
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "RateLimit-Remaining": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PermissionInfo"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMeta"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "VALIDATION_FAILED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "VALIDATION_FAILED",
+                        "message": "اطلاعات واردشده معتبر نیست."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_REQUIRED",
+                        "message": "برای ادامه وارد شوید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "AUTH_FORBIDDEN | AUTH_STEP_UP_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_FORBIDDEN": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_FORBIDDEN",
+                        "message": "برای این کار مجوز ندارید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  },
+                  "AUTH_STEP_UP_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_STEP_UP_REQUIRED",
+                        "message": "برای این کار باید هویت خود را دوباره تأیید کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "NOT_FOUND",
+                        "message": "پیدا نشد."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "CONFLICT": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "CONFLICT",
+                        "message": "درخواست با وضعیت فعلی منابع سازگار نیست."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "تعداد درخواست‌ها زیاد است. کمی بعد دوباره امتحان کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "مشکلی در سرور پیش آمد. دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "SERVICE_UNAVAILABLE": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "SERVICE_UNAVAILABLE",
+                        "message": "سرویس موقتاً پاسخگو نیست. چند لحظه بعد دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-isra-id": "H-87",
+        "x-isra-since": "1.5.0",
+        "x-isra-slo-p95-ms": 250,
+        "x-isra-permission": "system.permission.manage",
+        "x-isra-step-up": true,
+        "x-isra-rate-limit": [
+          "30 درخواست / 60ث per user"
+        ],
+        "x-isra-idempotency": "natural"
+      }
+    },
+    "/s/v1/system/rbac/effective/{id}": {
+      "get": {
+        "operationId": "H_93",
+        "summary": "دسترسی مؤثر یک کاربر (با منبع هر مجوز و وضعیت step-up)",
+        "tags": [
+          "نقش‌ها، ماژول‌ها و سطح دسترسی"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "description": "شناسهٔ موجودیت (در تولید UUID)",
+              "example": "6f3c2a10-0000-4000-8000-000000000001"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "موفق",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/EffectiveAccess"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMeta"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "VALIDATION_FAILED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "VALIDATION_FAILED",
+                        "message": "اطلاعات واردشده معتبر نیست."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_REQUIRED",
+                        "message": "برای ادامه وارد شوید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "AUTH_FORBIDDEN",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_FORBIDDEN": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_FORBIDDEN",
+                        "message": "برای این کار مجوز ندارید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "NOT_FOUND",
+                        "message": "پیدا نشد."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "مشکلی در سرور پیش آمد. دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "SERVICE_UNAVAILABLE": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "SERVICE_UNAVAILABLE",
+                        "message": "سرویس موقتاً پاسخگو نیست. چند لحظه بعد دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-isra-id": "H-93",
+        "x-isra-since": "1.5.0",
+        "x-isra-slo-p95-ms": 100,
+        "x-isra-permission": "system.users.view"
+      }
+    },
+    "/s/v1/system/rbac/matrix": {
+      "get": {
+        "operationId": "H_92",
+        "summary": "ماتریس کامل نقش × مجوز × ماژول (یک درخواست برای UI)",
+        "tags": [
+          "نقش‌ها، ماژول‌ها و سطح دسترسی"
+        ],
+        "description": "همهٔ ماژول‌ها، مجوزها و نقش‌ها همراه قواعد step-up و `version` ماتریس. با If-None-Match ⇒ 304.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "موفق",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Cache-Control": {
+                "description": "private, max-age=5",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "description": "برای If-None-Match ⇒ 304",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RbacMatrix"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMeta"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "تغییری نکرده (If-None-Match)"
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_REQUIRED",
+                        "message": "برای ادامه وارد شوید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "AUTH_FORBIDDEN",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_FORBIDDEN": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_FORBIDDEN",
+                        "message": "برای این کار مجوز ندارید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "مشکلی در سرور پیش آمد. دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "SERVICE_UNAVAILABLE": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "SERVICE_UNAVAILABLE",
+                        "message": "سرویس موقتاً پاسخگو نیست. چند لحظه بعد دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-isra-id": "H-92",
+        "x-isra-since": "1.5.0",
+        "x-isra-slo-p95-ms": 120,
+        "x-isra-permission": "system.users.view"
       }
     },
     "/s/v1/system/reports/leaderboard": {
@@ -4224,7 +7304,7 @@
     "/s/v1/system/roles": {
       "get": {
         "operationId": "H_10",
-        "summary": "نقش‌های سیستم و ماتریس مجوز",
+        "summary": "فهرست نقش‌ها (سیستمی و پویا) با مجوز، ماژول و قواعد step-up",
         "tags": [
           "نقش‌ها و مجوزها"
         ],
@@ -4456,16 +7536,1758 @@
         "x-isra-id": "H-10",
         "x-isra-since": "1.0.0",
         "x-isra-slo-p95-ms": 80
+      },
+      "post": {
+        "operationId": "H_13",
+        "summary": "ساخت نقش پویا",
+        "tags": [
+          "نقش‌ها، ماژول‌ها و سطح دسترسی"
+        ],
+        "description": "کلید یکتا ⇒ CONFLICT(KEY_TAKEN)؛ مجوز/ماژول ناموجود ⇒ NOT_FOUND؛ مجوزی که سازنده ندارد ⇒ AUTH_FORBIDDEN (developer معاف). Idempotency-Key پشتیبانی می‌شود.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "کلید تکرار امن (UUID)؛ همان کلید ⇒ همان نتیجه، بدون اثر مضاعف (۲۴ ساعت).",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "X-Step-Up-Token",
+            "in": "header",
+            "required": true,
+            "description": "توکن step-up (۵ دقیقه) از L-07",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoleBody"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [],
+            "stepUp": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "موفق",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "RateLimit-Limit": {
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "RateLimit-Remaining": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/SystemRole"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMeta"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "VALIDATION_FAILED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "VALIDATION_FAILED",
+                        "message": "اطلاعات واردشده معتبر نیست."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_REQUIRED",
+                        "message": "برای ادامه وارد شوید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "AUTH_FORBIDDEN | AUTH_STEP_UP_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_FORBIDDEN": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_FORBIDDEN",
+                        "message": "برای این کار مجوز ندارید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  },
+                  "AUTH_STEP_UP_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_STEP_UP_REQUIRED",
+                        "message": "برای این کار باید هویت خود را دوباره تأیید کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "NOT_FOUND",
+                        "message": "پیدا نشد."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "CONFLICT": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "CONFLICT",
+                        "message": "درخواست با وضعیت فعلی منابع سازگار نیست."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "PAYLOAD_TOO_LARGE",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "PAYLOAD_TOO_LARGE": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "PAYLOAD_TOO_LARGE",
+                        "message": "حجم درخواست بیش از حد مجاز است."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "تعداد درخواست‌ها زیاد است. کمی بعد دوباره امتحان کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "مشکلی در سرور پیش آمد. دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "SERVICE_UNAVAILABLE": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "SERVICE_UNAVAILABLE",
+                        "message": "سرویس موقتاً پاسخگو نیست. چند لحظه بعد دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-isra-id": "H-13",
+        "x-isra-since": "1.5.0",
+        "x-isra-slo-p95-ms": 250,
+        "x-isra-permission": "system.role.manage",
+        "x-isra-step-up": true,
+        "x-isra-rate-limit": [
+          "30 درخواست / 60ث per user"
+        ],
+        "x-isra-idempotency": "key"
+      }
+    },
+    "/s/v1/system/roles/{key}": {
+      "get": {
+        "operationId": "H_14",
+        "summary": "جزئیات یک نقش",
+        "tags": [
+          "نقش‌ها، ماژول‌ها و سطح دسترسی"
+        ],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SystemRoleKey"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "موفق",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/SystemRole"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMeta"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "VALIDATION_FAILED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "VALIDATION_FAILED",
+                        "message": "اطلاعات واردشده معتبر نیست."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_REQUIRED",
+                        "message": "برای ادامه وارد شوید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "AUTH_FORBIDDEN",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_FORBIDDEN": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_FORBIDDEN",
+                        "message": "برای این کار مجوز ندارید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "NOT_FOUND",
+                        "message": "پیدا نشد."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "مشکلی در سرور پیش آمد. دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "SERVICE_UNAVAILABLE": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "SERVICE_UNAVAILABLE",
+                        "message": "سرویس موقتاً پاسخگو نیست. چند لحظه بعد دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-isra-id": "H-14",
+        "x-isra-since": "1.5.0",
+        "x-isra-slo-p95-ms": 80,
+        "x-isra-permission": "system.users.view"
+      },
+      "patch": {
+        "operationId": "H_15",
+        "summary": "ویرایش عنوان/توضیح نقش",
+        "tags": [
+          "نقش‌ها، ماژول‌ها و سطح دسترسی"
+        ],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SystemRoleKey"
+            }
+          },
+          {
+            "name": "X-Step-Up-Token",
+            "in": "header",
+            "required": true,
+            "description": "توکن step-up (۵ دقیقه) از L-07",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRoleBody"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [],
+            "stepUp": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "موفق",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "RateLimit-Limit": {
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "RateLimit-Remaining": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/SystemRole"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMeta"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "VALIDATION_FAILED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "VALIDATION_FAILED",
+                        "message": "اطلاعات واردشده معتبر نیست."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_REQUIRED",
+                        "message": "برای ادامه وارد شوید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "AUTH_FORBIDDEN | AUTH_STEP_UP_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_FORBIDDEN": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_FORBIDDEN",
+                        "message": "برای این کار مجوز ندارید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  },
+                  "AUTH_STEP_UP_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_STEP_UP_REQUIRED",
+                        "message": "برای این کار باید هویت خود را دوباره تأیید کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "NOT_FOUND",
+                        "message": "پیدا نشد."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "PAYLOAD_TOO_LARGE",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "PAYLOAD_TOO_LARGE": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "PAYLOAD_TOO_LARGE",
+                        "message": "حجم درخواست بیش از حد مجاز است."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "تعداد درخواست‌ها زیاد است. کمی بعد دوباره امتحان کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "مشکلی در سرور پیش آمد. دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "SERVICE_UNAVAILABLE": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "SERVICE_UNAVAILABLE",
+                        "message": "سرویس موقتاً پاسخگو نیست. چند لحظه بعد دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-isra-id": "H-15",
+        "x-isra-since": "1.5.0",
+        "x-isra-slo-p95-ms": 200,
+        "x-isra-permission": "system.role.manage",
+        "x-isra-step-up": true,
+        "x-isra-rate-limit": [
+          "30 درخواست / 60ث per user"
+        ],
+        "x-isra-idempotency": "natural"
+      },
+      "delete": {
+        "operationId": "H_16",
+        "summary": "حذف نقش پویا",
+        "tags": [
+          "نقش‌ها، ماژول‌ها و سطح دسترسی"
+        ],
+        "description": "نقش سیستمی ⇒ CONFLICT(SYSTEM_PROTECTED)؛ دارای دارنده ⇒ CONFLICT(ROLE_IN_USE) (ابتدا نقش را از کاربران بردارید). پاسخ = آخرین وضعیت نقش پیش از حذف.",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SystemRoleKey"
+            }
+          },
+          {
+            "name": "X-Step-Up-Token",
+            "in": "header",
+            "required": true,
+            "description": "توکن step-up (۵ دقیقه) از L-07",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": [],
+            "stepUp": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "موفق",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "RateLimit-Limit": {
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "RateLimit-Remaining": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/SystemRole"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMeta"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "VALIDATION_FAILED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "VALIDATION_FAILED",
+                        "message": "اطلاعات واردشده معتبر نیست."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_REQUIRED",
+                        "message": "برای ادامه وارد شوید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "AUTH_FORBIDDEN | AUTH_STEP_UP_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_FORBIDDEN": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_FORBIDDEN",
+                        "message": "برای این کار مجوز ندارید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  },
+                  "AUTH_STEP_UP_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_STEP_UP_REQUIRED",
+                        "message": "برای این کار باید هویت خود را دوباره تأیید کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "NOT_FOUND",
+                        "message": "پیدا نشد."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "CONFLICT": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "CONFLICT",
+                        "message": "درخواست با وضعیت فعلی منابع سازگار نیست."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "تعداد درخواست‌ها زیاد است. کمی بعد دوباره امتحان کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "مشکلی در سرور پیش آمد. دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "SERVICE_UNAVAILABLE": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "SERVICE_UNAVAILABLE",
+                        "message": "سرویس موقتاً پاسخگو نیست. چند لحظه بعد دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-isra-id": "H-16",
+        "x-isra-since": "1.5.0",
+        "x-isra-slo-p95-ms": 200,
+        "x-isra-permission": "system.role.manage",
+        "x-isra-step-up": true,
+        "x-isra-rate-limit": [
+          "30 درخواست / 60ث per user"
+        ],
+        "x-isra-idempotency": "natural"
+      }
+    },
+    "/s/v1/system/roles/{key}/modules": {
+      "put": {
+        "operationId": "H_17",
+        "summary": "تعیین ماژول‌های کامل نقش",
+        "tags": [
+          "نقش‌ها، ماژول‌ها و سطح دسترسی"
+        ],
+        "description": "نقش به همهٔ مجوزهای حال و آیندهٔ هر ماژول دسترسی می‌یابد. developer ثابت است. ضد ارتقا: مجوز ماژول که کاربر ندارد ⇒ AUTH_FORBIDDEN. claim دارندگان نقش تازه می‌شود.",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SystemRoleKey"
+            }
+          },
+          {
+            "name": "X-Step-Up-Token",
+            "in": "header",
+            "required": true,
+            "description": "توکن step-up (۵ دقیقه) از L-07",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetRoleModulesBody"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [],
+            "stepUp": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "موفق",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "RateLimit-Limit": {
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "RateLimit-Remaining": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/SystemRole"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMeta"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "VALIDATION_FAILED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "VALIDATION_FAILED",
+                        "message": "اطلاعات واردشده معتبر نیست."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_REQUIRED",
+                        "message": "برای ادامه وارد شوید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "AUTH_FORBIDDEN | AUTH_STEP_UP_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_FORBIDDEN": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_FORBIDDEN",
+                        "message": "برای این کار مجوز ندارید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  },
+                  "AUTH_STEP_UP_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_STEP_UP_REQUIRED",
+                        "message": "برای این کار باید هویت خود را دوباره تأیید کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "NOT_FOUND",
+                        "message": "پیدا نشد."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "CONFLICT": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "CONFLICT",
+                        "message": "درخواست با وضعیت فعلی منابع سازگار نیست."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "PAYLOAD_TOO_LARGE",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "PAYLOAD_TOO_LARGE": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "PAYLOAD_TOO_LARGE",
+                        "message": "حجم درخواست بیش از حد مجاز است."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "تعداد درخواست‌ها زیاد است. کمی بعد دوباره امتحان کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "مشکلی در سرور پیش آمد. دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "SERVICE_UNAVAILABLE": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "SERVICE_UNAVAILABLE",
+                        "message": "سرویس موقتاً پاسخگو نیست. چند لحظه بعد دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-isra-id": "H-17",
+        "x-isra-since": "1.5.0",
+        "x-isra-slo-p95-ms": 250,
+        "x-isra-permission": "system.role.manage",
+        "x-isra-step-up": true,
+        "x-isra-rate-limit": [
+          "30 درخواست / 60ث per user"
+        ],
+        "x-isra-idempotency": "natural"
       }
     },
     "/s/v1/system/roles/{key}/permissions": {
       "put": {
         "operationId": "H_12",
-        "summary": "ویرایش ماتریس مجوز یک نقش",
+        "summary": "ویرایش مجوزهای صریح یک نقش",
         "tags": [
           "نقش‌ها و مجوزها"
         ],
-        "description": "نقش `developer` ثابت است ⇒ AUTH_FORBIDDEN؛ حذف مجوز قفل‌شده ⇒ CONFLICT(LOCKED_PERMISSION). رویداد outbox: `system.permission.changed`.",
+        "description": "نقش `developer` ثابت است ⇒ AUTH_FORBIDDEN؛ حذف مجوز قفل‌شده ⇒ CONFLICT(LOCKED_PERMISSION)؛ افزودن مجوزی که خودِ کاربر ندارد ⇒ AUTH_FORBIDDEN (ضد ارتقای دسترسی؛ developer معاف). مجوز ناموجود ⇒ NOT_FOUND. رویداد outbox: `system.permission.changed`.",
         "parameters": [
           {
             "name": "key",
@@ -4651,6 +9473,35 @@
               }
             }
           },
+          "404": {
+            "description": "NOT_FOUND",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "NOT_FOUND",
+                        "message": "پیدا نشد."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
           "409": {
             "description": "CONFLICT",
             "headers": {
@@ -4813,6 +9664,397 @@
         "x-isra-since": "1.0.0",
         "x-isra-slo-p95-ms": 250,
         "x-isra-permission": "system.permission.edit",
+        "x-isra-step-up": true,
+        "x-isra-rate-limit": [
+          "30 درخواست / 60ث per user"
+        ],
+        "x-isra-idempotency": "natural"
+      }
+    },
+    "/s/v1/system/roles/{key}/step-up": {
+      "put": {
+        "operationId": "H_18",
+        "summary": "قواعد step-up هر نقش per مجوز",
+        "tags": [
+          "نقش‌ها، ماژول‌ها و سطح دسترسی"
+        ],
+        "description": "override نقش روی پیش‌فرض مجوز. موثر برای کاربر: اگر هر منبع (نقش/grant) «required» بگوید ⇒ لازم؛ developer همیشه معاف.",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SystemRoleKey"
+            }
+          },
+          {
+            "name": "X-Step-Up-Token",
+            "in": "header",
+            "required": true,
+            "description": "توکن step-up (۵ دقیقه) از L-07",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetRoleStepUpBody"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [],
+            "stepUp": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "موفق",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "RateLimit-Limit": {
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "RateLimit-Remaining": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/SystemRole"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ResponseMeta"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "VALIDATION_FAILED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "VALIDATION_FAILED",
+                        "message": "اطلاعات واردشده معتبر نیست."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_REQUIRED",
+                        "message": "برای ادامه وارد شوید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "AUTH_FORBIDDEN | AUTH_STEP_UP_REQUIRED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_FORBIDDEN": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_FORBIDDEN",
+                        "message": "برای این کار مجوز ندارید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  },
+                  "AUTH_STEP_UP_REQUIRED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_STEP_UP_REQUIRED",
+                        "message": "برای این کار باید هویت خود را دوباره تأیید کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "NOT_FOUND",
+                        "message": "پیدا نشد."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "CONFLICT": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "CONFLICT",
+                        "message": "درخواست با وضعیت فعلی منابع سازگار نیست."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "PAYLOAD_TOO_LARGE",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "PAYLOAD_TOO_LARGE": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "PAYLOAD_TOO_LARGE",
+                        "message": "حجم درخواست بیش از حد مجاز است."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "تعداد درخواست‌ها زیاد است. کمی بعد دوباره امتحان کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "مشکلی در سرور پیش آمد. دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "description": "ثانیه تا تلاش بعدی",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "SERVICE_UNAVAILABLE": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "SERVICE_UNAVAILABLE",
+                        "message": "سرویس موقتاً پاسخگو نیست. چند لحظه بعد دوباره تلاش کنید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-isra-id": "H-18",
+        "x-isra-since": "1.5.0",
+        "x-isra-slo-p95-ms": 250,
+        "x-isra-permission": "system.stepup.manage",
         "x-isra-step-up": true,
         "x-isra-rate-limit": [
           "30 درخواست / 60ث per user"
@@ -14354,6 +19596,117 @@
         ],
         "additionalProperties": false
       },
+      "CreateModuleBody": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/ModuleKey"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 60
+          },
+          "description": {
+            "default": "",
+            "type": "string",
+            "maxLength": 300
+          },
+          "sortOrder": {
+            "default": 100,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "description",
+          "sortOrder"
+        ],
+        "additionalProperties": false
+      },
+      "CreatePermissionBody": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/PermissionKey"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120
+          },
+          "description": {
+            "default": "",
+            "type": "string",
+            "maxLength": 300
+          },
+          "moduleKey": {
+            "$ref": "#/components/schemas/ModuleKey"
+          },
+          "grantable": {
+            "default": false,
+            "type": "boolean"
+          },
+          "stepUp": {
+            "default": "required",
+            "$ref": "#/components/schemas/StepUpMode"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "description",
+          "moduleKey",
+          "grantable",
+          "stepUp"
+        ],
+        "additionalProperties": false
+      },
+      "CreateRoleBody": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/SystemRoleKey"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 60
+          },
+          "description": {
+            "default": "",
+            "type": "string",
+            "maxLength": 300
+          },
+          "permissions": {
+            "default": [],
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PermissionKey"
+            }
+          },
+          "modules": {
+            "default": [],
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModuleKey"
+            }
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "description",
+          "permissions",
+          "modules"
+        ],
+        "additionalProperties": false
+      },
       "CreateUserBody": {
         "type": "object",
         "properties": {
@@ -14380,14 +19733,14 @@
             "maxLength": 128
           },
           "roles": {
-            "maxItems": 2,
+            "maxItems": 10,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/SystemRoleKey"
             }
           },
           "grants": {
-            "maxItems": 1,
+            "maxItems": 50,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Grant"
@@ -14398,6 +19751,91 @@
           "phone",
           "firstName",
           "lastName"
+        ],
+        "additionalProperties": false
+      },
+      "EffectiveAccess": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
+            "description": "شناسهٔ موجودیت (در تولید UUID)",
+            "example": "6f3c2a10-0000-4000-8000-000000000001"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SystemRoleKey"
+            }
+          },
+          "grants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Grant"
+            }
+          },
+          "stepUpExempt": {
+            "type": "boolean",
+            "description": "توسعه‌دهنده برای هیچ اقدامی step-up ندارد"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "$ref": "#/components/schemas/PermissionKey"
+                },
+                "stepUp": {
+                  "description": "نتیجهٔ نهایی برای این کاربر (توسعه‌دهنده ⇒ همیشه none)",
+                  "$ref": "#/components/schemas/StepUpMode"
+                },
+                "sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "role",
+                          "module",
+                          "grant"
+                        ]
+                      },
+                      "ref": {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      "stepUp": {
+                        "$ref": "#/components/schemas/StepUpMode"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "ref",
+                      "stepUp"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "key",
+                "stepUp",
+                "sources"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "userId",
+          "roles",
+          "grants",
+          "stepUpExempt",
+          "permissions"
         ],
         "additionalProperties": false
       },
@@ -14600,11 +20038,8 @@
         "additionalProperties": false
       },
       "Grant": {
-        "type": "string",
-        "enum": [
-          "session.create"
-        ],
-        "description": "مجوز مستقیم per user (D1)"
+        "description": "مجوز مستقیم per user: هر مجوزِ `grantable` (مثل `session.create`)",
+        "$ref": "#/components/schemas/PermissionKey"
       },
       "Health": {
         "type": "object",
@@ -14686,6 +20121,50 @@
           "approved",
           "rejected"
         ]
+      },
+      "ModuleInfo": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/ModuleKey"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 60
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "isSystem": {
+            "type": "boolean",
+            "description": "ماژول‌های سیستمی حذف نمی‌شوند"
+          },
+          "sortOrder": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "permissionCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "description",
+          "isSystem",
+          "sortOrder",
+          "permissionCount"
+        ],
+        "additionalProperties": false
+      },
+      "ModuleKey": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{1,31}$",
+        "example": "users"
       },
       "MyAccount": {
         "type": "object",
@@ -14886,36 +20365,42 @@
             "type": "string",
             "maxLength": 120
           },
-          "group": {
+          "description": {
             "type": "string",
-            "enum": [
-              "system",
-              "session"
-            ]
+            "maxLength": 300
+          },
+          "moduleKey": {
+            "$ref": "#/components/schemas/ModuleKey"
+          },
+          "isSystem": {
+            "type": "boolean",
+            "description": "مجوز سیستمی: کلید و ماژول ثابت؛ حذف‌نشدنی"
+          },
+          "grantable": {
+            "type": "boolean",
+            "description": "می‌تواند مستقیم به کاربر داده شود (بدون نقش)"
+          },
+          "stepUp": {
+            "description": "پیش‌فرض step-up برای این مجوز (قابل override per نقش)؛ توسعه‌دهنده همیشه معاف است",
+            "$ref": "#/components/schemas/StepUpMode"
           }
         },
         "required": [
           "key",
           "title",
-          "group"
+          "description",
+          "moduleKey",
+          "isSystem",
+          "grantable",
+          "stepUp"
         ],
         "additionalProperties": false
       },
       "PermissionKey": {
         "type": "string",
-        "enum": [
-          "system.users.view",
-          "system.users.manage",
-          "system.role.assign",
-          "system.permission.edit",
-          "system.settings.view",
-          "system.settings.edit",
-          "system.audit.view",
-          "system.sessions.view",
-          "system.sessions.manage",
-          "system.reports.view",
-          "session.create"
-        ]
+        "maxLength": 64,
+        "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,3}$",
+        "example": "system.users.view"
       },
       "QueueItem": {
         "type": "object",
@@ -15047,6 +20532,42 @@
           "myItem",
           "myPosition",
           "waitingCount"
+        ],
+        "additionalProperties": false
+      },
+      "RbacMatrix": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991,
+            "description": "شمارندهٔ تغییر ماتریس؛ برای کش/ETag"
+          },
+          "modules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModuleInfo"
+            }
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PermissionInfo"
+            }
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SystemRole"
+            }
+          }
+        },
+        "required": [
+          "version",
+          "modules",
+          "permissions",
+          "roles"
         ],
         "additionalProperties": false
       },
@@ -15635,11 +21156,27 @@
         ],
         "additionalProperties": false
       },
+      "SetRoleModulesBody": {
+        "type": "object",
+        "properties": {
+          "modules": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModuleKey"
+            }
+          }
+        },
+        "required": [
+          "modules"
+        ],
+        "additionalProperties": false
+      },
       "SetRolePermissionsBody": {
         "type": "object",
         "properties": {
           "permissions": {
-            "maxItems": 20,
+            "maxItems": 200,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PermissionKey"
@@ -15650,6 +21187,42 @@
           "permissions"
         ],
         "additionalProperties": false
+      },
+      "SetRoleStepUpBody": {
+        "type": "object",
+        "properties": {
+          "rules": {
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "permission": {
+                  "$ref": "#/components/schemas/PermissionKey"
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "required",
+                    "none",
+                    "inherit"
+                  ],
+                  "description": "inherit = پیش‌فرض خود مجوز"
+                }
+              },
+              "required": [
+                "permission",
+                "mode"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "rules"
+        ],
+        "additionalProperties": false,
+        "description": "فقط مجوزهای ذکرشده تغییر می‌کنند؛ inherit = حذف override"
       },
       "SetRolesBody": {
         "type": "object",
@@ -15677,7 +21250,7 @@
         "type": "object",
         "properties": {
           "grants": {
-            "maxItems": 1,
+            "maxItems": 50,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Grant"
@@ -15693,7 +21266,7 @@
         "type": "object",
         "properties": {
           "roles": {
-            "maxItems": 2,
+            "maxItems": 10,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/SystemRoleKey"
@@ -15720,6 +21293,14 @@
           "status"
         ],
         "additionalProperties": false
+      },
+      "StepUpMode": {
+        "type": "string",
+        "enum": [
+          "required",
+          "none"
+        ],
+        "description": "required = برای این مجوز تأیید هویت دوباره (OTP) لازم است؛ none = لازم نیست"
       },
       "SystemEvalWeights": {
         "type": "object",
@@ -15788,12 +21369,28 @@
             "items": {
               "$ref": "#/components/schemas/PermissionKey"
             }
+          },
+          "stepUpExempt": {
+            "type": "boolean",
+            "description": "نقش developer ⇒ هیچ اقدامی step-up ندارد"
+          },
+          "stepUp": {
+            "type": "object",
+            "propertyNames": {
+              "$ref": "#/components/schemas/PermissionKey"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/StepUpMode"
+            },
+            "description": "برای هر مجوزِ مؤثر: آیا اقدام‌های آن نیازمند step-up است (پس از اعمال override نقش‌ها؛ developer ⇒ همه none)"
           }
         },
         "required": [
           "user",
           "roles",
-          "permissions"
+          "permissions",
+          "stepUpExempt",
+          "stepUp"
         ],
         "additionalProperties": false
       },
@@ -15813,20 +21410,44 @@
           },
           "undeletable": {
             "type": "boolean",
-            "const": true,
-            "description": "نقش‌های سیستم حذف نمی‌شوند (قفل #28)"
+            "description": "نقش‌های سیستمی (developer، super_admin) حذف نمی‌شوند (قفل #28)"
           },
           "permissions": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PermissionKey"
-            }
+            },
+            "description": "مجوزهای صریح نقش"
+          },
+          "modules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModuleKey"
+            },
+            "description": "ماژول‌های کامل داده‌شده به نقش (همهٔ مجوزهای حال و آیندهٔ ماژول)"
+          },
+          "effectivePermissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PermissionKey"
+            },
+            "description": "مجوزهای صریح ∪ مجوزهای ماژول‌ها"
           },
           "lockedPermissions": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PermissionKey"
             }
+          },
+          "stepUpRules": {
+            "type": "object",
+            "propertyNames": {
+              "$ref": "#/components/schemas/PermissionKey"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/StepUpMode"
+            },
+            "description": "override step-up این نقش per مجوز (غایب = پیش‌فرض مجوز)"
           },
           "holders": {
             "type": "integer",
@@ -15840,17 +21461,18 @@
           "description",
           "undeletable",
           "permissions",
+          "modules",
+          "effectivePermissions",
           "lockedPermissions",
+          "stepUpRules",
           "holders"
         ],
         "additionalProperties": false
       },
       "SystemRoleKey": {
         "type": "string",
-        "enum": [
-          "developer",
-          "super_admin"
-        ]
+        "pattern": "^[a-z][a-z0-9_]{2,31}$",
+        "example": "content_editor"
       },
       "SystemSettings": {
         "type": "object",
@@ -16168,6 +21790,26 @@
         ],
         "additionalProperties": false
       },
+      "UpdateModuleBody": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 60
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "sortOrder": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          }
+        },
+        "additionalProperties": false
+      },
       "UpdateMyProfileBody": {
         "type": "object",
         "properties": {
@@ -16180,6 +21822,46 @@
             "type": "string",
             "minLength": 2,
             "maxLength": 40
+          }
+        },
+        "additionalProperties": false
+      },
+      "UpdatePermissionBody": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "moduleKey": {
+            "description": "فقط مجوز غیرسیستمی",
+            "$ref": "#/components/schemas/ModuleKey"
+          },
+          "grantable": {
+            "type": "boolean"
+          },
+          "stepUp": {
+            "$ref": "#/components/schemas/StepUpMode"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UpdateRoleBody": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 60
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 300
           }
         },
         "additionalProperties": false
