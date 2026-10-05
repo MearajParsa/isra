@@ -2,6 +2,7 @@
   import '$lib/styles/tokens.css';
   import '$lib/styles/base.css';
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
   import { page, navigating } from '$app/state';
   import { auth } from '$lib/auth/auth.svelte';
   import { net } from '$lib/stores/net.svelte';
@@ -38,6 +39,13 @@
   $effect(() => {
     if (auth.status === 'member') void caps.load();
     else caps.reset();
+  });
+
+  // رمز موقت (تعیین‌شده توسط مدیر): تا تغییر رمز فقط صفحهٔ تعیین رمز مجاز است
+  $effect(() => {
+    if (auth.status === 'member' && auth.mustChangePassword && page.url.pathname !== '/account/password') {
+      void goto('/account/password?temp=1', { replaceState: true });
+    }
   });
 
   // شمارندهٔ اینباکس: poll سبک وقتی tab دیده می‌شود
