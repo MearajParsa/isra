@@ -179,4 +179,16 @@ describe('نگاشت پاسخ و خطا', () => {
     reply = { status: 200, body: { hello: 'world' } };
     expect(await low.me.get('T').catch((x: ApiError) => x.code)).toBe('INTERNAL_ERROR');
   });
+
+  it('رمز موقت: currentPassword در بدنه و بدون step-up؛ کدهای تازهٔ خطا شناخته می‌شوند', async () => {
+    ok({});
+    await low.me.setPassword('TOKEN', { newPassword: 'a-long-password', currentPassword: 'temp-pass' });
+    const c = calls.at(-1)!;
+    expect(c.body).toEqual({ newPassword: 'a-long-password', currentPassword: 'temp-pass' });
+    expect(c.headers['X-Step-Up-Token']).toBeUndefined();
+    reply = { status: 403, body: { success: false, error: { code: 'AUTH_PASSWORD_CHANGE_REQUIRED', message: 'رمز موقت' } } };
+    expect(await low.me.get('T').catch((x: ApiError) => x.code)).toBe('AUTH_PASSWORD_CHANGE_REQUIRED');
+    reply = { status: 403, body: { success: false, error: { code: 'AUTH_ACCOUNT_DISABLED', message: 'غیرفعال' } } };
+    expect(await low.auth.loginPassword({ phone: '09121234567', password: 'p', deviceId: 'd', deviceLabel: 'l' }).catch((x: ApiError) => x.code)).toBe('AUTH_ACCOUNT_DISABLED');
+  });
 });

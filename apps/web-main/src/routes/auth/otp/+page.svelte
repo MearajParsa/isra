@@ -20,6 +20,8 @@
   let resending = $state(false);
   let error = $state<string | null>(null);
   let locked = $state<'exhausted' | 'expired' | null>(null);
+  /** AUTH_ACCOUNT_DISABLED: حساب غیرفعال/حذف‌شده است */
+  let disabled = $state(false);
   let resetSignal = $state(0);
   const expiry = new Countdown();
 
@@ -40,6 +42,7 @@
     if (!challenge || verifying) return;
     verifying = true;
     error = null;
+    disabled = false;
     try {
       const result = await auth.verifyOtp(challenge.challengeId, value);
       await auth.applyLogin(result, true);
@@ -56,7 +59,8 @@
       authFlow.clear();
     } catch (e) {
       if (e instanceof ApiError) {
-        if (e.code === 'AUTH_OTP_EXHAUSTED') locked = 'exhausted';
+        if (e.code === 'AUTH_ACCOUNT_DISABLED') disabled = true;
+        else if (e.code === 'AUTH_OTP_EXHAUSTED') locked = 'exhausted';
         else if (e.code === 'AUTH_OTP_EXPIRED') locked = 'expired';
         else if (e.code === 'AUTH_OTP_INVALID') {
           const left = e.attemptsLeft;
@@ -102,7 +106,10 @@
     </p>
   </div>
 
-  {#if locked}
+  {#if disabled}
+    <NoticeBanner tone="error" role="alert"><strong>حساب شما غیرفعال شده است.</strong> برای فعال‌سازی دوباره با پشتیبانی یا مدیر سیستم تماس بگیرید.</NoticeBanner>
+    <Button variant="secondary" href={changeHref} full>بازگشت</Button>
+  {:else if locked}
     <NoticeBanner tone="warning" role="alert">
       {locked === 'exhausted' ? 'تعداد تلاش‌های مجاز تمام شد.' : 'مهلت کد به پایان رسید.'} برای ادامه کد جدید دریافت کنید.
     </NoticeBanner>

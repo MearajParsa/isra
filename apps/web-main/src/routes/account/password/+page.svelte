@@ -13,9 +13,12 @@
   import NoticeBanner from '$lib/components/ui/NoticeBanner.svelte';
 
   const isReset = $derived(page.url.searchParams.get('reset') === '1');
+  /** رمز موقتِ تعیین‌شده توسط مدیر: به‌جای step-up، رمز موقت (currentPassword) لازم است */
+  const isTemp = $derived(auth.mustChangePassword || (auth.status === 'unknown' && page.url.searchParams.get('temp') === '1'));
   const hasPassword = $derived(auth.me?.hasPassword ?? false);
-  const title = $derived(isReset ? 'تعیین رمز جدید' : hasPassword ? 'تغییر رمز عبور' : 'تعیین رمز عبور');
+  const title = $derived(isTemp || isReset ? 'تعیین رمز جدید' : hasPassword ? 'تغییر رمز عبور' : 'تعیین رمز عبور');
 
+  let current = $state('');
   let password = $state('');
   let confirm = $state('');
   let errors = $state<Record<string, string>>({});
@@ -26,12 +29,20 @@
     e.preventDefault();
     errors = {};
     formError = null;
+    if (isTemp && !current) errors.currentPassword = 'رمز موقت را وارد کنید.';
     if (password.length < 8) errors.newPassword = 'رمز عبور دست‌کم ۸ نویسه باشد.';
     if (confirm !== password) errors.confirm = 'تکرار رمز با رمز واردشده یکسان نیست.';
     if (Object.keys(errors).length) return;
 
     loading = true;
     try {
+      if (isTemp) {
+        await auth.withAuth((t) => api.me.setPassword(t, { newPassword: password, currentPassword: current }));
+        await auth.completePasswordChange();
+        toasts.success('رمز جدید ذخیره شد. از دستگاه‌های دیگر خارج شدید.');
+        await goto('/account', { replaceState: true });
+        return;
+      }
       // ورود تازه با OTP (کمتر از ۵ دقیقه) نیاز به تأیید دوباره ندارد
       let token: string | undefined;
       if (!auth.hasFreshOtp) {
@@ -52,6 +63,10 @@
       toasts.success('رمز عبور ذخیره شد. از دستگاه‌های دیگر خارج شدید.');
       await goto('/account', { replaceState: true });
     } catch (err) {
+      if (isTemp && err instanceof ApiError && err.code === 'AUTH_INVALID_CREDENTIALS') {
+        errors = { currentPassword: 'رمز موقت درست نیست.' };
+        return;
+      }
       errors = fieldErrors(err);
       if (Object.keys(errors).length === 0) formError = errorMessage(err);
     } finally {
@@ -65,10 +80,13 @@
   <meta name="robots" content="noindex" />
 </svelte:head>
 
-<PageHeader {title} backHref="/account" />
+<PageHeader {title} backHref={isTemp ? undefined : '/account'} />
 
 <form onsubmit={submit} novalidate class="form">
-  {#if isReset}
+  {#if isTemp}
+    <NoticeBanner tone="warning">رمز شما را مدیر سیستم موقتاً تعیین کرده است. برای ادامه، رمز موقت را وارد و رمز دلخواه خود را بسازید.</NoticeBanner>
+    <PasswordField label="رمز موقت فعلی" bind:value={current} autocomplete="current-password" error={errors.currentPassword} disabled={loading} />
+  {:else if isReset}
     <NoticeBanner tone="success">با کد پیامکی وارد شدید؛ اکنون رمز جدید خود را تعیین کنید.</NoticeBanner>
   {:else}
     <NoticeBanner tone="info">
@@ -77,7 +95,7 @@
   {/if}
 
   <PasswordField
-    label={hasPassword || isReset ? 'رمز جدید' : 'رمز عبور'}
+    label={hasPassword || isReset || isTemp ? 'رمز جدید' : 'رمز عبور'}
     bind:value={password}
     autocomplete="new-password"
     error={errors.newPassword}
@@ -90,7 +108,7 @@
 
   <div class="acts">
     <Button type="submit" {loading}>ذخیرهٔ رمز عبور</Button>
-    <Button variant="text" href="/account">انصراف</Button>
+    {#if !isTemp}<Button variant="text" href="/account">انصراف</Button>{/if}
   </div>
 </form>
 

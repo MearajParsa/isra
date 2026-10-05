@@ -26,7 +26,9 @@ export class UrlState<S extends QuerySpec> {
     const next = applyPatch(this.spec, this.values, patch);
     if (serializeQuery(this.spec, next) === serializeQuery(this.spec, this.values)) return;
     this.values = next;
-    void goto(page.url.pathname + serializeQuery(this.spec, next), { replaceState: true, keepFocus: true, noScroll: true });
+    // تغییر صفحه در history می‌ماند (back = صفحهٔ قبل)؛ تغییر فیلتر جایگزین می‌شود تا history پر نشود
+    const onlyPage = Object.keys(patch).length === 1 && 'page' in patch;
+    void goto(page.url.pathname + serializeQuery(this.spec, next), { replaceState: !onlyPage, keepFocus: true, noScroll: true });
   }
 
   /** همهٔ فیلترها (به‌جز صفحه) پاک شود */
