@@ -30,6 +30,7 @@ pnpm --filter @isra/api-low test:cov
 | `security.e2e` | جعل JWT (alg=none، HS256 confusion، کلید دیگر، iss/aud)، IDOR، ورودی (413/415/JSON خراب/pollution)، هدرها/CORS، JWKS |
 | `contract.e2e` | route ⇄ قرارداد (بدون یتیم)، ماتریس منفی بدون توکن، انطباق پاسخ‌ها با schemaهای zod، envelope/ETag/304 |
 | `integration.e2e` | رویدادهای داخلی (dedupe، ترتیب permVer)، MidClient (cache، breaker، stale-if-error)، outbox (backoff)، maintenance |
+| `admin.e2e` | مسیرهای internal مدیریت (docs-v2/26): ACL، ساخت/ویرایش/وضعیت/حذف نرم، رمز موقت (جریان کامل)، نشست‌ها، گزارش‌ها، رویدادهای outbox |
 | `migrations`، `unit` | up/down، هم‌خوانی entity⇄schema، ایندکس‌های یکتا، env fail-fast، ابزارها |
 
 ## معماری (خلاصه)
@@ -50,11 +51,24 @@ Request → requestContext(X-Request-Id) → helmet/CORS/cookie/json(16kb)
 | low → mid | `GET …/internal/v1/users/{id}/points` | `{success,data:PointsSummary}` |
 | mid/high → low | `POST /c/internal/v1/events` `{eventId,type,occurredAt,payload}` | 202؛ dedupe با eventId. انواع: `inbox.message.created`، `system.role.changed` |
 | low → mid/high | `POST {url}/internal/v1/events` | `user.registered`، `user.profile.updated` (outbox) |
+### مسیرهای مدیریت (فقط `high`؛ `AdminController` — docs-v2/26، قرارداد `internal.LowAdmin*`)
+پیشوند `/c/internal/v1`؛ هر مسیر `@InternalCallers('high')` است (mid ⇒ 403؛ بدون/با توکن غلط ⇒ 401). پاسخ envelope استاندارد؛ فهرست‌ها با `meta.page/pageSize/total`.
+| مسیر | کار |
+|------|-----|
+| `POST /admin/users` | ساخت کاربر (شمارهٔ تکراری ⇒ 409 `PHONE_TAKEN`؛ با `password` ⇒ رمز موقت) + `user.registered` |
+| `GET/PATCH/DELETE /admin/users/:id` | جزئیات (نشست‌ها به تفکیک client) / نام و شماره (`user.profile.updated`، `user.phone.changed`) / حذف نرم + ناشناس‌سازی (`user.status.changed` با `anonymizedPhone`) |
+| `POST /admin/users/:id/status` | `active|disabled`؛ غیرفعال ⇒ revoke همهٔ نشست‌ها (`session.revoked`) |
+| `PUT /admin/users/:id/password` | `set` (رمز موقت + revoke نشست‌ها) / `clear` |
+| `POST /admin/users/:id/change-password` | تغییر رمز خود کاربر (`verified=stepup|current`) |
+| `GET /admin/users/:id/sessions`، `DELETE …/sessions/:sessionId`، `POST …/logout-all` | نشست‌ها |
+| `GET /admin/reports/otp|clients|users` | گزارش (bucket روز/هفته از شنبه/ماه به‌وقت تهران، با پر شدن صفرها) |
+کاربر `disabled|deleted` در ورود/refresh/هر درخواست احرازشده ⇒ `403 AUTH_ACCOUNT_DISABLED`. کاربر با رمز موقت (`users.must_change_password`، claim `mcp`) فقط `GET /me`، `PUT /me/password` (با `currentPassword` به‌جای step-up) و logout/refresh را می‌تواند؛ بقیه ⇒ `403 AUTH_PASSWORD_CHANGE_REQUIRED`.
+
 هدرها: `X-Internal-Caller: mid|high` + `X-Internal-Token: <secret همان جفت>` (`INTERNAL_SECRET_MID` / `INTERNAL_SECRET_HIGH`؛ ACL نوع رویداد per فرستنده). مسیرهای internal زیر پیشوند هر سرویس (`/c`، `/o`، `/s`) هستند تا روی هاست‌های بدون شبکهٔ خصوصی (cPanel/Passenger) هم کار کنند؛ در این حالت روی دامنهٔ عمومی هم در دسترس‌اند و فقط secret قوی (≥۳۲ نویسه) + محدودیت ۱۰ تلاش ناموفق/دقیقه per IP + (اختیاری) `INTERNAL_ALLOWED_IPS` از آن‌ها محافظت می‌کند. روی nginx/VPS بهتر است `/*/internal/` از اینترنت بسته شود.
 
 ## محدودیت‌ها / بدهی‌های شناخته‌شده
 - Faraz طبق مستندات رسمی (`/ws/v1/sms/pattern`) پیاده شد؛ روی حساب واقعی هنوز تست نشده (تست‌ها با mock). `success` فقط یعنی «در صف»؛ تحویل واقعی با `GET /ws/v1/send_request/{id}/items`.
-- `users.status=blocked` فقط در ورود بررسی می‌شود؛ revoke نشست‌های کاربر مسدودشده با رویداد high (کارstream high).
+- وضعیت حساب (`disabled|deleted`) در cache نشست (۵ ثانیه) نگه داشته می‌شود؛ تغییر توسط ادمین در همان instance فوراً و در سایر instanceها تا ۵ ثانیه بعد اعمال می‌شود.
 - revoke در instanceهای دیگر تا ۵ ثانیه تأخیر دارد (cache نشست؛ access فقط ۱۵ دقیقه).
 - کلید JWT چرخشی (چند kid در JWKS) هنوز پیاده نشده؛ تک‌کلید + `JWT_KEY_ID`.
 - بار واقعی (k6) و مقادیر argon2 روی سخت‌افزار تولید اندازه‌گیری نشده.

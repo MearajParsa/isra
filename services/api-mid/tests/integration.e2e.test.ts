@@ -253,6 +253,13 @@ describe('migration', () => {
       await ds.runMigrations();
       expect(await tables()).toBe(16);
       for (const [tb, ix] of [['attendance_entries', 'uq_attendance_session_user'], ['evaluations', 'uq_eval_queue_item'], ['point_ledger', 'uq_ledger_reason_ref'], ['badge_awards', 'uq_badge_user_key'], ['session_members', 'uq_member_session_user'], ['queue_items', 'uq_queue_active']] as const) expect(await unique(tb, ix), ix).toBe(true);
+      const hasCol = async (table: string, col: string) => ((await ds.query('SELECT 1 AS x FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?', [table, col])) as unknown[]).length > 0;
+      expect(await hasCol('sessions', 'deleted_at')).toBe(true);
+      expect(await hasCol('user_directory', 'deleted')).toBe(true);
+      await ds.undoLastMigration(); // AdminExpansion
+      expect(await tables()).toBe(16);
+      expect(await hasCol('sessions', 'deleted_at')).toBe(false);
+      expect(await hasCol('user_directory', 'deleted')).toBe(false);
       await ds.undoLastMigration(); // RevokedSessions
       await ds.undoLastMigration(); // SessionRouteUrl
       await ds.undoLastMigration(); // InitSchema

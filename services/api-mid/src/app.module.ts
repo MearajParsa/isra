@@ -22,6 +22,8 @@ import { QueueService } from './domain/queue.service';
 import { SessionsService } from './domain/sessions.service';
 import { SettingsService } from './domain/settings.service';
 import { InfraController } from './infra/infra.controller';
+import { AdminController } from './internal/admin.controller';
+import { AdminService } from './internal/admin.service';
 import { EventsService } from './internal/events.service';
 import { InternalController } from './internal/internal.controller';
 import { InternalGuard } from './internal/internal.guard';
@@ -29,7 +31,7 @@ import { LiveService } from './live/live.service';
 import { MaintenanceService } from './outbox/maintenance.service';
 import { OutboxService } from './outbox/outbox.service';
 
-const PROVIDERS = [RevocationService, JwtVerifier, RateLimitService, MembersAccess, SettingsService, PointsService, LiveService, SessionsService, MembersService, AttendanceService, QueueService, EvaluationsService, EventsService, InternalGuard, OutboxService, MaintenanceService, EndpointGuard];
+const PROVIDERS = [RevocationService, JwtVerifier, RateLimitService, MembersAccess, SettingsService, PointsService, LiveService, SessionsService, MembersService, AttendanceService, QueueService, EvaluationsService, EventsService, AdminService, InternalGuard, OutboxService, MaintenanceService, EndpointGuard];
 
 @Global()
 @Module({ providers: PROVIDERS, exports: PROVIDERS })
@@ -57,7 +59,7 @@ export class AppModule {
         DatabaseModule,
         CoreModule
       ],
-      controllers: [MidController, InfraController, InternalController],
+      controllers: [MidController, InfraController, InternalController, AdminController],
       providers: [
         { provide: APP_FILTER, useClass: AllExceptionsFilter },
         // ترتیب مهم: Envelope بیرونی، Idempotency داخلی (پاسخ ذخیره‌شده هم envelope می‌شود)

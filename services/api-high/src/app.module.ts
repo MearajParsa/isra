@@ -13,12 +13,18 @@ import type { Env } from './config/env';
 import { DatabaseModule } from './db/database.module';
 import { AuditService } from './domain/audit.service';
 import { ClaimsService } from './domain/claims.service';
+import { AccountService } from './domain/account.service';
+import { AdminController } from './domain/admin.controller';
 import { HighController } from './domain/high.controller';
 import { OverviewService } from './domain/overview.service';
 import { RbacService } from './domain/rbac.service';
 import { RolesService } from './domain/roles.service';
 import { SettingsService } from './domain/settings.service';
+import { ReportsService } from './domain/reports.service';
+import { SessionsAdminService } from './domain/sessions-admin.service';
+import { UsersAdminService } from './domain/users-admin.service';
 import { UsersService } from './domain/users.service';
+import { LowAdminClient, MidAdminClient } from './internal/admin-clients';
 import { InfraController } from './infra/infra.controller';
 import { EventsController } from './internal/events.controller';
 import { EventsService } from './internal/events.service';
@@ -26,7 +32,7 @@ import { InternalGuard } from './internal/internal.guard';
 import { MaintenanceService } from './outbox/maintenance.service';
 import { OutboxService } from './outbox/outbox.service';
 
-const PROVIDERS = [RevocationService, JwtVerifier, RateLimitService, RbacService, AuditService, ClaimsService, UsersService, RolesService, SettingsService, OverviewService, EventsService, InternalGuard, OutboxService, MaintenanceService, EndpointGuard];
+const PROVIDERS = [RevocationService, JwtVerifier, RateLimitService, RbacService, AuditService, ClaimsService, UsersService, UsersAdminService, AccountService, SessionsAdminService, ReportsService, LowAdminClient, MidAdminClient, RolesService, SettingsService, OverviewService, EventsService, InternalGuard, OutboxService, MaintenanceService, EndpointGuard];
 
 @Global()
 @Module({ providers: PROVIDERS, exports: PROVIDERS })
@@ -54,7 +60,7 @@ export class AppModule {
         DatabaseModule,
         CoreModule
       ],
-      controllers: [HighController, InfraController, EventsController],
+      controllers: [HighController, AdminController, InfraController, EventsController],
       providers: [
         { provide: APP_FILTER, useClass: AllExceptionsFilter },
         { provide: APP_INTERCEPTOR, useClass: EnvelopeInterceptor },

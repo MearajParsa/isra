@@ -14,13 +14,15 @@ class SystemStore {
     return this.me?.roles.includes('developer') ?? false;
   }
 
-  async load() {
-    this.status = 'loading';
+  /** silent: بدون نمایش صفحهٔ بارگذاری (تازه‌سازی نام/نقش‌ها) */
+  async load(silent = false) {
+    if (!silent) this.status = 'loading';
     this.error = null;
     try {
       this.me = await auth.withAuth((t) => api.system.me(t));
       this.status = 'ready';
     } catch (e) {
+      if (silent && this.me) return;
       this.me = null;
       if (e instanceof ApiError && e.code === 'AUTH_FORBIDDEN') this.status = 'forbidden';
       else {

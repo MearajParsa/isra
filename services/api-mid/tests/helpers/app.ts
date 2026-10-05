@@ -29,7 +29,7 @@ export interface FakeLow {
   jwksUrl: string;
   kid: string;
   privateKey: CryptoKey;
-  sign: (claims: { sub: string; roles?: string[]; perms?: string[]; exp?: number; iss?: string; aud?: string; lvl?: string }, key?: CryptoKey) => Promise<string>;
+  sign: (claims: { sub: string; roles?: string[]; perms?: string[]; exp?: number; iss?: string; aud?: string; lvl?: string; mcp?: boolean }, key?: CryptoKey) => Promise<string>;
   down: boolean;
   events: { url: string; headers: Record<string, unknown>; body: any }[];
   eventStatus: number;
@@ -49,7 +49,7 @@ export async function startFakeLow(clock: Clock): Promise<FakeLow> {
     eventStatus: 202,
     sign: (c, key) => {
       const iat = Math.floor(clock.now().getTime() / 1000);
-      return new SignJWT({ sid: randomUUID(), lvl: c.lvl ?? 'low', roles: c.roles ?? [], perms: c.perms ?? [], pv: 1 })
+      return new SignJWT({ sid: randomUUID(), lvl: c.lvl ?? 'low', roles: c.roles ?? [], perms: c.perms ?? [], pv: 1, ...(c.mcp === undefined ? {} : { mcp: c.mcp }) })
         .setProtectedHeader({ alg: 'RS256', kid: 'test-kid', typ: 'JWT' })
         .setSubject(c.sub)
         .setIssuer(c.iss ?? 'isra-low')

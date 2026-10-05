@@ -24,3 +24,18 @@ export function withNormalizedPhone(body: unknown): unknown {
   if (body && typeof body === 'object' && 'phone' in body) return { ...body, phone: normalizePhone((body as Record<string, unknown>).phone) };
   return body;
 }
+
+/** IP با ماسک برای نمایش به ادمین: دو octet آخر IPv4 / دو گروه آخر IPv6 پنهان می‌شود */
+export function maskIp(ip: string): string {
+  const v = ip.replace(/^::ffff:/i, '');
+  const m4 = /^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/.exec(v);
+  if (m4) return `${m4[1]}.${m4[2]}.*.*`;
+  if (/^[0-9a-f:]+$/i.test(v) && v.includes(':')) {
+    const [head = '', tail] = v.split('::');
+    const h = head ? head.split(':') : [];
+    const t = tail === undefined ? [] : tail ? tail.split(':') : [];
+    const groups = tail === undefined ? h : [...h, ...Array<string>(Math.max(0, 8 - h.length - t.length)).fill('0'), ...t];
+    if (groups.length === 8) return [...groups.slice(0, 6), '*', '*'].join(':');
+  }
+  return '*';
+}

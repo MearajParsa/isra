@@ -11,7 +11,7 @@ export class UserEntity {
   @Column({ type: 'char', length: 11 })
   phone!: string;
   @Column({ type: 'varchar', length: 16, default: 'active' }) status!: 'active' | 'disabled' | 'deleted';
-  @Column({ type: 'tinyint', width: 1, default: 0 }) mustChangePassword!: boolean;
+  @Column({ type: 'tinyint', default: 0 }) mustChangePassword!: number;
   @Column({ ...dt }) createdAt!: Date;
   @Column({ ...dt }) updatedAt!: Date;
 }

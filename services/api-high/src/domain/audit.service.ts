@@ -1,13 +1,28 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { Clock } from '../common/clock';
-import { bufToUuid, uuidToBuf, uuidv7 } from '../common/ids';
+import { bufToUuid, isUuid, uuidToBuf, uuidv7 } from '../common/ids';
+import { parseDay, startOfDayUtc } from '../common/tehran';
 import { type Q, displayName, parseJson } from './db';
+
+export type AuditTargetType = 'user' | 'role' | 'settings' | 'session';
+
+export interface AuditFilters {
+  /** نوع دقیق اقدام؛ اگر به `.` ختم شود پیشوند است (مثلاً `user.`) */
+  action?: string;
+  q?: string;
+  actorId?: string;
+  targetType?: AuditTargetType;
+  targetId?: string;
+  /** تاریخ تقویمی تهران (شامل) */
+  from?: string;
+  to?: string;
+}
 
 export interface AuditInput {
   actor: { id: string; name: string } | null;
   action: string;
-  target?: { type: 'user' | 'role' | 'settings'; id: string; label: string };
+  target?: { type: AuditTargetType; id: string; label: string };
   summary: string;
   meta?: Record<string, unknown>;
 }
@@ -18,7 +33,7 @@ interface Row {
   actor_id: Buffer | null;
   actor_name: string;
   action: string;
-  target_type: 'user' | 'role' | 'settings' | null;
+  target_type: AuditTargetType | null;
   target_id: string | null;
   target_label: string | null;
   summary: string;
@@ -66,13 +81,28 @@ export class AuditService {
     return { id: userId, name: displayName(r[0]?.first_name, r[0]?.last_name) };
   }
 
-  async list(page: number, pageSize: number, action?: string, text?: string) {
+  /** همهٔ فیلترها پارامتری‌اند (هیچ مقدار کاربری در متن SQL نیست) */
+  async list(page: number, pageSize: number, f: AuditFilters = {}) {
     const where: string[] = [];
     const args: unknown[] = [];
-    if (action) (where.push('action = ?'), args.push(action));
-    if (text) {
+    if (f.action) {
+      if (f.action.endsWith('.')) (where.push("action LIKE ?"), args.push(`${escapeLike(f.action)}%`));
+      else (where.push('action = ?'), args.push(f.action));
+    }
+    if (f.actorId) {
+      // actorId نامعتبر (غیر UUID) ⇒ هیچ نتیجه‌ای (نه خطا)
+      if (!isUuid(f.actorId)) where.push('1 = 0');
+      else (where.push('actor_id = ?'), args.push(uuidToBuf(f.actorId)));
+    }
+    if (f.targetType) (where.push('target_type = ?'), args.push(f.targetType));
+    if (f.targetId) (where.push('target_id = ?'), args.push(f.targetId));
+    const from = f.from ? parseDay(f.from) : null;
+    const to = f.to ? parseDay(f.to) : null;
+    if (from !== null) (where.push('at >= ?'), args.push(startOfDayUtc(from)));
+    if (to !== null) (where.push('at < ?'), args.push(startOfDayUtc(to + 86_400_000)));
+    if (f.q) {
       where.push('(summary LIKE ? OR actor_name LIKE ? OR target_label LIKE ?)');
-      const like = `%${escapeLike(text)}%`;
+      const like = `%${escapeLike(f.q)}%`;
       args.push(like, like, like);
     }
     const w = where.length ? `WHERE ${where.join(' AND ')}` : '';

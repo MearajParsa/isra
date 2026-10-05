@@ -101,14 +101,18 @@ export class EndpointGuard implements CanActivate {
       throw e;
     }
     const st = await this.status.get(v.sessionId);
-    if (!st || st.revoked || st.userId !== v.userId) {
+    if (!st || st.userId !== v.userId) {
       if (optional) return;
       throw new AppError('AUTH_TOKEN_INVALID');
     }
-    // حساب غیرفعال/حذف‌شده: هر درخواست احرازشده رد می‌شود (logout idempotent می‌ماند)
+    // حساب غیرفعال/حذف‌شده: هر درخواست احرازشده رد می‌شود (حتی با نشست revoke‌شده؛ logout idempotent می‌ماند)
     if (st.userStatus !== 'active') {
       if (optional) return;
       throw new AppError('AUTH_ACCOUNT_DISABLED');
+    }
+    if (st.revoked) {
+      if (optional) return;
+      throw new AppError('AUTH_TOKEN_INVALID');
     }
     // رمز موقت مدیر: فقط GET /me، PUT /me/password، logout (و refresh که bearer ندارد)؛ وضعیت از DB/cache نه فقط claim
     if (st.mustChange && !MUST_CHANGE_ALLOWED.has(def.id)) throw new AppError('AUTH_PASSWORD_CHANGE_REQUIRED');
