@@ -6,6 +6,7 @@
   import { system } from '$lib/auth/system.svelte';
   import { toasts } from '$lib/stores/toast.svelte';
   import { NAV } from '$lib/nav';
+  import { appPath, withBase } from '$lib/utils/paths';
   import { ROLE_TITLE } from '$lib/utils/audit';
   import LogoMark from '$lib/components/ui/LogoMark.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
@@ -22,19 +23,19 @@
     await auth.logout();
     system.reset();
     toasts.info('از پنل خارج شدید.');
-    await goto('/login', { replaceState: true });
+    await goto(withBase('/login'), { replaceState: true });
   }
 </script>
 
 <div class="shell">
   <aside class="side" aria-label="منوی مدیریت">
-    <a class="brand" href="/" aria-label="اسراء — نمای کلی"><LogoMark height={56} tone="light" /></a>
+    <a class="brand" href={withBase('/')} aria-label="اسراء — نمای کلی"><LogoMark height={56} tone="light" /></a>
     <p class="tag">پنل مدیریت</p>
 
     <nav class="nav">
       {#each items as item (item.href)}
-        {@const active = item.match(page.url.pathname)}
-        <a href={item.href} class="link" class:active aria-current={active ? 'page' : undefined}>
+        {@const active = item.match(appPath(page.url.pathname))}
+        <a href={withBase(item.href)} class="link" class:active aria-current={active ? 'page' : undefined}>
           <Icon name={item.icon} size={22} />{item.label}
         </a>
       {/each}
@@ -54,7 +55,7 @@
 
   <div class="content">
     <header class="mbar">
-      <a href="/" aria-label="نمای کلی"><LogoMark height={40} /></a>
+      <a href={withBase('/')} aria-label="نمای کلی"><LogoMark height={40} /></a>
       <button type="button" class="out dark" onclick={() => (confirmLogout = true)} aria-label="خروج">
         <Icon name="logout" size={22} />
       </button>
@@ -64,8 +65,8 @@
 
   <nav class="bottom" aria-label="منوی مدیریت">
     {#each items as item (item.href)}
-      {@const active = item.match(page.url.pathname)}
-      <a href={item.href} class="tab" class:active aria-current={active ? 'page' : undefined}>
+      {@const active = item.match(appPath(page.url.pathname))}
+      <a href={withBase(item.href)} class="tab" class:active aria-current={active ? 'page' : undefined}>
         <span class="ico"><Icon name={item.icon} size={22} /></span>
         <span class="lbl">{item.label}</span>
       </a>

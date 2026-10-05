@@ -7,6 +7,8 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 
+// اگر پنل زیر مسیر (BASE_PATH) سرو شود، از سرور Node (scripts/pack-web-admin.mjs) استفاده کنید؛ این فایل برای ساب‌دامنهٔ فایل‌محور است
+const basePath = (process.env.BASE_PATH ?? '').replace(/\/+$/, '');
 const low = (process.env.VITE_API_LOW_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
 const high = (process.env.VITE_API_HIGH_URL ?? 'http://localhost:3003').replace(/\/+$/, '');
 const connect = [...new Set(["'self'", low, high])].join(' ');
@@ -21,16 +23,16 @@ const csp = ["default-src 'self'", `script-src 'self' ${[...new Set(hashes)].joi
 
 const out = `# تولیدشده توسط scripts/gen-htaccess.mjs — دستی ویرایش نکنید
 # خطای سرور/پروکسی: صفحهٔ فارسی خودکفا (بدون وابستگی به app)
-ErrorDocument 500 /error-503.html
-ErrorDocument 502 /error-503.html
-ErrorDocument 503 /error-503.html
-ErrorDocument 504 /error-503.html
+ErrorDocument 500 ${basePath}/error-503.html
+ErrorDocument 502 ${basePath}/error-503.html
+ErrorDocument 503 ${basePath}/error-503.html
+ErrorDocument 504 ${basePath}/error-503.html
 
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteRule ^ /index.html [L]
+  RewriteRule ^ ${basePath}/index.html [L]
 </IfModule>
 
 <IfModule mod_headers.c>

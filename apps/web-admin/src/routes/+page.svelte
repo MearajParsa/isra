@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { withBase } from '$lib/utils/paths';
   import { api } from '$lib/api';
   import type { Overview } from '$lib/api';
   import { auth } from '$lib/auth/auth.svelte';
@@ -21,8 +22,8 @@
   const cards = $derived<{ icon: IconName; label: string; value: number; hint?: string; href?: string; hot?: boolean }[]>(
     ov.data
       ? [
-          { icon: 'users', label: 'کاربران', value: ov.data.users.total, href: system.can('system.users.view') ? '/users' : undefined },
-          { icon: 'shield', label: 'دارندگان نقش سیستم', value: ov.data.users.admins, href: system.can('system.users.view') ? '/users' : undefined },
+          { icon: 'users', label: 'کاربران', value: ov.data.users.total, href: system.can('system.users.view') ? withBase('/users') : undefined },
+          { icon: 'shield', label: 'دارندگان نقش سیستم', value: ov.data.users.admins, href: system.can('system.users.view') ? withBase('/users') : undefined },
           { icon: 'mic', label: 'جلسهٔ در حال برگزاری', value: ov.data.sessions.started, hot: ov.data.sessions.started > 0 },
           { icon: 'calendar', label: 'جلسهٔ پیش‌رو', value: ov.data.sessions.scheduled },
           { icon: 'clock', label: 'جلسهٔ پایان‌یافته', value: ov.data.sessions.ended },
@@ -52,7 +53,7 @@
   <section class="audit" aria-labelledby="la-h">
     <div class="sec-head">
       <h2 id="la-h">آخرین اقدام‌ها</h2>
-      {#if system.can('system.audit.view')}<a class="all" href="/audit">همهٔ گزارش‌ها<Icon name="chevron-left" size={18} /></a>{/if}
+      {#if system.can('system.audit.view')}<a class="all" href={withBase('/audit')}>همهٔ گزارش‌ها<Icon name="chevron-left" size={18} /></a>{/if}
     </div>
     {#if ov.data.lastAudit.length === 0}
       <EmptyState icon="list" compact title="اقدامی ثبت نشده" message={system.can('system.audit.view') ? 'اقدام‌های مدیریتی اینجا نمایش داده می‌شود.' : 'دسترسی به گزارش‌ها برای نقش شما فعال نیست.'} />

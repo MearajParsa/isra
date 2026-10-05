@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from '$app/state';
+  import { withBase } from '$lib/utils/paths';
   import Button from '$lib/components/ui/Button.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
 
@@ -20,7 +21,7 @@
       : 'دوباره تلاش کنید. اگر ادامه داشت، کمی بعد برگردید.'}
 >
   {#snippet action()}
-    <Button href="/">نمای کلی</Button>
+    <Button href={withBase('/')}>نمای کلی</Button>
     {#if server}<Button variant="secondary" onclick={() => location.reload()}>تلاش دوباره</Button>{/if}
   {/snippet}
 </EmptyState>

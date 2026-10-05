@@ -132,3 +132,14 @@ bash scripts/deploy-ssh.sh
   ErrorDocument 504 /error-503.html
   ```
   برای web-admin این خطوط در `.htaccess` تولیدشده هست و فایل داخل `build/` است. برای web-main فایل در `deploy/web-main/error-503.html` است. (روی LiteSpeed/CloudLinux بسته به تنظیم هاست ممکن است صفحهٔ خود هاست اولویت داشته باشد؛ در cPanel ← Errors Pages هم می‌توان صفحهٔ 503 دامنه را تنظیم کرد.)
+
+## هـ) web-admin زیر مسیر (مثلاً `israapp.ir/s`) با اپ Node
+پنل SPA استاتیک است؛ برای سرو زیر یک مسیر، `BASE_PATH` را هم هنگام build و هم هنگام pack بدهید و خروجی را با سرور کوچک بدون‌وابستگی `app.js` اجرا کنید (fallback به `index.html`، هدرهای امنیتی، CSP با hash، بدون `npm install`):
+```
+$env:BASE_PATH="/s"; $env:VITE_API_LOW_URL="https://capi.israapp.ir"; $env:VITE_API_HIGH_URL="https://sapi.israapp.ir"
+pnpm --filter @isra/web-admin build
+node scripts/pack-web-admin.mjs        # خروجی: deploy/web-admin/
+```
+- cPanel ← Setup Node.js App: Application root = `apps/web-admin`، Application URL = `israapp.ir/s`، Startup file = `app.js`؛ محتوای `deploy/web-admin` را آپلود و Restart کنید. env لازم نیست.
+- `CORS_ORIGINS` سه API باید `https://israapp.ir` را داشته باشد (origin بدون مسیر است).
+- ورود/نگهداری توکن مثل قبل است؛ ولی admin و web-main اگر هر دو روی `israapp.ir` باشند یک origin را شریک می‌شوند (localStorage/Service Worker/Cache مشترک؛ نام cacheها پیشوند اختصاصی دارد). برای جداسازی کامل، بعداً می‌توان به `panel.israapp.ir` منتقل کرد (بدون BASE_PATH؛ بخش ب-۶).

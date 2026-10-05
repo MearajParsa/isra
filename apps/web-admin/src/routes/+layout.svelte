@@ -18,10 +18,11 @@
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
+  import { appPath, withBase } from '$lib/utils/paths';
 
   let { children } = $props();
 
-  const isLogin = $derived((page.url.pathname as string) === '/login');
+  const isLogin = $derived(appPath(page.url.pathname) === '/login');
 
   onMount(() => {
     const stops = [net.start(), pwa.start()];
@@ -44,17 +45,17 @@
 
   $effect(() => {
     if (auth.status === 'guest' && !isLogin) {
-      const next = page.url.pathname + page.url.search;
-      void goto(`/login${next === '/' ? '' : `?next=${encodeURIComponent(next)}`}`, { replaceState: true });
+      const next = appPath(page.url.pathname) + page.url.search;
+      void goto(withBase(`/login${next === '/' ? '' : `?next=${encodeURIComponent(next)}`}`), { replaceState: true });
     } else if (auth.status === 'member' && isLogin && system.status === 'ready') {
-      void goto(safeNext(page.url.searchParams.get('next')), { replaceState: true });
+      void goto(withBase(safeNext(page.url.searchParams.get('next'))), { replaceState: true });
     }
   });
 
   async function logout() {
     await auth.logout();
     system.reset();
-    await goto('/login', { replaceState: true });
+    await goto(withBase('/login'), { replaceState: true });
   }
 </script>
 

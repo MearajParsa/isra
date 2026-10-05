@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { withBase } from '$lib/utils/paths';
   import { page } from '$app/state';
   import { api, ApiError, type Grant, type SystemRoleKey, type SystemUser } from '$lib/api';
   import { auth } from '$lib/auth/auth.svelte';
@@ -98,7 +99,7 @@
 
 <svelte:head><title>{user.data ? `${user.data.name} — کاربران` : 'کاربر'} — مدیریت اسراء</title></svelte:head>
 
-<PageHeader title={user.data?.name ?? 'کاربر'} backHref="/users" />
+<PageHeader title={user.data?.name ?? 'کاربر'} backHref={withBase('/users')} />
 
 {#if user.status === 'ready' && user.data}
   <section class="card who">
@@ -170,7 +171,7 @@
   <EmptyState icon={user.offline ? 'wifi-off' : 'alert'} tone="error" title="کاربر بارگذاری نشد" message={user.error ?? ''}>
     {#snippet action()}
       <Button variant="secondary" onclick={load}><Icon name="refresh" size={18} />تلاش دوباره</Button>
-      <Button variant="text" href="/users">بازگشت</Button>
+      <Button variant="text" href={withBase('/users')}>بازگشت</Button>
     {/snippet}
   </EmptyState>
 {:else}

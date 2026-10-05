@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { withBase } from '$lib/utils/paths';
   import { goto } from '$app/navigation';
   import { api, type Page, type SystemRoleKey, type SystemUser } from '$lib/api';
   import { auth } from '$lib/auth/auth.svelte';
@@ -76,7 +77,7 @@
     <ul class="rows">
       {#each list.data.items as u (u.id)}
         <li>
-          <a class="row" href={`/users/${u.id}`}>
+          <a class="row" href={withBase(`/users/${u.id}`)}>
             <span class="av" aria-hidden="true">{u.name.charAt(0)}</span>
             <span class="who">
               <strong>{u.name}</strong>
