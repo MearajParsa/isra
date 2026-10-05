@@ -1,5 +1,5 @@
 name: web-probe
-# موقت: بررسی پاسخ سایت از بیرون (بدون secret)
+# موقت: بررسی دارایی‌های پنل از بیرون (بدون secret)
 on:
   push:
     paths: ['.github/workflows/web-probe.yml']
@@ -11,8 +11,19 @@ jobs:
     timeout-minutes: 5
     steps:
       - run: |
-          for u in https://israapp.ir/s https://israapp.ir/s/ https://israapp.ir/s/login https://israapp.ir/s/manifest.webmanifest https://israapp.ir/s/_app/version.json https://israapp.ir/ http://israapp.ir/s https://capi.israapp.ir/c/health/ready; do
-            echo "=================== $u"
-            curl -sS -m 15 -D - -o /tmp/b "$u" 2>&1 | head -25
-            echo "--- body (first 300 bytes)"; head -c 300 /tmp/b 2>/dev/null | tr -d '\r'; echo
+          curl -sS -m 15 -o /tmp/index.html https://israapp.ir/s
+          echo "index bytes: $(wc -c < /tmp/index.html)"
+          grep -o '"/s/[^"]*"' /tmp/index.html | tr -d '"' | sort -u > /tmp/urls.txt
+          grep -o "/s/[A-Za-z0-9_./-]*" /tmp/index.html | sort -u >> /tmp/urls.txt
+          for p in /s/favicon.svg /s/manifest.webmanifest /s/offline.html /s/error-503.html /s/service-worker.js /s/icons/icon-192.png /s/robots.txt /s/_app/version.json; do echo $p >> /tmp/urls.txt; done
+          sort -u /tmp/urls.txt | while read p; do
+            printf "%s  %s\n" "$(curl -s -m 15 -o /dev/null -w '%{http_code} %{content_type}' "https://israapp.ir$p")" "$p"
+          done
+          echo "--- localhost refs in entry js:"
+          for p in $(grep -o '/s/_app/immutable/entry/[A-Za-z0-9_.-]*\.js' /tmp/index.html | sort -u); do
+            curl -s -m 20 "https://israapp.ir$p" | grep -o 'https\?://[a-z0-9.:-]*\(localhost\|israapp\)[a-z0-9.:-]*' | sort -u | sed "s#^#$p -> #"
+          done
+          echo "--- api urls in app chunks:"
+          for p in $(grep -o '/s/_app/immutable/[A-Za-z0-9_./-]*\.js' /tmp/index.html | sort -u | head -4); do
+            curl -s -m 20 "https://israapp.ir$p" | grep -o 'https\?://[a-z0-9.:-]*\(localhost\|israapp\)[a-z0-9.:-]*' | sort -u | sed "s#^#$p -> #"
           done
