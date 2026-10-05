@@ -90,11 +90,16 @@ export function stepUpMap(a: UserAccess, policy: StepUpPolicy): Record<Permissio
  * آیا endpoint با `stepUp:true` برای این کاربر واقعاً step-up می‌خواهد؟
  *  - mcp (رمز موقت): مثل قبل همیشه لازم (استثنای H-04 جداست)
  *  - developer: هرگز
+ *  - H-04 (تغییر رمز خودم): همیشه لازم، حتی برای developer
  *  - endpoint بدون permission (self-service): لازم
  *  - وگرنه: از سیاست مجوز endpoint
  */
-export function stepUpRequired(a: UserAccess, policy: StepUpPolicy, def: { permission?: string | undefined }, mcp: boolean): boolean {
+/** اقدام‌هایی که حتی developer هم باید step-up بدهد (تصمیم مالک): تغییر رمز خودِ حساب (H-04) */
+export const ALWAYS_STEP_UP = new Set(['H-04']);
+
+export function stepUpRequired(a: UserAccess, policy: StepUpPolicy, def: { id?: string | undefined; permission?: string | undefined }, mcp: boolean): boolean {
   if (mcp) return true;
+  if (def.id && ALWAYS_STEP_UP.has(def.id)) return true;
   if (isDeveloper(a)) return false;
   if (!def.permission) return true;
   return stepUpFor(a, policy, def.permission) === 'required';

@@ -52,6 +52,9 @@ describe('step-up', () => {
     expect(stepUpRequired(dev, p, { permission: 'x.y' }, false)).toBe(false);
     expect(stepUpRequired(dev, p, {}, false)).toBe(false);
     expect(stepUpRequired(dev, p, {}, true)).toBe(true);
+    // تصمیم مالک: تغییر رمز خودم (H-04) حتی برای developer step-up می‌خواهد
+    expect(stepUpRequired(dev, p, { id: 'H-04' }, false)).toBe(true);
+    expect(stepUpRequired(dev, p, { id: 'H-05' }, false)).toBe(false);
     const u = access(['r1'], { 'x.y': [role('r1')] });
     expect(stepUpRequired(u, p, {}, false)).toBe(true);
   });

@@ -149,7 +149,7 @@ export const SystemMe = named(
     user: z.object({ id: Id, name: z.string().max(80), phone: IranMobile }),
     roles: z.array(SystemRoleKey),
     permissions: z.array(PermissionKey),
-    stepUpExempt: z.boolean().meta({ description: 'نقش developer ⇒ هیچ اقدامی step-up ندارد' }),
+    stepUpExempt: z.boolean().meta({ description: 'نقش developer ⇒ هیچ اقدامی step-up ندارد (جز تغییر رمز خودش H-04)' }),
     stepUp: z.record(PermissionKey, StepUpMode).meta({ description: 'برای هر مجوزِ مؤثر: آیا اقدام‌های آن نیازمند step-up است (پس از اعمال override نقش‌ها؛ developer ⇒ همه none)' })
   })
 );

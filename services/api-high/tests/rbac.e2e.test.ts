@@ -220,6 +220,16 @@ describe('step-up (۴)', () => {
     expect(r.body.error?.code).toBe('AUTH_STEP_UP_REQUIRED');
   });
 
+  it('H-04: حتی developer برای تغییر رمز خودش step-up می‌خواهد (تصمیم مالک)', async () => {
+    const dev = await mkUser(t, 'توسعه', ['developer']);
+    const r = await a.put('/system/me/password', dev.h, { newPassword: 'abcdefgh1' });
+    expect(r.status).toBe(403);
+    expect(r.body.error?.code).toBe('AUTH_STEP_UP_REQUIRED');
+    const ok = await a.put('/system/me/password', await dev.step(), { newPassword: 'abcdefgh1' });
+    // با step-up از guard رد می‌شود (کاربر آزمایشی حساب low ندارد ⇒ 404 از origin، نه 403)
+    expect(ok.body.error?.code).not.toBe('AUTH_STEP_UP_REQUIRED');
+  });
+
   it('تغییر قاعده فقط با system.stepup.manage؛ step_up مجوز هم همین‌طور', async () => {
     const dev = await mkUser(t, 'توسعه', ['developer']);
     await a.post('/system/modules', dev.h, { key: 'content', title: 'محتوا' });

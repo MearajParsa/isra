@@ -21372,7 +21372,7 @@
           },
           "stepUpExempt": {
             "type": "boolean",
-            "description": "نقش developer ⇒ هیچ اقدامی step-up ندارد"
+            "description": "نقش developer ⇒ هیچ اقدامی step-up ندارد (جز تغییر رمز خودش H-04)"
           },
           "stepUp": {
             "type": "object",
