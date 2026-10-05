@@ -6,6 +6,7 @@
   import { page, navigating } from '$app/state';
   import { auth } from '$lib/auth/auth.svelte';
   import { system } from '$lib/auth/system.svelte';
+  import { account } from '$lib/auth/account.svelte';
   import { net } from '$lib/stores/net.svelte';
   import { pwa } from '$lib/stores/pwa.svelte';
   import { toasts } from '$lib/stores/toast.svelte';
@@ -13,6 +14,7 @@
   import AdminShell from '$lib/components/layout/AdminShell.svelte';
   import ToastHost from '$lib/components/ui/ToastHost.svelte';
   import StepUpSheet from '$lib/components/features/StepUpSheet.svelte';
+  import ForcedPasswordChange from '$lib/components/features/ForcedPasswordChange.svelte';
   import LogoMark from '$lib/components/ui/LogoMark.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
@@ -40,8 +42,13 @@
 
   $effect(() => {
     if (auth.status === 'member' && system.status === 'idle') void system.load();
-    if (auth.status === 'guest') system.reset();
+    if (auth.status === 'member' && system.status === 'ready' && account.status === 'idle') void account.load();
+    if (auth.status === 'guest') {
+      system.reset();
+      account.reset();
+    }
   });
+  const booting = $derived(auth.status === 'unknown' || (auth.status === 'member' && (system.status === 'idle' || system.status === 'loading' || (system.status === 'ready' && (account.status === 'idle' || account.status === 'loading')))));
 
   $effect(() => {
     if (auth.status === 'guest' && !isLogin) {
@@ -55,6 +62,7 @@
   async function logout() {
     await auth.logout();
     system.reset();
+    account.reset();
     await goto(withBase('/login'), { replaceState: true });
   }
 </script>
@@ -71,12 +79,14 @@
 
 {#if isLogin}
   {@render children()}
-{:else if auth.status === 'unknown' || (auth.status === 'member' && (system.status === 'idle' || system.status === 'loading'))}
+{:else if booting}
   <div class="boot" aria-hidden="true">
     <LogoMark height={72} />
     <Skeleton w="12rem" h="12px" radius="999px" />
   </div>
   <span class="sr-only" role="status">در حال بارگذاری پنل…</span>
+{:else if auth.status === 'member' && auth.mustChangePassword}
+  <ForcedPasswordChange />
 {:else if auth.status === 'member' && system.status === 'forbidden'}
   <div class="center">
     <LogoMark height={64} />

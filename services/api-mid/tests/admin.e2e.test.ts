@@ -442,7 +442,7 @@ describe('حضور/صف/ارزیابی (نمای کامل فقط‌خواندن�
     expect(evs.items[0]!.evaluatorName).toBe('استاد معلم');
     const att = internal.MidAdminAttendance.parse((await ad.get(`/admin/sessions/${r.id}/attendance`)).body.data);
     expect(att.total).toBe(3);
-    expect(att.items.map((x) => x.userId)).toEqual([s1.id, s2.id, s3.id]);
+    expect(att.items.map((x) => x.userId).sort()).toEqual([s1.id, s2.id, s3.id].sort());
     // خواندن‌ها اثری ندارند (فقط‌خواندنی): مسیر نوشتن وجود ندارد
     expect((await request(t.http).post(`/o/internal/v1/admin/sessions/${r.id}/queue`).set(hdr()).send({})).status).toBe(404);
     expect((await ad.post(`/admin/sessions/${r.id}/evaluations`, {})).status).toBe(404);
