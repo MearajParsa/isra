@@ -5,7 +5,6 @@ import { In, Route } from '../common/ep';
 import type { IsraRequest } from '../common/request-context';
 import { AccountService } from './account.service';
 import { ReportsService } from './reports.service';
-import type { SystemRoleKey } from './rules';
 import { SessionsAdminService } from './sessions-admin.service';
 import { UsersAdminService } from './users-admin.service';
 
@@ -14,7 +13,7 @@ type Id = { id: string };
 type Series = { from?: string; to?: string; interval: 'day' | 'week' | 'month' };
 type B<K extends keyof typeof high> = (typeof high)[K] extends z.ZodType ? z.infer<(typeof high)[K]> : never;
 const me = (r: IsraRequest) => r.user!;
-const actor = (r: IsraRequest) => ({ id: r.user!.userId, roles: r.user!.roles as SystemRoleKey[] });
+const actor = (r: IsraRequest) => ({ id: r.user!.userId, roles: r.user!.roles });
 
 /** endpointهای قرارداد ۱.۴: حساب من، مدیریت کاربر، جلسه‌ها، گزارش‌ها. مجوز/step-up/اعتبارسنجی در EndpointGuard. */
 @Controller()

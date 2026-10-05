@@ -1,5 +1,6 @@
 import type { MigrationInterface, QueryRunner } from 'typeorm';
-import { PERMISSION_TITLES, type PermissionKey } from '../../domain/rules';
+import type { PermissionKey } from '../../domain/rules';
+import { PERMISSION_TITLES } from '../rbac-seed';
 
 const NEW: readonly PermissionKey[] = ['system.users.manage', 'system.sessions.view', 'system.sessions.manage', 'system.reports.view'];
 
@@ -13,7 +14,7 @@ export class AdminExpansion1728300000001 implements MigrationInterface {
   async up(q: QueryRunner): Promise<void> {
     await q.query("ALTER TABLE user_directory ADD COLUMN status VARCHAR(10) NOT NULL DEFAULT 'active', ADD KEY idx_directory_status (status, created_at)");
     for (const p of NEW) {
-      await q.query('INSERT INTO permissions (permission_key, title, perm_group) VALUES (?, ?, ?)', [p, PERMISSION_TITLES[p].title, PERMISSION_TITLES[p].group]);
+      await q.query('INSERT INTO permissions (permission_key, title, perm_group) VALUES (?, ?, ?)', [p, PERMISSION_TITLES[p]!.title, PERMISSION_TITLES[p]!.group]);
       await q.query("INSERT INTO role_permissions (role_key, permission_key, locked) VALUES ('developer', ?, 1)", [p]);
     }
     for (const p of ['system.sessions.view', 'system.reports.view']) await q.query("INSERT INTO role_permissions (role_key, permission_key, locked) VALUES ('super_admin', ?, 0)", [p]);

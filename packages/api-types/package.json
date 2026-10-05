@@ -21,6 +21,7 @@
   ],
   "scripts": {
     "openapi": "tsx scripts/build-openapi.ts",
+    "dashboard-ref": "tsx scripts/gen-dashboard-ref.ts",
     "openapi:check": "tsx scripts/build-openapi.ts --check",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",

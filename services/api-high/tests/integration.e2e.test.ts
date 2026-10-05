@@ -17,7 +17,7 @@ beforeAll(async () => {
   a = api(t);
 });
 afterAll(async () => t.close());
-beforeEach(async () => resetDb(t.ds));
+beforeEach(async () => resetDb(t.ds, t.app));
 
 const send = (body: object, token: string | null = SECRET) => {
   const r = request(t.http).post('/s/internal/v1/events').set('X-Internal-Caller', 'low');
@@ -99,22 +99,38 @@ describe('migration و seed', () => {
     try {
       const count = async (sql: string) => Number(((await ds.query(sql)) as { n: string }[])[0]!.n);
       expect(await count('SELECT COUNT(*) AS n FROM system_roles WHERE undeletable = 1')).toBe(2);
-      expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(11);
-      expect(await count("SELECT COUNT(*) AS n FROM role_permissions WHERE role_key = 'developer' AND locked = 1")).toBe(11);
+      expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(14);
+      expect(await count("SELECT COUNT(*) AS n FROM role_permissions WHERE role_key = 'developer' AND locked = 1")).toBe(14);
       // قرارداد ۱.۴: super_admin فقط sessions.view/reports.view را (بدون قفل) می‌گیرد؛ users.manage/sessions.manage را نه
       expect(await count("SELECT COUNT(*) AS n FROM role_permissions WHERE role_key = 'super_admin' AND permission_key IN ('system.sessions.view','system.reports.view') AND locked = 0")).toBe(2);
       expect(await count("SELECT COUNT(*) AS n FROM role_permissions WHERE role_key = 'super_admin' AND permission_key IN ('system.users.manage','system.sessions.manage')")).toBe(0);
+      // RBAC پویا: CHECK برداشته شده؛ نقش پویا مجاز است
+      await ds.query("INSERT INTO system_roles (role_key, title, description, undeletable) VALUES ('dyn_role_x', 't', 'd', 0)");
+      await ds.query("INSERT INTO user_grants (user_id, grant_key, granted_at) VALUES (UNHEX('00000000000000000000000000000001'), 'session.create', NOW(3)), (UNHEX('00000000000000000000000000000001'), 'content.read', NOW(3))");
+      await ds.undoLastMigration(); // DynamicRbac (داده‌ی v1 حفظ؛ پویا حذف)
+      expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(11);
+      expect(await count('SELECT COUNT(*) AS n FROM system_roles')).toBe(2);
+      expect(await count("SELECT COUNT(*) AS n FROM role_permissions WHERE role_key = 'super_admin'")).toBe(9);
+      expect(await count('SELECT COUNT(*) AS n FROM user_grants')).toBe(1);
+      expect(await count("SELECT COUNT(*) AS n FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'permissions' AND column_name = 'perm_group'")).toBe(1);
       await expect(ds.query("INSERT INTO system_roles (role_key, title, description, undeletable) VALUES ('x', 't', 'd', 0)")).rejects.toThrow();
+      await ds.query('DELETE FROM user_grants');
+      await ds.runMigrations(); // دوباره بالا (روی داده‌ی موجود)
+      expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(14);
+      await ds.query("DELETE FROM system_roles WHERE role_key = 'dyn_role_x'");
+      await ds.undoLastMigration(); // DynamicRbac
       await ds.undoLastMigration(); // AdminExpansion
       expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(7);
       expect(await count("SELECT COUNT(*) AS n FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'user_directory' AND column_name = 'status'")).toBe(0);
       await ds.undoLastMigration(); // RevokedSessions
       await ds.undoLastMigration(); // InitSchema
       expect(await count('SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name <> "migrations"')).toBe(0);
-      await ds.runMigrations();
-      expect(await count('SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name <> "migrations"')).toBe(12);
+      await ds.runMigrations(); // دیتابیس تازه: InitSchema → RevokedSessions → AdminExpansion → DynamicRbac
+      expect(await count('SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name <> "migrations"')).toBe(17);
+      expect(await count('SELECT COUNT(*) AS n FROM system_modules')).toBe(7);
+      expect(await count('SELECT COUNT(*) AS n FROM rbac_meta')).toBe(1);
       expect(await count('SELECT COUNT(*) AS n FROM system_settings')).toBe(1);
-      expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(11);
+      expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(14);
       expect(await count("SELECT COUNT(*) AS n FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'user_directory' AND index_name = 'idx_directory_status'")).toBeGreaterThan(0);
       const uq = (await ds.query("SELECT non_unique AS nu FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'user_directory' AND index_name = 'uq_directory_phone'")) as { nu: string | number }[];
       expect(Number(uq[0]!.nu)).toBe(0);

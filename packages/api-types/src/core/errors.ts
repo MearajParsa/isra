@@ -48,7 +48,11 @@ export const CONFLICT_REASONS = [
   'VERSION_MISMATCH',
   'PHONE_TAKEN',
   'SELF_PROTECTED',
-  'USER_NOT_ACTIVE'
+  'USER_NOT_ACTIVE',
+  'KEY_TAKEN',
+  'SYSTEM_PROTECTED',
+  'ROLE_IN_USE',
+  'MODULE_NOT_EMPTY'
 ] as const;
 export type ConflictReason = (typeof CONFLICT_REASONS)[number];
 

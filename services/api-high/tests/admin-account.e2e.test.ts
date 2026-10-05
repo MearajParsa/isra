@@ -14,7 +14,7 @@ beforeAll(async () => {
 });
 afterAll(async () => t.close());
 beforeEach(async () => {
-  await resetDb(t.ds);
+  await resetDb(t.ds, t.app);
   t.fake.admin.reset();
   low = installFakeLow(t);
   installFakeMid(t);

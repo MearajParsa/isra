@@ -69,14 +69,18 @@ describe('high: تنظیمات', () => {
   });
   it('پرچم ناشناخته و نقش سفارشی رد می‌شود', () => {
     expect(high.UpdateSettingsBody.safeParse({ ...ok, flags: { ...ok.flags, hack: true } }).success).toBe(false);
-    expect(high.SetUserRolesBody.safeParse({ roles: ['root'] }).success).toBe(false);
-    expect(high.SetUserRolesBody.safeParse({ roles: ['developer'] }).success).toBe(true);
+    // نقش/مجوز پویا: فقط قالب کلید اعتبارسنجی می‌شود (وجود در DB سمت سرور)
+    expect(high.SetUserRolesBody.safeParse({ roles: ['Root!'] }).success).toBe(false);
+    expect(high.SetUserRolesBody.safeParse({ roles: ['developer', 'content_editor'] }).success).toBe(true);
     expect(high.SetUserGrantsBody.safeParse({ grants: ['session.create'] }).success).toBe(true);
-    expect(high.SetUserGrantsBody.safeParse({ grants: ['system.settings.edit'] }).success).toBe(false);
+    expect(high.SetUserGrantsBody.safeParse({ grants: ['Bad Key'] }).success).toBe(false);
+    expect(high.CreatePermissionBody.safeParse({ key: 'blog.post.publish', title: 'انتشار', moduleKey: 'blog' }).success).toBe(true);
+    expect(high.CreatePermissionBody.safeParse({ key: 'blog', title: 'x', moduleKey: 'blog' }).success).toBe(false);
+    expect(high.CreateRoleBody.safeParse({ key: 'editor', title: 'ویراستار', foo: 1 }).success).toBe(false);
   });
   it('نقش‌های سیستم حذف‌ناپذیرند', () => {
-    const r = { key: 'developer', title: 't', description: 'd', undeletable: false, permissions: [], lockedPermissions: [], holders: 1 };
-    expect(high.SystemRole.safeParse(r).success).toBe(false);
-    expect(high.SystemRole.safeParse({ ...r, undeletable: true }).success).toBe(true);
+    const r = { key: 'developer', title: 't', description: 'd', undeletable: true, permissions: [], modules: [], effectivePermissions: [], lockedPermissions: [], stepUpRules: {}, holders: 1 };
+    expect(high.SystemRole.safeParse(r).success).toBe(true);
+    expect(high.SystemRole.safeParse({ ...r, key: 'X' }).success).toBe(false);
   });
 });

@@ -3,7 +3,7 @@ import { DataSource } from 'typeorm';
 import { Clock } from '../common/clock';
 import { TEHRAN_OFFSET_MIN, type Interval, fillSeries, resolveRange } from '../common/tehran';
 import { LowAdminClient, MidAdminClient } from '../internal/admin-clients';
-import { ROLE_KEYS } from './rules';
+import { REPORT_ROLE_KEYS } from './rules';
 
 const n = (v: unknown) => Number(v ?? 0);
 
@@ -57,7 +57,7 @@ export class ReportsService {
     const total = n(d.total);
     const byRole = { developer: 0, super_admin: 0, none: 0 };
     let withRole = 0;
-    for (const r of roles) if ((ROLE_KEYS as readonly string[]).includes(r.role_key)) byRole[r.role_key as 'developer' | 'super_admin'] = n(r.c);
+    for (const r of roles) if ((REPORT_ROLE_KEYS as readonly string[]).includes(r.role_key)) byRole[r.role_key as 'developer' | 'super_admin'] = n(r.c);
     const anyRole = (await this.ds.query('SELECT COUNT(DISTINCT user_id) AS c FROM user_system_roles')) as { c: string | number }[];
     withRole = n(anyRole[0]?.c);
     byRole.none = Math.max(0, total - withRole);

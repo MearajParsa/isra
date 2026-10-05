@@ -4,23 +4,13 @@ import { Uuid } from '../core/primitives';
 import { MidSession, SessionInput, SessionState } from '../domain/session';
 import { AttendanceEntry, Evaluation, Member, QueueState } from '../mid/schemas';
 
-export const SystemRoleKey = named('SystemRoleKey', z.enum(['developer', 'super_admin']));
-export const PermissionKey = named(
-  'PermissionKey',
-  z.enum([
-    'system.users.view',
-    'system.users.manage',
-    'system.role.assign',
-    'system.permission.edit',
-    'system.settings.view',
-    'system.settings.edit',
-    'system.audit.view',
-    'system.sessions.view',
-    'system.sessions.manage',
-    'system.reports.view',
-    'session.create'
-  ])
-);
+/** کلید نقش: انگلیسی کوچک/underscore (نقش‌های سیستمی `developer` و `super_admin` حذف‌نشدنی‌اند؛ بقیه پویا) */
+export const SystemRoleKey = named('SystemRoleKey', z.string().regex(/^[a-z][a-z0-9_]{2,31}$/, 'کلید نقش: حروف کوچک انگلیسی/عدد/_ (۳ تا ۳۲)').meta({ example: 'content_editor' }));
+/** کلید مجوز `module.action` (۲ تا ۴ بخش با نقطه): مثل `system.users.view` */
+export const PermissionKey = named('PermissionKey', z.string().max(64).regex(/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){1,3}$/, 'کلید مجوز: بخش‌های حروف کوچک انگلیسی با نقطه').meta({ example: 'system.users.view' }));
+export const ModuleKey = named('ModuleKey', z.string().regex(/^[a-z][a-z0-9_]{1,31}$/, 'کلید ماژول: حروف کوچک انگلیسی/عدد/_').meta({ example: 'users' }));
+export const StepUpMode = named('StepUpMode', z.enum(['required', 'none']), 'required = برای این مجوز تأیید هویت دوباره (OTP) لازم است؛ none = لازم نیست');
+export const StepUpRuleMode = z.enum(['required', 'none', 'inherit']).meta({ description: 'inherit = پیش‌فرض خود مجوز' });
 
 /** تاریخ تقویمی (Asia/Tehran) برای بازهٔ گزارش/فیلتر: YYYY-MM-DD */
 export const IsoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'تاریخ YYYY-MM-DD').meta({ example: '2026-10-05' });
@@ -28,9 +18,32 @@ export const UserStatus = named('UserStatus', z.enum(['active', 'disabled', 'del
 /** شمارهٔ ناشناسِ کاربر حذف‌شده: `d` + ۱۰ هگز از شناسه (CHAR(11)؛ یکتا؛ غیر موبایل) */
 export const AnonPhone = z.string().regex(/^d[0-9a-f]{10}$/, 'شمارهٔ ناشناس').meta({ description: 'شمارهٔ ناشناس کاربر حذف‌شده' });
 const Password = z.string().min(8).max(128).meta({ description: 'حداقل ۸ نویسه؛ هرگز لاگ/audit نمی‌شود' });
-export const Grant = named('Grant', z.enum(['session.create']), 'مجوز مستقیم per user (D1)');
+export const Grant = named('Grant', PermissionKey, 'مجوز مستقیم per user: هر مجوزِ `grantable` (مثل `session.create`)');
 
-export const PermissionInfo = named('PermissionInfo', z.object({ key: PermissionKey, title: z.string().max(120), group: z.enum(['system', 'session']) }));
+export const ModuleInfo = named(
+  'ModuleInfo',
+  z.object({
+    key: ModuleKey,
+    title: z.string().max(60),
+    description: z.string().max(300),
+    isSystem: z.boolean().meta({ description: 'ماژول‌های سیستمی حذف نمی‌شوند' }),
+    sortOrder: z.number().int().min(0).max(1000),
+    permissionCount: z.number().int().min(0)
+  })
+);
+
+export const PermissionInfo = named(
+  'PermissionInfo',
+  z.object({
+    key: PermissionKey,
+    title: z.string().max(120),
+    description: z.string().max(300),
+    moduleKey: ModuleKey,
+    isSystem: z.boolean().meta({ description: 'مجوز سیستمی: کلید و ماژول ثابت؛ حذف‌نشدنی' }),
+    grantable: z.boolean().meta({ description: 'می‌تواند مستقیم به کاربر داده شود (بدون نقش)' }),
+    stepUp: StepUpMode.meta({ description: 'پیش‌فرض step-up برای این مجوز (قابل override per نقش)؛ توسعه‌دهنده همیشه معاف است' })
+  })
+);
 
 export const SystemRole = named(
   'SystemRole',
@@ -38,20 +51,106 @@ export const SystemRole = named(
     key: SystemRoleKey,
     title: z.string().max(60),
     description: z.string().max(300),
-    undeletable: z.literal(true).meta({ description: 'نقش‌های سیستم حذف نمی‌شوند (قفل #28)' }),
-    permissions: z.array(PermissionKey),
+    undeletable: z.boolean().meta({ description: 'نقش‌های سیستمی (developer، super_admin) حذف نمی‌شوند (قفل #28)' }),
+    permissions: z.array(PermissionKey).meta({ description: 'مجوزهای صریح نقش' }),
+    modules: z.array(ModuleKey).meta({ description: 'ماژول‌های کامل داده‌شده به نقش (همهٔ مجوزهای حال و آیندهٔ ماژول)' }),
+    effectivePermissions: z.array(PermissionKey).meta({ description: 'مجوزهای صریح ∪ مجوزهای ماژول‌ها' }),
     lockedPermissions: z.array(PermissionKey),
+    stepUpRules: z.record(PermissionKey, StepUpMode).meta({ description: 'override step-up این نقش per مجوز (غایب = پیش‌فرض مجوز)' }),
     holders: z.number().int().min(0)
   })
 );
-export const SetRolePermissionsBody = named('SetRolePermissionsBody', z.object({ permissions: z.array(PermissionKey).max(20) }).strict());
+export const SetRolePermissionsBody = named('SetRolePermissionsBody', z.object({ permissions: z.array(PermissionKey).max(200) }).strict());
+export const CreateRoleBody = named(
+  'CreateRoleBody',
+  z
+    .object({
+      key: SystemRoleKey,
+      title: z.string().trim().min(2).max(60),
+      description: z.string().trim().max(300).default(''),
+      permissions: z.array(PermissionKey).max(200).default([]),
+      modules: z.array(ModuleKey).max(50).default([])
+    })
+    .strict()
+);
+export const UpdateRoleBody = named(
+  'UpdateRoleBody',
+  z
+    .object({ title: z.string().trim().min(2).max(60).optional(), description: z.string().trim().max(300).optional() })
+    .strict()
+    .refine((v) => Object.keys(v).length > 0, { message: 'دست‌کم یک فیلد لازم است.' })
+);
+export const SetRoleModulesBody = named('SetRoleModulesBody', z.object({ modules: z.array(ModuleKey).max(50) }).strict());
+export const SetRoleStepUpBody = named(
+  'SetRoleStepUpBody',
+  z.object({ rules: z.array(z.object({ permission: PermissionKey, mode: StepUpRuleMode }).strict()).max(200) }).strict().meta({ description: 'فقط مجوزهای ذکرشده تغییر می‌کنند؛ inherit = حذف override' })
+);
+export const CreatePermissionBody = named(
+  'CreatePermissionBody',
+  z
+    .object({
+      key: PermissionKey,
+      title: z.string().trim().min(2).max(120),
+      description: z.string().trim().max(300).default(''),
+      moduleKey: ModuleKey,
+      grantable: z.boolean().default(false),
+      stepUp: StepUpMode.default('required')
+    })
+    .strict()
+);
+export const UpdatePermissionBody = named(
+  'UpdatePermissionBody',
+  z
+    .object({
+      title: z.string().trim().min(2).max(120).optional(),
+      description: z.string().trim().max(300).optional(),
+      moduleKey: ModuleKey.optional().meta({ description: 'فقط مجوز غیرسیستمی' }),
+      grantable: z.boolean().optional(),
+      stepUp: StepUpMode.optional()
+    })
+    .strict()
+    .refine((v) => Object.keys(v).length > 0, { message: 'دست‌کم یک فیلد لازم است.' })
+);
+export const CreateModuleBody = named(
+  'CreateModuleBody',
+  z.object({ key: ModuleKey, title: z.string().trim().min(2).max(60), description: z.string().trim().max(300).default(''), sortOrder: z.number().int().min(0).max(1000).default(100) }).strict()
+);
+export const UpdateModuleBody = named(
+  'UpdateModuleBody',
+  z
+    .object({ title: z.string().trim().min(2).max(60).optional(), description: z.string().trim().max(300).optional(), sortOrder: z.number().int().min(0).max(1000).optional() })
+    .strict()
+    .refine((v) => Object.keys(v).length > 0, { message: 'دست‌کم یک فیلد لازم است.' })
+);
+export const RbacMatrix = named(
+  'RbacMatrix',
+  z.object({
+    version: z.number().int().min(1).meta({ description: 'شمارندهٔ تغییر ماتریس؛ برای کش/ETag' }),
+    modules: z.array(ModuleInfo),
+    permissions: z.array(PermissionInfo),
+    roles: z.array(SystemRole)
+  })
+);
+const AccessSource = z.object({ type: z.enum(['role', 'module', 'grant']), ref: z.string().max(64), stepUp: StepUpMode });
+export const EffectiveAccess = named(
+  'EffectiveAccess',
+  z.object({
+    userId: Id,
+    roles: z.array(SystemRoleKey),
+    grants: z.array(Grant),
+    stepUpExempt: z.boolean().meta({ description: 'توسعه‌دهنده برای هیچ اقدامی step-up ندارد' }),
+    permissions: z.array(z.object({ key: PermissionKey, stepUp: StepUpMode.meta({ description: 'نتیجهٔ نهایی برای این کاربر (توسعه‌دهنده ⇒ همیشه none)' }), sources: z.array(AccessSource) }))
+  })
+);
 
 export const SystemMe = named(
   'SystemMe',
   z.object({
     user: z.object({ id: Id, name: z.string().max(80), phone: IranMobile }),
     roles: z.array(SystemRoleKey),
-    permissions: z.array(PermissionKey)
+    permissions: z.array(PermissionKey),
+    stepUpExempt: z.boolean().meta({ description: 'نقش developer ⇒ هیچ اقدامی step-up ندارد' }),
+    stepUp: z.record(PermissionKey, StepUpMode).meta({ description: 'برای هر مجوزِ مؤثر: آیا اقدام‌های آن نیازمند step-up است (پس از اعمال override نقش‌ها؛ developer ⇒ همه none)' })
   })
 );
 
@@ -83,8 +182,8 @@ export const UsersQuery = z.object({
   createdTo: IsoDate.optional(),
   sort: z.enum(['newest', 'oldest', 'name']).default('newest')
 });
-export const SetUserRolesBody = named('SetUserRolesBody', z.object({ roles: z.array(SystemRoleKey).max(2) }).strict());
-export const SetUserGrantsBody = named('SetUserGrantsBody', z.object({ grants: z.array(Grant).max(1) }).strict());
+export const SetUserRolesBody = named('SetUserRolesBody', z.object({ roles: z.array(SystemRoleKey).max(10) }).strict());
+export const SetUserGrantsBody = named('SetUserGrantsBody', z.object({ grants: z.array(Grant).max(50) }).strict());
 export const CreateUserBody = named(
   'CreateUserBody',
   z
@@ -93,8 +192,8 @@ export const CreateUserBody = named(
       firstName: PersonName,
       lastName: PersonName,
       password: Password.optional().meta({ description: 'رمز موقت؛ اگر نیاید کاربر فقط با OTP وارد می‌شود. با رمز، کاربر در اولین ورود باید رمز را عوض کند' }),
-      roles: z.array(SystemRoleKey).max(2).optional(),
-      grants: z.array(Grant).max(1).optional()
+      roles: z.array(SystemRoleKey).max(10).optional(),
+      grants: z.array(Grant).max(50).optional()
     })
     .strict()
 );

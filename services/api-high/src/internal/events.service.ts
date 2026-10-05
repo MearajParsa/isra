@@ -7,6 +7,7 @@ import { Clock } from '../common/clock';
 import { uuidToBuf } from '../common/ids';
 import { ENV, type Env } from '../config/env';
 import { AuditService } from '../domain/audit.service';
+import { RbacService } from '../domain/rbac.service';
 import { ClaimsService } from '../domain/claims.service';
 import { type Q, displayName } from '../domain/db';
 import { UsersAdminService, anonPhone } from '../domain/users-admin.service';
@@ -35,6 +36,7 @@ export class EventsService implements OnApplicationBootstrap {
     private readonly clock: Clock,
     private readonly audit: AuditService,
     private readonly claims: ClaimsService,
+    private readonly rbac: RbacService,
     private readonly revocation: RevocationService,
     private readonly usersAdmin: UsersAdminService,
     @Inject(ENV) private readonly env: Env
@@ -81,6 +83,7 @@ export class EventsService implements OnApplicationBootstrap {
         this.log.debug({ type: e.type }, 'نوع رویداد ناشناخته؛ نادیده');
       }
     });
+    if (e.type === 'user.status.changed' || e.type === 'user.registered') this.rbac.invalidate(); // حذف کاربر نقش/grant را برمی‌دارد
   }
 
   /**
@@ -110,6 +113,9 @@ export class EventsService implements OnApplicationBootstrap {
       }
       return granted;
     };
-    return q === this.ds ? this.ds.transaction((m) => run(m)) : run(q);
+    if (q !== this.ds) return run(q);
+    const granted = await this.ds.transaction((m) => run(m));
+    if (granted) this.rbac.invalidate();
+    return granted;
   }
 }

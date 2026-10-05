@@ -12,7 +12,8 @@ import { UsersService } from './users.service';
 import { displayName } from './db';
 import { DataSource } from 'typeorm';
 import { uuidToBuf } from '../common/ids';
-import type { SystemRoleKey } from './rules';
+import { AccessQueryService } from './access/access-query.service';
+import { RbacService } from './rbac.service';
 
 type Page = { page: number; pageSize: number };
 const uid = (r: IsraRequest) => r.user!.userId;
@@ -26,7 +27,9 @@ export class HighController {
     private readonly settings: SettingsService,
     private readonly audit: AuditService,
     private readonly overview: OverviewService,
-    private readonly ds: DataSource
+    private readonly ds: DataSource,
+    private readonly rbac: RbacService,
+    private readonly accessQ: AccessQueryService
   ) {}
 
   @Route('H-00')
@@ -34,7 +37,8 @@ export class HighController {
     const rows = (await this.ds.query('SELECT phone, first_name, last_name FROM user_directory WHERE user_id = ?', [uuidToBuf(uid(r))])) as { phone: string; first_name: string; last_name: string }[];
     const d = rows[0];
     // کاربری که هنوز در دایرکتوری نیست نقش هم ندارد و در guard رد شده؛ اینجا همیشه هست
-    return { user: { id: uid(r), name: displayName(d?.first_name, d?.last_name), phone: d?.phone ?? '' }, roles: r.user!.roles as SystemRoleKey[], permissions: r.user!.perms };
+    const access = await this.rbac.access(uid(r));
+    return { user: { id: uid(r), name: displayName(d?.first_name, d?.last_name), phone: d?.phone ?? '' }, roles: access.roles, permissions: access.permissions, ...(await this.accessQ.me(access)) };
   }
 
   @Route('H-01')
@@ -53,7 +57,7 @@ export class HighController {
   }
 
   @Route('H-12')
-  setRolePermissions(@Req() r: IsraRequest, @In() { params, body }: { params: { key: SystemRoleKey }; body: z.infer<typeof high.SetRolePermissionsBody> }) {
+  setRolePermissions(@Req() r: IsraRequest, @In() { params, body }: { params: { key: string }; body: z.infer<typeof high.SetRolePermissionsBody> }) {
     return this.roles.setPermissions(uid(r), params.key, body.permissions);
   }
 
@@ -69,7 +73,7 @@ export class HighController {
 
   @Route('H-22')
   setRoles(@Req() r: IsraRequest, @In() { params, body }: { params: { id: string }; body: z.infer<typeof high.SetUserRolesBody> }) {
-    return this.users.setRoles(uid(r), r.user!.roles as SystemRoleKey[], params.id, body.roles);
+    return this.users.setRoles(uid(r), params.id, body.roles);
   }
 
   @Route('H-23')

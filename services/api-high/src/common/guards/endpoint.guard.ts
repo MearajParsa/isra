@@ -4,6 +4,7 @@ import type { Response } from 'express';
 import { HEADERS, type EndpointDef, type RateLimit } from '@isra/api-types';
 import { JwtVerifier } from '../../auth/jwt-verifier';
 import { ENV, type Env } from '../../config/env';
+import { isDeveloper, stepUpRequired, type StepUpPolicy } from '../../domain/access/policy';
 import { RbacService } from '../../domain/rbac.service';
 import { INTERNAL_KEY } from '../../internal/internal-auth';
 import { AppError } from '../app-error';
@@ -14,6 +15,7 @@ import type { IsraRequest } from '../request-context';
 const GLOBAL_IP_LIMIT: RateLimit = { limit: 600, windowSec: 60, key: 'ip' };
 /** با پرچم رمز موقت (`mcp`) فقط این endpointها مجازند (docs-v2/26) */
 const MCP_ALLOWED = new Set(['H-00', 'H-02', 'H-04']);
+const EMPTY_POLICY: StepUpPolicy = { permDefault: new Map(), roleRules: new Map() };
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH']);
 
 /**
@@ -66,9 +68,16 @@ export class EndpointGuard implements CanActivate {
     if (who.mcp && !MCP_ALLOWED.has(def.id)) throw new AppError('AUTH_PASSWORD_CHANGE_REQUIRED');
     if (def.permission && !a.permissions.includes(def.permission as never)) throw new AppError('AUTH_FORBIDDEN');
     if (def.stepUp) {
-      const t = req.header(HEADERS.stepUp);
-      req.user.stepUpVerified = !!t && (await this.jwt.verifyStepUp(t, who));
-      if (!req.user.stepUpVerified && !this.mustChangeException(def, who.mcp, req)) throw new AppError('AUTH_STEP_UP_REQUIRED');
+      // قاعدهٔ docs-v2/27 §4: developer هرگز؛ بدون permission ⇒ لازم؛ وگرنه از سیاست منابع مجوز (کش حافظه؛ بدون query اضافه)
+      const policy = !who.mcp && isDeveloper(a) ? EMPTY_POLICY : await this.rbac.policy();
+      if (!stepUpRequired(a, policy, def, who.mcp)) {
+        // معاف از step-up: low برای H-04 «تأییدشده» می‌خواهد؛ معافیت (developer) همان اثر را دارد
+        req.user.stepUpVerified = true;
+      } else {
+        const t = req.header(HEADERS.stepUp);
+        req.user.stepUpVerified = !!t && (await this.jwt.verifyStepUp(t, who));
+        if (!req.user.stepUpVerified && !this.mustChangeException(def, who.mcp, req)) throw new AppError('AUTH_STEP_UP_REQUIRED');
+      }
     }
   }
 

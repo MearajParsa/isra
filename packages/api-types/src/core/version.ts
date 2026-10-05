@@ -4,7 +4,7 @@
  *  - `CONTRACT_VERSION` = semver خودِ این پکیج/OpenAPI: patch = اصلاح مستندات، minor = افزودن سازگار (endpoint/فیلد اختیاری)،
  *    major = تغییر ناسازگار (فقط همراه با API_VERSION جدید). جزئیات: docs-v2/22-api-engineering-standards.md §۵.
  */
-export const CONTRACT_VERSION = '1.4.0';
+export const CONTRACT_VERSION = '1.5.0';
 export const API_VERSION = 'v1' as const;
 
 export const SERVICES = {

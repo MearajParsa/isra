@@ -98,8 +98,8 @@ export class UsersAdminService {
   async create(actor: Actor, body: Body<'CreateUserBody'>) {
     const roles = [...new Set(body.roles ?? [])] as SystemRoleKey[];
     const grants = [...new Set(body.grants ?? [])];
-    // D6: دادن نقش developer فقط با developer (قبل از ساخت حساب)
-    if (roles.includes('developer') && !actor.roles.includes('developer')) throw new AppError('AUTH_FORBIDDEN', { message: 'فقط توسعه‌دهنده می‌تواند نقش توسعه‌دهنده بدهد.' });
+    // D6/E2/NOT_FOUND پیش از ساخت حساب (تصمیم نهایی دوباره داخل تراکنش تخصیص است)
+    await this.users.preflightAssign(actor.id, roles, grants);
 
     const lu = await this.low.createUser({ phone: body.phone, firstName: body.firstName, lastName: body.lastName, ...(body.password ? { password: body.password } : {}) });
     const now = this.clock.now();
@@ -118,7 +118,7 @@ export class UsersAdminService {
         meta: { roles, grants, withPassword: !!body.password }
       });
     });
-    if (roles.length) await this.users.setRoles(actor.id, actor.roles, lu.id, roles);
+    if (roles.length) await this.users.setRoles(actor.id, lu.id, roles);
     if (grants.length) await this.users.setGrants(actor.id, lu.id, grants);
     return this.detail(await this.users.mustRow(this.ds, lu.id), lu);
   }
@@ -210,6 +210,7 @@ export class UsersAdminService {
         meta: { before: row.status }
       });
     });
+    this.rbac.invalidate();
   }
 
   /** اثر حذف در دایرکتوری: status/phone/نام + برداشتن نقش‌ها و grantها + claim تازه (فقط اگر چیزی برداشته شد). مشترک با رویداد low. */
@@ -219,6 +220,7 @@ export class UsersAdminService {
     const r1 = (await m.query('DELETE FROM user_system_roles WHERE user_id = ?', [buf])) as { affectedRows?: number };
     const r2 = (await m.query('DELETE FROM user_grants WHERE user_id = ?', [buf])) as { affectedRows?: number };
     if ((r1.affectedRows ?? 0) + (r2.affectedRows ?? 0) > 0) await this.claims.publish(m, id);
+    this.rbac.invalidate();
   }
 
   // ───────── رمز / خروج ─────────

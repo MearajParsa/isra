@@ -9,9 +9,11 @@ import { bufToUuid, isUuid, uuidToBuf } from '../common/ids';
 import { startOfDayUtc, parseDay } from '../common/tehran';
 import { AuditService } from './audit.service';
 import { ClaimsService } from './claims.service';
-import { type Q, conflict, displayName, withRetry } from './db';
+import { type Q, conflict, displayName } from './db';
 import { RbacService, type UserAccess } from './rbac.service';
-import { type Grant, ROLE_KEYS, type SystemRoleKey, sameSet, touchesDeveloper } from './rules';
+import { DEVELOPER, type Grant, type SystemRoleKey, sameSet, touchesDeveloper } from './rules';
+import { RegistryService } from './access/registry.service';
+import { effectiveOfRoles, forbidden, invalid, requireHeld, requirePermissions, unique } from './access/write-helpers';
 
 type UsersQuery = z.infer<typeof high.UsersQuery>;
 
@@ -43,7 +45,8 @@ export class UsersService {
     private readonly clock: Clock,
     private readonly rbac: RbacService,
     private readonly audit: AuditService,
-    private readonly claims: ClaimsService
+    private readonly claims: ClaimsService,
+    private readonly registry: RegistryService
   ) {}
 
   dto(r: Row, a: Pick<UserAccess, 'roles' | 'grants'>) {
@@ -116,67 +119,96 @@ export class UsersService {
     };
   }
 
+  /** پیش‌بررسی (پیش از ساخت حساب در low): نقش/grant موجود و E2/D6؛ تصمیم نهایی دوباره داخل تراکنش است */
+  async preflightAssign(actorId: string, roles: readonly SystemRoleKey[], grants: readonly Grant[]): Promise<void> {
+    if (!roles.length && !grants.length) return;
+    const [actor, snap] = await Promise.all([this.rbac.access(actorId), this.registry.snapshot()]);
+    const need: string[] = [];
+    for (const r of roles) {
+      const role = snap.roles.find((x) => x.key === r);
+      if (!role) throw new AppError('NOT_FOUND', { message: 'نقش پیدا نشد.', details: { missing: [r] } });
+      if (r === DEVELOPER && !actor.roles.includes(DEVELOPER)) throw forbidden('فقط توسعه‌دهنده می‌تواند نقش توسعه‌دهنده بدهد.');
+      need.push(...role.effectivePermissions);
+    }
+    for (const g of grants) {
+      const p = snap.permissions.find((x) => x.key === g);
+      if (!p) throw new AppError('NOT_FOUND', { message: 'مجوز پیدا نشد.', details: { missing: [g] } });
+      if (!p.grantable) throw invalid('grants', `مجوز «${g}» مستقیم قابل‌دادن نیست.`);
+      need.push(g);
+    }
+    requireHeld(actor, need, 'این تخصیص');
+  }
+
   /**
    * تخصیص/برداشتن نقش سیستم:
-   *  - D6: تغییر نقش developer فقط با developer
-   *  - D5: قفل آخرین دارنده — شمارش دارندگان داخل تراکنش و با قفل ردیف‌ها ⇒ دو ادمین هم‌زمان نمی‌توانند آخرین دارنده را بردارند
-   *  - اثر: audit + permVer + `system.role.changed`
+   *  - D6/E3: تغییر نقش developer فقط با developer
+   *  - E2: نقش افزوده‌شده باید همهٔ مجوزهای مؤثرش را خودِ کاربر داشته باشد (developer معاف)؛ نقش ناموجود ⇒ NOT_FOUND
+   *  - D5: قفل آخرین دارندهٔ نقش‌های سیستمی (نقش پویا بدون دارنده مجاز است تا حذفش ممکن شود)
+   *  - اثر: audit + permVer + `system.role.changed` (همه در یک تراکنش)
    */
-  async setRoles(actorId: string, actorRoles: readonly SystemRoleKey[], targetId: string, roles: readonly SystemRoleKey[]) {
-    const next = [...new Set(roles)].sort() as SystemRoleKey[];
-    await withRetry(() =>
-      this.ds.transaction(async (m) => {
-        const target = await this.mustRow(m, targetId);
-        if (target.status === 'deleted') throw conflict('USER_NOT_ACTIVE', 'کاربر حذف‌شده است.');
-        // قفل همهٔ ردیف‌های نقش‌های سیستمی (ترتیب ثابت ⇒ بدون deadlock بین دو تراکنش)
-        const locked = (await m.query('SELECT user_id, role_key FROM user_system_roles ORDER BY role_key, user_id FOR UPDATE')) as { user_id: Buffer; role_key: SystemRoleKey }[];
-        const before = locked.filter((r) => r.user_id.equals(uuidToBuf(targetId))).map((r) => r.role_key).sort() as SystemRoleKey[];
-        if (sameSet(before, next)) return;
-
-        if (touchesDeveloper(before, next) && !actorRoles.includes('developer')) throw new AppError('AUTH_FORBIDDEN', { message: 'فقط توسعه‌دهنده می‌تواند نقش توسعه‌دهنده را تغییر دهد.' });
-        for (const r of before.filter((x) => !next.includes(x))) {
-          const holders = locked.filter((x) => x.role_key === r).length;
-          if (holders - 1 < 1) throw conflict('LAST_HOLDER', `«${r === 'developer' ? 'توسعه‌دهنده' : 'مدیر کل'}» باید دست‌کم یک دارنده داشته باشد.`, { role: r });
-        }
-
-        const now = this.clock.now();
-        for (const r of before.filter((x) => !next.includes(x))) await m.query('DELETE FROM user_system_roles WHERE user_id = ? AND role_key = ?', [uuidToBuf(targetId), r]);
-        for (const r of next.filter((x) => !before.includes(x))) await m.query('INSERT INTO user_system_roles (user_id, role_key, granted_by, granted_at) VALUES (?, ?, ?, ?)', [uuidToBuf(targetId), r, uuidToBuf(actorId), now]);
-        const permVer = await this.claims.publish(m, targetId);
-        await this.audit.write(m, {
-          actor: await this.audit.actorOf(actorId, m),
-          action: 'user.roles.updated',
-          target: { type: 'user', id: targetId, label: displayName(target.first_name, target.last_name) },
-          summary: `نقش‌های سیستمی «${displayName(target.first_name, target.last_name)}» تغییر کرد.`,
-          meta: { before, after: next, permVer }
-        });
-      })
-    );
+  async setRoles(actorId: string, targetId: string, roles: readonly SystemRoleKey[]) {
+    const next = unique(roles).sort();
+    await this.rbac.write(async (m) => {
+      const target = await this.mustRow(m, targetId);
+      if (target.status === 'deleted') throw conflict('USER_NOT_ACTIVE', 'کاربر حذف‌شده است.');
+      const defs = (await m.query('SELECT role_key, title, undeletable FROM system_roles ORDER BY role_key FOR UPDATE')) as { role_key: string; title: string; undeletable: number }[];
+      const missingRoles = next.filter((r) => !defs.some((d) => d.role_key === r));
+      if (missingRoles.length) throw new AppError('NOT_FOUND', { message: 'نقش پیدا نشد.', details: { missing: missingRoles } });
+      const cur = (await m.query('SELECT role_key FROM user_system_roles WHERE user_id = ? FOR UPDATE', [uuidToBuf(targetId)])) as { role_key: SystemRoleKey }[];
+      const before = cur.map((r) => r.role_key).sort();
+      if (sameSet(before, next)) return;
+      const actor = await this.rbac.access(actorId, m);
+      if (touchesDeveloper(before, next) && !actor.roles.includes(DEVELOPER)) throw forbidden('فقط توسعه‌دهنده می‌تواند نقش توسعه‌دهنده را تغییر دهد.');
+      const added = next.filter((x) => !before.includes(x));
+      const removed = before.filter((x) => !next.includes(x));
+      requireHeld(actor, await effectiveOfRoles(m, added), 'تخصیص این نقش');
+      for (const r of removed) {
+        const def = defs.find((d) => d.role_key === r);
+        if (!def?.undeletable) continue;
+        const h = (await m.query('SELECT COUNT(*) AS n FROM (SELECT user_id FROM user_system_roles WHERE role_key = ? FOR UPDATE) h', [r])) as { n: string | number }[];
+        if (Number(h[0]?.n ?? 0) - 1 < 1) throw conflict('LAST_HOLDER', `«${def.title}» باید دست‌کم یک دارنده داشته باشد.`, { role: r });
+      }
+      const now = this.clock.now();
+      for (const r of removed) await m.query('DELETE FROM user_system_roles WHERE user_id = ? AND role_key = ?', [uuidToBuf(targetId), r]);
+      for (const r of added) await m.query('INSERT INTO user_system_roles (user_id, role_key, granted_by, granted_at) VALUES (?, ?, ?, ?)', [uuidToBuf(targetId), r, uuidToBuf(actorId), now]);
+      const permVer = await this.claims.publish(m, targetId);
+      await this.audit.write(m, {
+        actor: await this.audit.actorOf(actorId, m),
+        action: 'user.roles.updated',
+        target: { type: 'user', id: targetId, label: displayName(target.first_name, target.last_name) },
+        summary: `نقش‌های سیستمی «${displayName(target.first_name, target.last_name)}» تغییر کرد.`,
+        meta: { before, after: next, permVer }
+      });
+    });
     return this.get(targetId);
   }
 
+  /** grant مستقیم: فقط مجوز `grantable` (NOT_FOUND برای ناموجود، VALIDATION_FAILED برای غیرقابل‌دادن)؛ E2 روی grantهای افزوده */
   async setGrants(actorId: string, targetId: string, grants: readonly Grant[]) {
-    const next = [...new Set(grants)].sort() as Grant[];
-    await withRetry(() =>
-      this.ds.transaction(async (m) => {
-        const target = await this.mustRow(m, targetId);
-        if (target.status === 'deleted') throw conflict('USER_NOT_ACTIVE', 'کاربر حذف‌شده است.');
-        const cur = (await m.query('SELECT grant_key FROM user_grants WHERE user_id = ? FOR UPDATE', [uuidToBuf(targetId)])) as { grant_key: Grant }[];
-        const before = cur.map((c) => c.grant_key).sort() as Grant[];
-        if (sameSet(before, next)) return;
-        const now = this.clock.now();
-        await m.query('DELETE FROM user_grants WHERE user_id = ?', [uuidToBuf(targetId)]);
-        for (const g of next) await m.query('INSERT INTO user_grants (user_id, grant_key, granted_by, granted_at) VALUES (?, ?, ?, ?)', [uuidToBuf(targetId), g, uuidToBuf(actorId), now]);
-        const permVer = await this.claims.publish(m, targetId);
-        await this.audit.write(m, {
-          actor: await this.audit.actorOf(actorId, m),
-          action: 'user.grants.updated',
-          target: { type: 'user', id: targetId, label: displayName(target.first_name, target.last_name) },
-          summary: `مجوزهای مستقیم «${displayName(target.first_name, target.last_name)}» تغییر کرد.`,
-          meta: { before, after: next, permVer }
-        });
-      })
-    );
+    const next = unique(grants).sort();
+    await this.rbac.write(async (m) => {
+      const target = await this.mustRow(m, targetId);
+      if (target.status === 'deleted') throw conflict('USER_NOT_ACTIVE', 'کاربر حذف‌شده است.');
+      const defs = await requirePermissions(m, next);
+      const bad = next.filter((g) => !defs.get(g)!.grantable);
+      if (bad.length) throw invalid('grants', `مجوز «${bad[0]}» مستقیم قابل‌دادن نیست.`);
+      const cur = (await m.query('SELECT grant_key FROM user_grants WHERE user_id = ? FOR UPDATE', [uuidToBuf(targetId)])) as { grant_key: Grant }[];
+      const before = cur.map((c) => c.grant_key).sort();
+      const added = next.filter((x) => !before.includes(x));
+      requireHeld(await this.rbac.access(actorId, m), added, 'دادن این مجوزها');
+      if (sameSet(before, next)) return;
+      const now = this.clock.now();
+      await m.query('DELETE FROM user_grants WHERE user_id = ?', [uuidToBuf(targetId)]);
+      for (const g of next) await m.query('INSERT INTO user_grants (user_id, grant_key, granted_by, granted_at) VALUES (?, ?, ?, ?)', [uuidToBuf(targetId), g, uuidToBuf(actorId), now]);
+      const permVer = await this.claims.publish(m, targetId);
+      await this.audit.write(m, {
+        actor: await this.audit.actorOf(actorId, m),
+        action: 'user.grants.updated',
+        target: { type: 'user', id: targetId, label: displayName(target.first_name, target.last_name) },
+        summary: `مجوزهای مستقیم «${displayName(target.first_name, target.last_name)}» تغییر کرد.`,
+        meta: { before, after: next, permVer }
+      });
+    });
     return this.get(targetId);
   }
 
@@ -186,4 +218,3 @@ export class UsersService {
   }
 }
 
-export { ROLE_KEYS };

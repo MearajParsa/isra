@@ -15,7 +15,7 @@ beforeAll(async () => {
 });
 afterAll(async () => t.close());
 beforeEach(async () => {
-  await resetDb(t.ds);
+  await resetDb(t.ds, t.app);
   t.fake.admin.reset();
   installFakeLow(t);
   installFakeMid(t);
@@ -35,6 +35,7 @@ describe('مجوز و اعتبارسنجی بازه', () => {
       expect([p, (await a.get(`/system/reports${p}`, nobody)).status]).toEqual([p, 403]);
     }
     await t.ds.query("DELETE FROM role_permissions WHERE role_key = 'super_admin' AND permission_key = 'system.reports.view'");
+    t.flush();
     expect((await a.get('/system/reports/overview', admin)).body.error.code).toBe('AUTH_FORBIDDEN');
   });
 
