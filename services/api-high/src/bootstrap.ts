@@ -39,7 +39,7 @@ export function configureApp(app: NestExpressApplication, env: Env, useLogger = 
     origin: env.CORS_ORIGINS,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', HEADERS.requestId, HEADERS.client, HEADERS.clientVersion, HEADERS.stepUp, HEADERS.ifNoneMatch],
+    allowedHeaders: ['Content-Type', 'Authorization', HEADERS.requestId, HEADERS.client, HEADERS.clientVersion, HEADERS.stepUp, HEADERS.idempotencyKey, HEADERS.ifNoneMatch],
     exposedHeaders: [HEADERS.requestId, HEADERS.retryAfter, HEADERS.rateLimitLimit, HEADERS.rateLimitRemaining, HEADERS.rateLimitReset, HEADERS.etag],
     maxAge: 600
   });

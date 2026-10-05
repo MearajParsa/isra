@@ -8,6 +8,10 @@ export interface SessionStatus {
   revoked: boolean;
   otpAt: Date | null;
   permVer: number;
+  /** وضعیت حساب کاربر (active | disabled | deleted) — غیرفعال ⇒ رد در EndpointGuard */
+  userStatus: string;
+  /** رمز موقت مدیر: تا تغییر رمز فقط مسیرهای تغییر رمز/خروج مجازند */
+  mustChange: boolean;
 }
 
 const TTL_MS = 5_000;
@@ -30,14 +34,22 @@ export class SessionStatusCache {
     const now = this.clock.now().getTime();
     const hit = this.m.get(sessionId);
     if (hit && hit.exp > now) return hit.v;
-    const rows = (await this.ds.query('SELECT user_id, revoked_at, otp_at, perm_ver FROM auth_sessions WHERE id = ?', [uuidToBuf(sessionId)])) as {
+    const rows = (await this.ds.query(
+      `SELECT s.user_id, s.revoked_at, s.otp_at, s.perm_ver, u.status, u.must_change_password
+         FROM auth_sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?`,
+      [uuidToBuf(sessionId)]
+    )) as {
       user_id: Buffer;
       revoked_at: Date | null;
       otp_at: Date | null;
       perm_ver: number;
+      status: string;
+      must_change_password: number | string | boolean;
     }[];
     const r = rows[0];
-    const v: SessionStatus | null = r ? { userId: bufToUuid(r.user_id), revoked: r.revoked_at !== null, otpAt: r.otp_at, permVer: r.perm_ver } : null;
+    const v: SessionStatus | null = r
+      ? { userId: bufToUuid(r.user_id), revoked: r.revoked_at !== null, otpAt: r.otp_at, permVer: r.perm_ver, userStatus: r.status, mustChange: Number(r.must_change_password) > 0 }
+      : null;
     if (this.m.size >= MAX) this.m.clear();
     this.m.set(sessionId, { v, exp: now + TTL_MS });
     return v;
@@ -45,6 +57,11 @@ export class SessionStatusCache {
 
   invalidate(...sessionIds: string[]) {
     for (const id of sessionIds) this.m.delete(id);
+  }
+
+  /** تغییر وضعیت/رمز موقت توسط ادمین: همهٔ نشست‌های کاربر فوراً (در همین instance) از DB بازخوانی شوند */
+  invalidateUser(userId: string) {
+    for (const [k, e] of this.m) if (e.v?.userId === userId) this.m.delete(k);
   }
 
   invalidateAll() {

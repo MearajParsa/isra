@@ -19,15 +19,27 @@
     void load();
   });
 
+  const sessionsHref = (status: string) => (system.can('system.sessions.view') ? withBase(`/sessions?status=${status}`) : undefined);
+
+  const quick = $derived(
+    [
+      { href: '/users', label: 'مدیریت کاربران', icon: 'users' as const, ok: system.can('system.users.view') },
+      { href: '/sessions', label: 'مدیریت جلسه‌ها', icon: 'calendar' as const, ok: system.can('system.sessions.view') },
+      { href: '/reports', label: 'آمار و گزارش‌ها', icon: 'chart' as const, ok: system.can('system.reports.view') },
+      { href: '/audit', label: 'گزارش اقدام‌ها', icon: 'list' as const, ok: system.can('system.audit.view') },
+      { href: '/account', label: 'حساب من', icon: 'user' as const, ok: true }
+    ].filter((q) => q.ok)
+  );
+
   const cards = $derived<{ icon: IconName; label: string; value: number; hint?: string; href?: string; hot?: boolean }[]>(
     ov.data
       ? [
           { icon: 'users', label: 'کاربران', value: ov.data.users.total, href: system.can('system.users.view') ? withBase('/users') : undefined },
           { icon: 'shield', label: 'دارندگان نقش سیستم', value: ov.data.users.admins, href: system.can('system.users.view') ? withBase('/users') : undefined },
-          { icon: 'mic', label: 'جلسهٔ در حال برگزاری', value: ov.data.sessions.started, hot: ov.data.sessions.started > 0 },
-          { icon: 'calendar', label: 'جلسهٔ پیش‌رو', value: ov.data.sessions.scheduled },
-          { icon: 'clock', label: 'جلسهٔ پایان‌یافته', value: ov.data.sessions.ended },
-          { icon: 'info', label: 'پیش‌نویس', value: ov.data.sessions.draft }
+          { icon: 'mic', label: 'جلسهٔ در حال برگزاری', value: ov.data.sessions.started, hot: ov.data.sessions.started > 0, href: sessionsHref('started') },
+          { icon: 'calendar', label: 'جلسهٔ پیش‌رو', value: ov.data.sessions.scheduled, href: sessionsHref('scheduled') },
+          { icon: 'clock', label: 'جلسهٔ پایان‌یافته', value: ov.data.sessions.ended, href: sessionsHref('ended') },
+          { icon: 'info', label: 'پیش‌نویس', value: ov.data.sessions.draft, href: sessionsHref('draft') }
         ]
       : []
   );
@@ -49,6 +61,15 @@
       </li>
     {/each}
   </ul>
+
+  <section class="quick" aria-labelledby="q-h">
+    <h2 id="q-h">دسترسی سریع</h2>
+    <ul class="qgrid">
+      {#each quick as q (q.href)}
+        <li><a class="qlink" href={withBase(q.href)}><Icon name={q.icon} size={22} />{q.label}<Icon name="chevron-left" size={18} class="qchev" /></a></li>
+      {/each}
+    </ul>
+  </section>
 
   <section class="audit" aria-labelledby="la-h">
     <div class="sec-head">
@@ -81,6 +102,36 @@
 {/if}
 
 <style>
+  .quick {
+    display: grid;
+    gap: var(--space-md);
+    margin-top: var(--space-xl);
+  }
+  .qgrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: var(--space-sm);
+  }
+  .qlink {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    min-height: 56px;
+    padding: 0 var(--space-md);
+    background: var(--color-card);
+    border: 1px solid var(--color-outline);
+    border-radius: var(--radius-md);
+    color: var(--color-primary);
+    font-weight: 700;
+    text-decoration: none;
+  }
+  .qlink:hover {
+    background: var(--color-primary-tint);
+  }
+  :global(.qchev) {
+    margin-inline-start: auto;
+    color: var(--color-gray);
+  }
   .cards {
     display: grid;
     grid-template-columns: repeat(2, 1fr);

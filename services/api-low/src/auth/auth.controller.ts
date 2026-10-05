@@ -53,7 +53,7 @@ export class AuthController {
     try {
       return this.finish(req, res, await this.auth.refresh(raw, req.ctx.client));
     } catch (e) {
-      if (web && e instanceof AppError && e.code === 'AUTH_REFRESH_INVALID') clearRefreshCookie(res, this.env, req.ctx.client);
+      if (web && e instanceof AppError && (e.code === 'AUTH_REFRESH_INVALID' || e.code === 'AUTH_ACCOUNT_DISABLED')) clearRefreshCookie(res, this.env, req.ctx.client);
       throw e;
     }
   }

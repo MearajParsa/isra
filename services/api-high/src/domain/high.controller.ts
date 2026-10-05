@@ -7,6 +7,7 @@ import { AuditService } from './audit.service';
 import { OverviewService } from './overview.service';
 import { RolesService } from './roles.service';
 import { SettingsService } from './settings.service';
+import { UsersAdminService } from './users-admin.service';
 import { UsersService } from './users.service';
 import { displayName } from './db';
 import { DataSource } from 'typeorm';
@@ -20,6 +21,7 @@ const uid = (r: IsraRequest) => r.user!.userId;
 export class HighController {
   constructor(
     private readonly users: UsersService,
+    private readonly usersAdmin: UsersAdminService,
     private readonly roles: RolesService,
     private readonly settings: SettingsService,
     private readonly audit: AuditService,
@@ -62,7 +64,7 @@ export class HighController {
 
   @Route('H-21')
   getUser(@In() { params }: { params: { id: string } }) {
-    return this.users.get(params.id);
+    return this.usersAdmin.get(params.id);
   }
 
   @Route('H-22')
@@ -87,6 +89,6 @@ export class HighController {
 
   @Route('H-40')
   auditList(@In() { query }: { query: Page & z.infer<typeof high.AuditQuery> }) {
-    return this.audit.list(query.page, query.pageSize, query.action, query.q);
+    return this.audit.list(query.page, query.pageSize, query);
   }
 }

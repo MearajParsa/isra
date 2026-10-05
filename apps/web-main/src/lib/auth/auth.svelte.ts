@@ -41,6 +41,8 @@ class AuthStore {
   expiredNotice = $state(false);
   /** آخرین ورود با OTP (برای معافیت از step-up تا ۵ دقیقه — پیشنهاد Q8) */
   lastOtpAt = $state<number | null>(null);
+  /** سرور AUTH_PASSWORD_CHANGE_REQUIRED داد (رمز موقت): کاربر باید به صفحهٔ تعیین رمز برود */
+  passwordChangeRequired = $state(false);
 
   #refreshTimer: ReturnType<typeof setTimeout> | null = null;
   #refreshing: Promise<void> | null = null;
@@ -49,6 +51,10 @@ class AuthStore {
   get displayName(): string {
     const p = this.me?.profile;
     return p ? `${p.firstName} ${p.lastName}`.trim() : '';
+  }
+
+  get mustChangePassword(): boolean {
+    return this.passwordChangeRequired || (this.me?.mustChangePassword ?? false);
   }
 
   get hasFreshOtp(): boolean {
@@ -116,8 +122,16 @@ class AuthStore {
         if (!this.accessToken) throw new ApiError('AUTH_REQUIRED', 'برای ادامه وارد شوید.', 401);
         return fn(this.accessToken);
       }
+      if (e instanceof ApiError && e.code === 'AUTH_PASSWORD_CHANGE_REQUIRED') this.passwordChangeRequired = true;
       throw e;
     }
+  }
+
+  /** پس از تغییر رمز موقت: توکن تازه (بدون claim رمز موقت) می‌گیریم و پرچم‌ها پاک می‌شوند */
+  async completePasswordChange() {
+    await this.#refresh();
+    this.passwordChangeRequired = false;
+    if (this.me) this.me = { ...this.me, hasPassword: true, mustChangePassword: false };
   }
 
   async refreshUnread() {
@@ -184,6 +198,7 @@ class AuthStore {
     this.me = null;
     this.unread = 0;
     this.lastOtpAt = null;
+    this.passwordChangeRequired = false;
     hint.clear();
     this.status = 'guest';
   }

@@ -22,7 +22,7 @@ export function createLowApi(http: Http): LowApi {
       get: (t) => http.call<Me>(`${B}/me`, authed(t)),
       updateProfile: (t, patch) => http.call<Profile>(`${B}/me/profile`, { method: 'PATCH', body: patch, ...authed(t) }),
       setPassword: async (t, input) => {
-        await http.call(`${B}/me/password`, { method: 'PUT', body: { newPassword: input.newPassword }, stepUp: input.stepUpToken, ...authed(t) });
+        await http.call(`${B}/me/password`, { method: 'PUT', body: { newPassword: input.newPassword, ...(input.currentPassword ? { currentPassword: input.currentPassword } : {}) }, stepUp: input.stepUpToken, ...authed(t) });
       },
       listSessions: (t) => http.listAll<DeviceSession>(`${B}/me/sessions`, authed(t)),
       revokeSession: async (t, id) => {

@@ -28,11 +28,34 @@ export interface FakeLow {
   url: string;
   jwksUrl: string;
   privateKey: CryptoKey;
-  sign: (c: { sub: string; sid?: string; lvl?: string; exp?: number; iss?: string; aud?: string }, key?: CryptoKey) => Promise<string>;
+  sign: (c: { sub: string; sid?: string; lvl?: string; exp?: number; iss?: string; aud?: string; mcp?: boolean }, key?: CryptoKey) => Promise<string>;
   events: { url: string; headers: Record<string, unknown>; body: any }[];
   status: number;
+  /** low/mid جعلی برای مسیرهای admin (internal): ثبت فراخوانی‌ها و پاسخ برنامه‌پذیر */
+  admin: FakeAdmin;
   close: () => Promise<void>;
 }
+
+export interface AdminCall {
+  method: string;
+  /** مسیر کامل شامل پیشوند سرویس: `/c/internal/v1/admin/...` یا `/o/internal/v1/admin/...` */
+  path: string;
+  query: Record<string, string>;
+  body: any;
+  headers: Record<string, string | string[] | undefined>;
+}
+export type AdminReply = { status?: number; body?: unknown; delayMs?: number } | { __reply: true; status: number; body: unknown; delayMs?: number };
+type Handler = (c: AdminCall, params: Record<string, string>) => AdminReply | unknown;
+export interface FakeAdmin {
+  calls: AdminCall[];
+  on: (method: string, pattern: string, h: Handler) => void;
+  reset: () => void;
+}
+/** پاسخ موفق envelope استاندارد (لیست‌ها: meta) */
+export const okReply = (data: unknown, meta?: Record<string, unknown>) => ({ __reply: true as const, status: 200, body: { success: true, data, ...(meta ? { meta } : {}) } });
+/** پاسخ خطای مبدأ با envelope استاندارد */
+export const failReply = (status: number, code: string, message = 'خطا', details?: Record<string, unknown>) => ({ __reply: true as const, status, body: { success: false, error: { code, message, ...(details ? { details } : {}) } } });
+export const rawReply = (status: number, body: unknown = {}, delayMs?: number) => ({ __reply: true as const, status, body, delayMs });
 
 export async function startFake(clock: Clock): Promise<FakeLow> {
   const { privateKey, publicKey } = await generateKeyPair('RS256', { extractable: true });
@@ -43,9 +66,10 @@ export async function startFake(clock: Clock): Promise<FakeLow> {
     privateKey,
     events: [],
     status: 202,
+    admin: undefined as unknown as FakeAdmin,
     sign: (c, key) => {
       const iat = Math.floor(clock.now().getTime() / 1000);
-      return new SignJWT({ sid: c.sid ?? randomUUID(), lvl: c.lvl ?? 'low' })
+      return new SignJWT({ sid: c.sid ?? randomUUID(), lvl: c.lvl ?? 'low', ...(c.mcp ? { mcp: true } : {}) })
         .setProtectedHeader({ alg: 'RS256', kid: 'test-kid', typ: 'JWT' })
         .setSubject(c.sub)
         .setIssuer(c.iss ?? 'isra-low')
@@ -56,7 +80,47 @@ export async function startFake(clock: Clock): Promise<FakeLow> {
     },
     close: () => new Promise((r) => server.close(() => r()))
   };
+  const routes: { method: string; re: RegExp; keys: string[]; h: Handler }[] = [];
+  f.admin = {
+    calls: [],
+    on: (method, pattern, h) => {
+      const keys: string[] = [];
+      const re = new RegExp(`^${pattern.replace(/:(\w+)/g, (_, k: string) => (keys.push(k), '([^/?]+)'))}$`);
+      routes.unshift({ method: method.toUpperCase(), re, keys, h });
+    },
+    reset: () => {
+      routes.length = 0;
+      f.admin.calls.length = 0;
+    }
+  };
   const server: Server = createServer((req, res) => {
+    const rawUrl = req.url ?? '';
+    if (/^\/(c|o)\/internal\/v1\/admin\//.test(rawUrl)) {
+      let b = '';
+      req.on('data', (c) => (b += c));
+      req.on('end', async () => {
+        const u = new URL(rawUrl, 'http://x');
+        const call: AdminCall = { method: req.method ?? 'GET', path: u.pathname, query: Object.fromEntries(u.searchParams), body: b ? JSON.parse(b) : undefined, headers: req.headers };
+        f.admin.calls.push(call);
+        const r = routes.find((x) => x.method === call.method && x.re.test(call.path));
+        const send = (status: number, body: unknown) => {
+          res.statusCode = status;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(body));
+        };
+        if (!r) return send(404, { success: false, error: { code: 'NOT_FOUND', message: 'fake: no route' } });
+        const m = r.re.exec(call.path)!;
+        const params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1]!)]));
+        const out = r.h(call, params) as { __reply?: boolean; status?: number; body?: unknown; delayMs?: number } | unknown;
+        const rep = out as { __reply?: boolean; status?: number; body?: unknown; delayMs?: number };
+        if (rep && rep.__reply) {
+          if (rep.delayMs) await new Promise((x) => setTimeout(x, rep.delayMs));
+          return send(rep.status ?? 200, rep.body);
+        }
+        return send(200, { success: true, data: out ?? {} });
+      });
+      return;
+    }
     if (req.url === '/jwks') {
       res.setHeader('Content-Type', 'application/json');
       return res.end(JSON.stringify({ keys: [jwk] }));
@@ -64,7 +128,7 @@ export async function startFake(clock: Clock): Promise<FakeLow> {
     let raw = '';
     req.on('data', (c) => (raw += c));
     req.on('end', () => {
-      if (req.url === '/internal/v1/stats/sessions') {
+      if (req.url === '/o/internal/v1/stats/sessions' || req.url === '/internal/v1/stats/sessions') {
         res.setHeader('Content-Type', 'application/json');
         res.statusCode = f.status === 202 ? 200 : f.status;
         return res.end(JSON.stringify({ success: true, data: { draft: 1, scheduled: 2, started: 3, ended: 4 } }));
@@ -114,7 +178,7 @@ export interface TestApp {
 export async function startApp(over: Record<string, string> = {}): Promise<TestApp> {
   const clock = new TestClock();
   const fake = await startFake(clock);
-  const env = testEnv({ LOW_JWKS_URL: fake.jwksUrl, INTERNAL_URL_LOW: fake.url, INTERNAL_URL_MID: fake.url, ...over });
+  const env = testEnv({ LOW_JWKS_URL: fake.jwksUrl, INTERNAL_URL_LOW: `${fake.url}/c`, INTERNAL_URL_MID: `${fake.url}/o`, ...over });
   const app = await createApp(env, { clock, silent: true });
   await app.listen(0, '127.0.0.1');
   const ds = app.get(DataSource);
@@ -150,15 +214,15 @@ export const freshPhone = () => `0913${String(1_000_000 + phoneN++).slice(-7)}`;
 const hex = (id: string) => id.replace(/-/g, '');
 
 /** کاربر در دایرکتوری (مثل رویداد user.registered از low) با نقش‌های دلخواه (مستقیم در DB = وضعیت اولیهٔ سیستم) */
-export async function mkUser(t: TestApp, name: string, roles: string[] = [], grants: string[] = []): Promise<User> {
+export async function mkUser(t: TestApp, name: string, roles: string[] = [], grants: string[] = [], opts: { mcp?: boolean; status?: string } = {}): Promise<User> {
   const id = uuidv7();
   const sid = randomUUID();
   const phone = freshPhone();
   const [first, ...rest] = name.split(' ');
-  await t.ds.query('INSERT INTO user_directory (user_id, phone, first_name, last_name, perm_ver, created_at, updated_at) VALUES (UNHEX(?), ?, ?, ?, 1, NOW(3), NOW(3))', [hex(id), phone, first ?? '', rest.join(' ')]);
+  await t.ds.query('INSERT INTO user_directory (user_id, phone, first_name, last_name, status, perm_ver, created_at, updated_at) VALUES (UNHEX(?), ?, ?, ?, ?, 1, NOW(3), NOW(3))', [hex(id), phone, first ?? '', rest.join(' '), opts.status ?? 'active']);
   for (const r of roles) await t.ds.query('INSERT INTO user_system_roles (user_id, role_key, granted_by, granted_at) VALUES (UNHEX(?), ?, NULL, NOW(3))', [hex(id), r]);
   for (const g of grants) await t.ds.query('INSERT INTO user_grants (user_id, grant_key, granted_by, granted_at) VALUES (UNHEX(?), ?, NULL, NOW(3))', [hex(id), g]);
-  const token = await t.fake.sign({ sub: id, sid });
+  const token = await t.fake.sign({ sub: id, sid, mcp: opts.mcp });
   return {
     id,
     sid,
@@ -172,7 +236,10 @@ export async function mkUser(t: TestApp, name: string, roles: string[] = [], gra
 
 export const api = (t: TestApp) => ({
   get: (path: string, h: Record<string, string> | User) => request(t.http).get(`/s/v1${path}`).set(typeof (h as User).id === 'string' ? (h as User).h : (h as Record<string, string>)),
-  put: (path: string, h: Record<string, string>, body?: object) => request(t.http).put(`/s/v1${path}`).set(h).send(body ?? {})
+  put: (path: string, h: Record<string, string>, body?: object) => request(t.http).put(`/s/v1${path}`).set(h).send(body ?? {}),
+  post: (path: string, h: Record<string, string>, body?: object) => request(t.http).post(`/s/v1${path}`).set(h).send(body ?? {}),
+  patch: (path: string, h: Record<string, string>, body?: object) => request(t.http).patch(`/s/v1${path}`).set(h).send(body ?? {}),
+  del: (path: string, h: Record<string, string>) => request(t.http).delete(`/s/v1${path}`).set(h)
 });
 
 export const outboxTypes = async (t: TestApp) => ((await t.ds.query('SELECT type, payload FROM outbox_events ORDER BY created_at, id')) as { type: string; payload: unknown }[]).map((r) => ({ type: r.type, payload: typeof r.payload === 'string' ? JSON.parse(r.payload) : (r.payload as any) }));

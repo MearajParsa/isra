@@ -33,7 +33,7 @@ export class MeController {
 
   @Route('L-13')
   setPassword(@Req() r: IsraRequest, @In() { body }: { body: z.infer<typeof low.SetPasswordBody> }) {
-    return this.me.setPassword(uid(r), r.user!.sessionId, body.newPassword);
+    return this.me.setPassword(uid(r), r.user!.sessionId, body);
   }
 
   @Route('L-14')

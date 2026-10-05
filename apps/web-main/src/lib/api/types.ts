@@ -6,6 +6,8 @@ export type ApiErrorCode =
   | 'AUTH_TOKEN_INVALID'
   | 'AUTH_STEP_UP_REQUIRED'
   | 'AUTH_FORBIDDEN'
+  | 'AUTH_PASSWORD_CHANGE_REQUIRED'
+  | 'AUTH_ACCOUNT_DISABLED'
   | 'AUTH_PERM_STALE'
   | 'AUTH_OTP_INVALID'
   | 'AUTH_OTP_EXPIRED'
@@ -103,6 +105,8 @@ export interface Me {
   id: string;
   phone: string;
   hasPassword: boolean;
+  /** رمز موقتِ تعیین‌شده توسط مدیر؛ تا تغییر رمز فقط مسیرهای تغییر رمز/خروج مجازند */
+  mustChangePassword?: boolean;
   profile: Profile;
 }
 
@@ -193,7 +197,7 @@ export interface LowApi {
     updateProfile(accessToken: string, patch: Partial<Pick<Profile, 'firstName' | 'lastName'>>): Promise<Profile>;
     setPassword(
       accessToken: string,
-      input: { newPassword: string; stepUpToken?: string }
+      input: { newPassword: string; stepUpToken?: string; currentPassword?: string }
     ): Promise<void>;
     listSessions(accessToken: string): Promise<DeviceSession[]>;
     revokeSession(accessToken: string, id: string): Promise<void>;

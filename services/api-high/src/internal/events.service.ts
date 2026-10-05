@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, type OnApplicationBootstrap } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { z } from 'zod';
+import { internal } from '@isra/api-types';
 import { RevocationService } from '../auth/revocation.service';
 import { Clock } from '../common/clock';
 import { uuidToBuf } from '../common/ids';
@@ -8,6 +9,7 @@ import { ENV, type Env } from '../config/env';
 import { AuditService } from '../domain/audit.service';
 import { ClaimsService } from '../domain/claims.service';
 import { type Q, displayName } from '../domain/db';
+import { UsersAdminService, anonPhone } from '../domain/users-admin.service';
 
 export interface InboundEvent {
   eventId: string;
@@ -34,6 +36,7 @@ export class EventsService implements OnApplicationBootstrap {
     private readonly audit: AuditService,
     private readonly claims: ClaimsService,
     private readonly revocation: RevocationService,
+    private readonly usersAdmin: UsersAdminService,
     @Inject(ENV) private readonly env: Env
   ) {}
 
@@ -51,14 +54,26 @@ export class EventsService implements OnApplicationBootstrap {
       if (e.type === 'user.registered') {
         const p = UserRegistered.parse(e.payload);
         await m.query(
-          `INSERT INTO user_directory (user_id, phone, first_name, last_name, perm_ver, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?)
-           ON DUPLICATE KEY UPDATE phone = VALUES(phone), first_name = IF(VALUES(first_name) <> '', VALUES(first_name), first_name), last_name = IF(VALUES(last_name) <> '', VALUES(last_name), last_name), updated_at = VALUES(updated_at)`,
+          `INSERT INTO user_directory (user_id, phone, first_name, last_name, status, perm_ver, created_at, updated_at) VALUES (?, ?, ?, ?, 'active', 1, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             phone = IF(status = 'deleted', phone, VALUES(phone)),
+             first_name = IF(status = 'deleted', first_name, IF(VALUES(first_name) <> '', VALUES(first_name), first_name)),
+             last_name = IF(status = 'deleted', last_name, IF(VALUES(last_name) <> '', VALUES(last_name), last_name)),
+             updated_at = VALUES(updated_at)`,
           [uuidToBuf(p.userId), p.phone, p.firstName, p.lastName, p.createdAt ? new Date(p.createdAt) : now, now]
         );
         await this.bootstrapDeveloper(m, p.phone);
       } else if (e.type === 'user.profile.updated') {
         const p = ProfileUpdated.parse(e.payload);
-        await m.query('UPDATE user_directory SET first_name = COALESCE(?, first_name), last_name = COALESCE(?, last_name), updated_at = ? WHERE user_id = ?', [p.firstName ?? null, p.lastName ?? null, now, uuidToBuf(p.userId)]);
+        await m.query('UPDATE user_directory SET first_name = COALESCE(?, first_name), last_name = COALESCE(?, last_name), updated_at = ? WHERE user_id = ? AND status <> \'deleted\'', [p.firstName ?? null, p.lastName ?? null, now, uuidToBuf(p.userId)]);
+      } else if (e.type === 'user.phone.changed') {
+        const p = internal.UserPhoneChanged.parse(e.payload);
+        // کاربر حذف‌شده شمارهٔ ناشناس دارد؛ رویداد دیررسیدِ تغییر شماره آن را برنمی‌گرداند
+        await m.query("UPDATE user_directory SET phone = ?, updated_at = ? WHERE user_id = ? AND status <> 'deleted'", [p.phone, now, uuidToBuf(p.userId)]);
+      } else if (e.type === 'user.status.changed') {
+        const p = internal.UserStatusChanged.parse(e.payload);
+        if (p.status === 'deleted') await this.usersAdmin.applyDeleted(m, p.userId, p.anonymizedPhone ?? anonPhone(p.userId), now);
+        else await m.query("UPDATE user_directory SET status = ?, updated_at = ? WHERE user_id = ? AND status <> 'deleted'", [p.status, now, uuidToBuf(p.userId)]);
       } else if (e.type === 'session.revoked') {
         const p = SessionRevoked.parse(e.payload);
         await this.revocation.add(m, p.sessionIds, new Date(p.expiresAt));

@@ -11,7 +11,7 @@ describe('کاتالوگ خطا', () => {
   it('status ها استاندارد و دسته‌بندی منطقی', () => {
     for (const c of ERROR_CODES) {
       const { status } = ERROR_CATALOG[c];
-      if (c.startsWith('AUTH_') && !['AUTH_FORBIDDEN', 'AUTH_STEP_UP_REQUIRED', 'AUTH_OTP_INVALID', 'AUTH_OTP_EXPIRED', 'AUTH_OTP_EXHAUSTED', 'AUTH_OTP_SEND_FAILED'].includes(c))
+      if (c.startsWith('AUTH_') && !['AUTH_FORBIDDEN', 'AUTH_STEP_UP_REQUIRED', 'AUTH_PASSWORD_CHANGE_REQUIRED', 'AUTH_ACCOUNT_DISABLED', 'AUTH_OTP_INVALID', 'AUTH_OTP_EXPIRED', 'AUTH_OTP_EXHAUSTED', 'AUTH_OTP_SEND_FAILED'].includes(c))
         expect(status).toBe(401);
     }
     expect(ERROR_CATALOG.AUTH_FORBIDDEN.status).toBe(403);

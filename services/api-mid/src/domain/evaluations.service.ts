@@ -7,7 +7,7 @@ import { Clock } from '../common/clock';
 import { bufToUuid, isUuid, uuidToBuf, uuidv7 } from '../common/ids';
 import { LiveService } from '../live/live.service';
 import { MembersAccess } from './access.service';
-import { NAME_SQL, conflict, displayName, parseJson, withRetry, type Q } from './db';
+import { NAME_SQL, conflict, displayName, nameSql, parseJson, withRetry, type Q } from './db';
 import { emitInbox } from './outbox.writer';
 import { PointsService } from './points.service';
 import { SettingsService } from './settings.service';
@@ -33,8 +33,8 @@ interface Row {
 }
 
 const SELECT = `SELECT e.id, e.session_id, e.queue_item_id, e.user_id, e.voice, e.tone, e.tajweed, e.weights, e.score, e.points, e.note, e.created_at,
-                       TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))) AS user_name,
-                       TRIM(CONCAT(COALESCE(v.first_name,''), ' ', COALESCE(v.last_name,''))) AS evaluator_name
+                       ${nameSql('u')} AS user_name,
+                       ${nameSql('v')} AS evaluator_name
                   FROM evaluations e LEFT JOIN user_directory u ON u.user_id = e.user_id LEFT JOIN user_directory v ON v.user_id = e.evaluator_id`;
 
 const dto = (r: Row) => ({
@@ -125,6 +125,16 @@ export class EvaluationsService {
       this.ds.query(`SELECT COUNT(*) AS n FROM evaluations e WHERE ${where}`, args) as Promise<{ n: string | number }[]>
     ]);
     return { items: rows.map(dto), page, pageSize, total: Number(cnt[0]?.n ?? 0) };
+  }
+
+  /** نمای ادمین: همهٔ ارزیابی‌های جلسه (جدیدترین اول، سقف ۱۰۰۰)؛ فراخوان وجود جلسه را بررسی کرده است */
+  async adminList(sessionId: string) {
+    const sid = uuidToBuf(sessionId);
+    const [rows, cnt] = await Promise.all([
+      this.ds.query(`${SELECT} WHERE e.session_id = ? ORDER BY e.created_at DESC, e.id DESC LIMIT 1000`, [sid]) as Promise<Row[]>,
+      this.ds.query('SELECT COUNT(*) AS n FROM evaluations WHERE session_id = ?', [sid]) as Promise<{ n: string | number }[]>
+    ]);
+    return { items: rows.map(dto), total: Number(cnt[0]?.n ?? 0) };
   }
 }
 

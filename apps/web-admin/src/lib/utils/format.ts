@@ -35,3 +35,62 @@ export function formatRelative(iso: string, now = Date.now()): string {
   if (d < 30) return `${numFmt.format(d)} روز پیش`;
   return dateFmt.format(new Date(iso));
 }
+
+// ───────── تاریخ/ساعت و زمان‌بندی جلسه ─────────
+const plainFmt = new Intl.NumberFormat('fa-IR', { useGrouping: false });
+const timeFmt = new Intl.DateTimeFormat('fa-IR', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const longDateFmt = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long' });
+const shortDateFmt = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { timeZone: TZ, day: 'numeric', month: 'long', year: 'numeric' });
+
+export const WEEKDAYS = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه'] as const;
+/** ارقام فارسی بدون جداکنندهٔ هزارگان (سال، ساعت) */
+export const formatPlain = (n: number) => plainFmt.format(n);
+export const formatTime = (iso: string) => timeFmt.format(new Date(iso));
+export const formatLongDate = (iso: string) => longDateFmt.format(new Date(iso));
+export const formatShortDate = (iso: string) => shortDateFmt.format(new Date(iso));
+export const formatPercent = (n: number) => `${numFmt.format(Math.round(n))}٪`;
+
+export function formatTimeOfDay(hhmm: string): string {
+  const [h, m] = hhmm.split(':').map(Number);
+  return numFmt.format(h ?? 0).padStart(2, '۰') + ':' + numFmt.format(m ?? 0).padStart(2, '۰');
+}
+
+function weekdaysLabel(days: number[]): string {
+  const sorted = [...days].sort((a, b) => a - b);
+  if (sorted.length === 7) return 'همهٔ روزها';
+  return sorted.map((d) => WEEKDAYS[d]).join('، ');
+}
+
+export type ScheduleLike =
+  | { type: 'once'; startsAt: string; endsAt: string }
+  | { type: 'recurring'; weekdays: number[]; timeOfDay: string; durationMin: number }
+  | { type: 'range'; rangeFrom: string; rangeTo: string; weekdays: number[]; timeOfDay: string; durationMin: number };
+
+/** عنوان فارسی برای زمان‌بندی جلسه */
+export function scheduleLabel(s: ScheduleLike): string {
+  switch (s.type) {
+    case 'once':
+      return `${formatLongDate(s.startsAt)}، ساعت ${formatTime(s.startsAt)}`;
+    case 'recurring':
+      return `هر ${weekdaysLabel(s.weekdays)}، ساعت ${formatTimeOfDay(s.timeOfDay)}`;
+    case 'range':
+      return `هر ${weekdaysLabel(s.weekdays)}، ساعت ${formatTimeOfDay(s.timeOfDay)} · از ${formatShortDate(s.rangeFrom)} تا ${formatShortDate(s.rangeTo)}`;
+  }
+}
+
+/** مقدار YYYY-MM-DDTHH:mm به وقت تهران ← ISO */
+export function toTehranInput(iso: string): string {
+  const p = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    .formatToParts(new Date(iso))
+    .reduce<Record<string, string>>((a, x) => ((a[x.type] = x.value), a), {});
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
+export const toTehranDateInput = (iso: string) => toTehranInput(iso).slice(0, 10);
+
+/** ورودی (وقت تهران، بدون DST) ← ISO؛ ناقص ⇒ '' */
+export function fromTehranInput(value: string): string {
+  if (!value) return '';
+  const v = value.length === 10 ? `${value}T00:00` : value;
+  const d = new Date(`${v}:00+03:30`);
+  return Number.isNaN(d.getTime()) ? '' : d.toISOString();
+}

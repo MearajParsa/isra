@@ -4,7 +4,7 @@ import type { z } from 'zod';
 import type { SessionInput } from '@isra/api-types';
 import { AppError } from '../common/app-error';
 import { Clock } from '../common/clock';
-import { bufToUuid, uuidToBuf, uuidv7 } from '../common/ids';
+import { bufToUuid, isUuid, uuidToBuf, uuidv7 } from '../common/ids';
 import { LiveService } from '../live/live.service';
 import { MembersAccess, type SessionRow, sortRoles } from './access.service';
 import { SettingsService } from './settings.service';
@@ -78,30 +78,70 @@ export class SessionsService {
   async edit(userId: string, sessionId: string, input: Input): Promise<SessionDto> {
     await this.ds.transaction(async (m) => {
       const { session } = await this.access.load(m, sessionId, userId, 'session.edit', true);
-      if (session.status !== 'draft' && session.status !== 'scheduled') throw conflict('SESSION_LOCKED', 'جلسهٔ شروع‌شده یا پایان‌یافته قابل ویرایش نیست.');
-      await m.query('UPDATE sessions SET title = ?, description = ?, schedule_type = ?, schedule = ?, next_starts_at = ?, location_label = ?, location_route_url = ?, version = version + 1, updated_at = ? WHERE id = ?', [
-        input.title,
-        input.description,
-        input.schedule.type,
-        JSON.stringify(input.schedule),
-        this.snapshot(input.schedule),
-        input.location.label,
-        input.location.routeUrl ?? null,
-        this.clock.now(),
-        uuidToBuf(sessionId)
-      ]);
+      await this.applyEdit(m, session, input);
     });
     return this.dtoById(this.ds, sessionId);
+  }
+
+  private async applyEdit(m: Q, session: SessionRow, input: Input): Promise<void> {
+    if (session.status !== 'draft' && session.status !== 'scheduled') throw conflict('SESSION_LOCKED', 'جلسهٔ شروع‌شده یا پایان‌یافته قابل ویرایش نیست.');
+    await m.query('UPDATE sessions SET title = ?, description = ?, schedule_type = ?, schedule = ?, next_starts_at = ?, location_label = ?, location_route_url = ?, version = version + 1, updated_at = ? WHERE id = ?', [
+      input.title,
+      input.description,
+      input.schedule.type,
+      JSON.stringify(input.schedule),
+      this.snapshot(input.schedule),
+      input.location.label,
+      input.location.routeUrl ?? null,
+      this.clock.now(),
+      uuidToBuf(session.id)
+    ]);
   }
 
   async transition(userId: string, sessionId: string, to: SessionState): Promise<SessionDto> {
     await this.ds.transaction(async (m) => {
       const { session } = await this.access.load(m, sessionId, userId, 'session.transition', true);
-      if (!canTransition(session.status, to)) throw new AppError('SESSION_INVALID_TRANSITION', { details: { from: session.status, to } });
-      await m.query('UPDATE sessions SET status = ?, version = version + 1, updated_at = ? WHERE id = ?', [to, this.clock.now(), uuidToBuf(sessionId)]);
+      await this.applyTransition(m, session, to);
     });
     this.live.emit(sessionId, 'session.state', { status: to });
     return this.dtoById(this.ds, sessionId);
+  }
+
+  private async applyTransition(m: Q, session: SessionRow, to: SessionState): Promise<void> {
+    if (!canTransition(session.status, to)) throw new AppError('SESSION_INVALID_TRANSITION', { details: { from: session.status, to } });
+    await m.query('UPDATE sessions SET status = ?, version = version + 1, updated_at = ? WHERE id = ?', [to, this.clock.now(), uuidToBuf(session.id)]);
+  }
+
+  // ───── مسیرهای ادمین (MID_ADMIN): بدون نیاز به عضویت؛ جلسهٔ حذف‌شده ⇒ NOT_FOUND ─────
+  private async adminLoad(m: Q, sessionId: string): Promise<SessionRow> {
+    const session = await this.access.session(m, sessionId, true);
+    if (!session) throw new AppError('NOT_FOUND', { message: 'جلسه پیدا نشد.' });
+    return session;
+  }
+
+  async adminEdit(sessionId: string, input: Input): Promise<void> {
+    await this.ds.transaction(async (m) => this.applyEdit(m, await this.adminLoad(m, sessionId), input));
+  }
+
+  async adminTransition(sessionId: string, to: SessionState): Promise<void> {
+    await this.ds.transaction(async (m) => this.applyTransition(m, await this.adminLoad(m, sessionId), to));
+    this.live.emit(sessionId, 'session.state', { status: to });
+  }
+
+  /**
+   * حذف نرم (deleted_at) در هر وضعیتی؛ idempotent (تکرار ⇒ بدون تغییر و بدون رویداد دوباره).
+   * اتاق‌های باز (Socket.IO) با `session.state {deleted:true}` مطلع می‌شوند و با REST بعدی 404 می‌گیرند.
+   * @returns false اگر جلسه وجود ندارد
+   */
+  async softDelete(sessionId: string): Promise<boolean> {
+    if (!isUuid(sessionId)) return false;
+    const r = (await this.ds.query('SELECT status, deleted_at FROM sessions WHERE id = ?', [uuidToBuf(sessionId)])) as { status: SessionState; deleted_at: Date | null }[];
+    const row = r[0];
+    if (!row) return false;
+    if (row.deleted_at) return true;
+    const u = (await this.ds.query('UPDATE sessions SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL', [this.clock.now(), uuidToBuf(sessionId)])) as { affectedRows?: number };
+    if (u.affectedRows) this.live.emit(sessionId, 'session.state', { status: row.status, deleted: true });
+    return true;
   }
 
   async me(userId: string, sessionId: string) {
@@ -117,7 +157,7 @@ export class SessionsService {
   }
 
   async caps(userId: string, canCreate: boolean) {
-    const r = (await this.ds.query("SELECT 1 AS x FROM session_members m JOIN session_member_roles r ON r.member_id = m.id WHERE m.user_id = ? AND m.status = 'approved' AND r.role <> 'quran_student' LIMIT 1", [uuidToBuf(userId)])) as unknown[];
+    const r = (await this.ds.query("SELECT 1 AS x FROM session_members m JOIN sessions s ON s.id = m.session_id AND s.deleted_at IS NULL JOIN session_member_roles r ON r.member_id = m.id WHERE m.user_id = ? AND m.status = 'approved' AND r.role <> 'quran_student' LIMIT 1", [uuidToBuf(userId)])) as unknown[];
     return { canCreateSession: canCreate, hasStaffRole: r.length > 0 };
   }
 
@@ -129,11 +169,11 @@ export class SessionsService {
         `SELECT s.id, s.title, s.description, s.status, s.schedule, s.location_label, s.location_route_url, s.created_by, s.created_at, s.next_starts_at, m.status AS m_status,
                 (SELECT GROUP_CONCAT(r.role) FROM session_member_roles r WHERE r.member_id = m.id) AS roles
            FROM session_members m JOIN sessions s ON s.id = m.session_id
-          WHERE m.user_id = ? ${staff}
+          WHERE m.user_id = ? AND s.deleted_at IS NULL ${staff}
           ORDER BY s.created_at DESC, s.id DESC LIMIT ? OFFSET ?`,
         [uid, pageSize, (page - 1) * pageSize]
       ) as Promise<(Omit<SessionRow, 'id' | 'created_by'> & { id: Buffer; created_by: Buffer; m_status: 'pending' | 'approved' | 'rejected'; roles: string | null })[]>,
-      this.ds.query(`SELECT COUNT(*) AS n FROM session_members m WHERE m.user_id = ? ${staff}`, [uid]) as Promise<{ n: string | number }[]>
+      this.ds.query(`SELECT COUNT(*) AS n FROM session_members m JOIN sessions s ON s.id = m.session_id WHERE m.user_id = ? AND s.deleted_at IS NULL ${staff}`, [uid]) as Promise<{ n: string | number }[]>
     ]);
 
     // pendingCount فقط برای دارندگان membership.approve
@@ -164,7 +204,7 @@ export class SessionsService {
 
   /** فهرست عمومی (draft هرگز) برای low via internal REST */
   async publicList(page: number, pageSize: number, status?: string) {
-    const where = status ? 'status = ?' : "status <> 'draft'";
+    const where = status ? 'deleted_at IS NULL AND status = ?' : "deleted_at IS NULL AND status <> 'draft'";
     const args: unknown[] = status ? [status] : [];
     const [rows, cnt] = await Promise.all([
       this.ds.query(`SELECT id, title, description, status, schedule, location_label, location_route_url, created_by, created_at, next_starts_at FROM sessions WHERE ${where} ORDER BY FIELD(status,'started','scheduled','ended'), COALESCE(next_starts_at, created_at) ASC, id ASC LIMIT ? OFFSET ?`, [...args, pageSize, (page - 1) * pageSize]) as Promise<(Omit<SessionRow, 'id' | 'created_by'> & { id: Buffer; created_by: Buffer })[]>,
@@ -181,7 +221,7 @@ export class SessionsService {
 
   /** شمار جلسات per وضعیت (برای نمای کلی api-high via internal REST) */
   async stats() {
-    const rows = (await this.ds.query('SELECT status, COUNT(*) AS n FROM sessions GROUP BY status')) as { status: string; n: string | number }[];
+    const rows = (await this.ds.query('SELECT status, COUNT(*) AS n FROM sessions WHERE deleted_at IS NULL GROUP BY status')) as { status: string; n: string | number }[];
     const out = { draft: 0, scheduled: 0, started: 0, ended: 0 };
     for (const r of rows) if (r.status in out) out[r.status as keyof typeof out] = Number(r.n);
     return out;
@@ -190,7 +230,7 @@ export class SessionsService {
   /** job دوره‌ای: next_starts_at جلسات تکرارشونده را تازه می‌کند (مرتب‌سازی فهرست عمومی) */
   async refreshSnapshots(limit = 500): Promise<number> {
     const now = this.clock.now();
-    const rows = (await this.ds.query("SELECT id, schedule FROM sessions WHERE status IN ('scheduled','started') AND schedule_type <> 'once' AND (next_starts_at IS NULL OR next_starts_at < ?) LIMIT ?", [now, limit])) as { id: Buffer; schedule: unknown }[];
+    const rows = (await this.ds.query("SELECT id, schedule FROM sessions WHERE deleted_at IS NULL AND status IN ('scheduled','started') AND schedule_type <> 'once' AND (next_starts_at IS NULL OR next_starts_at < ?) LIMIT ?", [now, limit])) as { id: Buffer; schedule: unknown }[];
     for (const r of rows) {
       const ms = nextStartMs(parseJson<Schedule>(r.schedule), now.getTime());
       await this.ds.query('UPDATE sessions SET next_starts_at = ? WHERE id = ?', [ms === null ? null : new Date(ms), r.id]);

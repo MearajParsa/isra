@@ -76,10 +76,18 @@ export const ProfilePatchBody = named(
     .strict()
     .refine((v) => Object.keys(v).length > 0, { message: 'دست‌کم یک فیلد لازم است.' })
 );
-export const Me = named('Me', z.object({ id: Id, phone: IranMobile, hasPassword: z.boolean(), profile: Profile }));
+export const Me = named(
+  'Me',
+  z.object({ id: Id, phone: IranMobile, hasPassword: z.boolean(), mustChangePassword: z.boolean().meta({ description: 'رمز موقتِ تعیین‌شده توسط مدیر؛ تا تغییر رمز فقط مسیرهای تغییر رمز/خروج مجازند' }), profile: Profile })
+);
 export const SetPasswordBody = named(
   'SetPasswordBody',
-  z.object({ newPassword: z.string().min(8).max(128).meta({ description: 'حداقل ۸ نویسه' }) }).strict()
+  z
+    .object({
+      newPassword: z.string().min(8).max(128).meta({ description: 'حداقل ۸ نویسه' }),
+      currentPassword: z.string().min(1).max(128).optional().meta({ description: 'فقط وقتی `mustChangePassword` است: رمز موقت به‌جای step-up پذیرفته می‌شود' })
+    })
+    .strict()
 );
 
 export const DeviceSession = named(

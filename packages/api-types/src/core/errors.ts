@@ -9,6 +9,8 @@ export const ERROR_CATALOG = {
   AUTH_TOKEN_EXPIRED: { status: 401, retriable: false, messageFa: 'نشست منقضی شده است.' },
   AUTH_TOKEN_INVALID: { status: 401, retriable: false, messageFa: 'نشست نامعتبر است.' },
   AUTH_STEP_UP_REQUIRED: { status: 403, retriable: false, messageFa: 'برای این کار باید هویت خود را دوباره تأیید کنید.' },
+  AUTH_PASSWORD_CHANGE_REQUIRED: { status: 403, retriable: false, messageFa: 'رمز عبور موقت است؛ ابتدا رمز جدید تعیین کنید.' },
+  AUTH_ACCOUNT_DISABLED: { status: 403, retriable: false, messageFa: 'حساب شما غیرفعال شده است. با مدیر سیستم تماس بگیرید.' },
   AUTH_FORBIDDEN: { status: 403, retriable: false, messageFa: 'برای این کار مجوز ندارید.' },
   AUTH_PERM_STALE: { status: 401, retriable: false, messageFa: 'دسترسی‌های شما تغییر کرده است؛ نشست را تمدید کنید.' },
   AUTH_OTP_INVALID: { status: 400, retriable: false, messageFa: 'کد واردشده درست نیست.' },
@@ -43,7 +45,10 @@ export const CONFLICT_REASONS = [
   'SESSION_LOCKED',
   'LAST_HOLDER',
   'LOCKED_PERMISSION',
-  'VERSION_MISMATCH'
+  'VERSION_MISMATCH',
+  'PHONE_TAKEN',
+  'SELF_PROTECTED',
+  'USER_NOT_ACTIVE'
 ] as const;
 export type ConflictReason = (typeof CONFLICT_REASONS)[number];
 

@@ -8,6 +8,8 @@ import { RevocationService } from './revocation.service';
 export interface Principal {
   userId: string;
   sessionId: string;
+  /** claim `mcp`: رمز موقت (mustChangePassword)؛ فقط H-00/H-02/H-04 مجازند */
+  mcp: boolean;
 }
 
 /**
@@ -36,7 +38,7 @@ export class JwtVerifier {
       const { payload } = await this.decode(token);
       if (typeof payload.sub !== 'string' || typeof payload.sid !== 'string' || payload.lvl !== 'low') throw new AppError('AUTH_TOKEN_INVALID');
       if (await this.revoked.isRevoked(payload.sid)) throw new AppError('AUTH_TOKEN_INVALID');
-      return { userId: payload.sub, sessionId: payload.sid };
+      return { userId: payload.sub, sessionId: payload.sid, mcp: payload.mcp === true };
     } catch (e) {
       if (e instanceof AppError) throw e;
       if (e instanceof errors.JWTExpired) throw new AppError('AUTH_TOKEN_EXPIRED');
@@ -46,7 +48,7 @@ export class JwtVerifier {
   }
 
   /** step-up (lvl=stepup) باید برای همین کاربر و همین نشست باشد؛ هر خطا ⇒ false */
-  async verifyStepUp(token: string, who: Principal): Promise<boolean> {
+  async verifyStepUp(token: string, who: Pick<Principal, 'userId' | 'sessionId'>): Promise<boolean> {
     if (token.length > 1024) return false;
     try {
       const { payload } = await this.decode(token);

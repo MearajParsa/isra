@@ -21,7 +21,7 @@ curl -XPOST http://localhost:3001/c/internal/v1/events -H "content-type: applica
 
 ## تست
 ```bash
-pnpm --filter @isra/api-mid test       # ۹۸ تست؛ نیاز به MySQL (TEST_DB_* ؛ پیش‌فرض schema_mid_test / isra_mid)
+pnpm --filter @isra/api-mid test       # ۱۴۱ تست؛ نیاز به MySQL (TEST_DB_* ؛ پیش‌فرض schema_mid_test / isra_mid)
 ```
 پوشش: مجوزها و قفل #15 (manager تنها ارزیابی ندارد)، چرخهٔ حیات رو‌به‌جلو، حضور «+۵ فقط یک‌بار» زیر ۴۰ درخواست موازی، صف و حریم خصوصی، ارزیابی وزنی با ذخیرهٔ وزن لحظهٔ ثبت، Idempotency-Key، جعل JWT، rate-limit، انطباق پاسخ‌ها با zod، رویدادهای ورودی/outbox، Socket.IO، migration.
 
@@ -39,9 +39,16 @@ pnpm --filter @isra/api-mid test       # ۹۸ تست؛ نیاز به MySQL (TEST
 | جهت | مسیر |
 |-----|------|
 | low → mid | `GET /o/internal/v1/public/sessions`، `GET /o/internal/v1/public/sessions/{id}`، `GET /o/internal/v1/users/{id}/points`، `GET /o/internal/v1/stats/sessions` (برای high) |
-| low/high → mid | `POST /o/internal/v1/events` (`user.registered`، `user.profile.updated`، `system.settings.changed`) |
+| low/high → mid | `POST /o/internal/v1/events` (low: `user.registered`، `user.profile.updated`، `session.revoked`، `user.phone.changed` (نادیده)، `user.status.changed` (deleted ⇒ نام پاک + «کاربر حذف‌شده»)؛ high: `system.*`) |
+| high → mid (ادمین) | `MID_ADMIN` زیر `/o/internal/v1/admin/*` (فقط `@InternalCallers('high')`): جلسه (فهرست/جزئیات/ساخت برای creatorId/ویرایش/transition/حذف نرم)، اعضا (فهرست/تصمیم/نقش/حذف)، حضور/صف/ارزیابی (فقط‌خواندنی، نمای کامل)، خلاصهٔ کاربر، گزارش‌ها (overview، سری جلسه‌ها، leaderboard). قواعد: `docs-v2/26-admin-expansion.md` |
 | mid → low | `POST {INTERNAL_URL_LOW}/internal/v1/events` (`INTERNAL_URL_LOW` = `…/c`) (`inbox.message.created`) |
 هدرهای `X-Internal-Caller` + `X-Internal-Token` (secret per جفت‌سرویس؛ ACL نوع رویداد/مسیر per فرستنده)؛ فقط شبکهٔ خصوصی.
+
+## ادمین (docs-v2/26)
+- **حذف نرم جلسه:** `sessions.deleted_at`؛ همهٔ پرسمان‌های عادی (فهرست عمومی، «من»، stats، snapshot، join/حضور/صف/ارزیابی، Socket join) جلسهٔ حذف‌شده را «ناموجود» می‌بینند؛ فقط `MID_ADMIN` با `includeDeleted=true` (و خواندن‌های ادمین).
+- **کاربر حذف‌شده:** رویداد `user.status.changed(deleted)` ⇒ `user_directory.deleted=1` و نام خالی ⇒ همه‌جا «کاربر حذف‌شده».
+- **JWT با `mcp: true`** (رمز موقت) ⇒ `403 AUTH_PASSWORD_CHANGE_REQUIRED` روی همهٔ مسیرهای mid.
+- **گزارش:** روز/هفته(از شنبه)/ماه (میلادی) به‌وقت تهران، صفرپرشده؛ `held` = جلسهٔ started/ended با `updated_at` (آخرین transition) در bucket.
 
 ## محدودیت‌ها / بدهی
 - مکان جلسه فعلاً فقط برچسب متنی است؛ نقشه/جست‌وجوی **نشان (Neshan)** در قرارداد نیست و منتظر مستندات است.

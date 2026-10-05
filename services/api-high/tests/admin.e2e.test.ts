@@ -177,10 +177,10 @@ describe('ماتریس مجوز', () => {
     const roles = await a.get('/system/roles', dev);
     expect(roles.body.data.map((r: any) => r.key)).toEqual(['developer', 'super_admin']);
     expect(roles.body.data[0]).toMatchObject({ undeletable: true, holders: 1, title: 'توسعه‌دهنده' });
-    expect(roles.body.data[0].lockedPermissions).toHaveLength(7);
+    expect(roles.body.data[0].lockedPermissions).toHaveLength(11);
     expect(roles.body.data[1].lockedPermissions).toEqual(expect.arrayContaining(['system.users.view', 'system.role.assign', 'system.permission.edit', 'system.audit.view']));
     const perms = await a.get('/system/permissions?pageSize=50', dev);
-    expect(perms.body.meta.total).toBe(7);
+    expect(perms.body.meta.total).toBe(11);
     expect(perms.body.data.find((p: any) => p.key === 'session.create')).toMatchObject({ group: 'session' });
   });
 

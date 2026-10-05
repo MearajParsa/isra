@@ -144,3 +144,95 @@ p:has(> svg) > svg {
   flex: none;
   margin-top: 5px;
 }
+
+/* ───────── الگوهای مشترک مدیریتی ───────── */
+.card {
+  display: grid;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  background: var(--color-card);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-lg);
+}
+.filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--space-md);
+  align-items: end;
+  margin-bottom: var(--space-lg);
+  padding: var(--space-md);
+  background: var(--color-card);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-lg);
+}
+.filters .wide {
+  grid-column: 1 / -1;
+}
+@media (min-width: 720px) {
+  .filters .wide {
+    grid-column: span 2;
+  }
+}
+.tblwrap {
+  overflow-x: auto;
+  background: var(--color-card);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+}
+table.tbl {
+  width: 100%;
+  min-width: 36rem;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+.tbl caption {
+  padding: var(--space-sm) var(--space-md);
+  text-align: start;
+  font-weight: 700;
+  color: var(--color-muted);
+}
+.tbl th,
+.tbl td {
+  padding: 10px var(--space-md);
+  text-align: start;
+  border-bottom: 1px solid var(--color-outline);
+  vertical-align: middle;
+}
+.tbl thead th {
+  background: var(--color-neutral);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.tbl tbody tr:last-child td {
+  border-bottom: 0;
+}
+.tbl .num {
+  font-variant-numeric: tabular-nums;
+}
+.tbl .n {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+.pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+.chipbtn {
+  padding: 6px 16px;
+  border: 1.5px solid var(--color-outline);
+  border-radius: var(--radius-pill);
+  background: var(--color-card);
+  color: var(--color-primary);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  min-height: 40px;
+}
+.chipbtn.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+.fa-small {
+  font-size: var(--fs-sm);
+}

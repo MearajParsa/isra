@@ -61,7 +61,7 @@ export class AuthService {
   async verifyOtp(b: { challengeId: string; code: string; deviceId: string; deviceLabel: string }, ctx: AuthContext): Promise<AuthOutput> {
     const v = await this.otp.verify(b.challengeId, b.code, 'login');
     const { user, isNew } = await this.findOrCreateUser(v.phone);
-    if (user.status !== 'active') throw new AppError('AUTH_FORBIDDEN');
+    if (user.status !== 'active') throw new AppError('AUTH_ACCOUNT_DISABLED');
     return this.open(user, isNew, b, ctx, true);
   }
 
@@ -76,8 +76,10 @@ export class AuthService {
       [b.phone]
     )) as (UserRow & { pw: string | null })[];
     const u = rows[0];
-    const ok = u?.pw && u.status === 'active' ? await this.passwords.verify(u.pw, b.password) : (await this.passwords.burn(b.password), false);
+    // رمز همیشه بررسی می‌شود؛ وضعیت حساب فقط پس از رمز درست افشا می‌شود (ضد enumeration)
+    const ok = u?.pw ? await this.passwords.verify(u.pw, b.password) : (await this.passwords.burn(b.password), false);
     if (!u || !ok) throw new AppError('AUTH_INVALID_CREDENTIALS');
+    if (u.status !== 'active') throw new AppError('AUTH_ACCOUNT_DISABLED');
     return this.open({ ...u, has_pw: 1 }, false, b, ctx, false);
   }
 
@@ -129,6 +131,12 @@ export class AuthService {
   }
 
   async refresh(raw: string, client: ClientId | null) {
+    // حساب غیرفعال/حذف‌شده ⇒ 403 (حتی اگر نشستش revoke شده باشد)؛ فقط دارندهٔ refresh معتبر این وضعیت را می‌بیند
+    const own = (await this.ds.query(
+      'SELECT u.status FROM refresh_tokens t JOIN auth_sessions s ON s.id = t.session_id JOIN users u ON u.id = s.user_id WHERE t.token_hash = ?',
+      [sha256(raw)]
+    )) as { status: string }[];
+    if (own[0] && own[0].status !== 'active') throw new AppError('AUTH_ACCOUNT_DISABLED');
     const r = await this.sessions.rotate(raw, client);
     const a = await this.sessions.issueAccess(r.userId, r.sessionId, r.deviceId);
     return { accessToken: a.token, tokenType: 'Bearer' as const, accessExpiresIn: a.expiresIn, refreshToken: r.refreshToken };

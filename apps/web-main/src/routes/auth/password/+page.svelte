@@ -24,12 +24,15 @@
   let formError = $state<string | null>(null);
   let loading = $state(false);
   let suggestOtp = $state(false);
+  /** AUTH_ACCOUNT_DISABLED: حساب غیرفعال/حذف‌شده است؛ ورود با کد هم ممکن نیست */
+  let disabled = $state(false);
   const wait = new Countdown();
 
   async function submit(e: SubmitEvent) {
     e.preventDefault();
     phoneError = passError = formError = null;
     suggestOtp = false;
+    disabled = false;
     const normalized = normalizePhone(phone);
     if (!normalized) phoneError = 'شمارهٔ موبایل معتبر نیست.';
     if (!password) passError = 'رمز عبور را وارد کنید.';
@@ -50,6 +53,7 @@
       if (err instanceof ApiError) {
         if (err.code === 'RATE_LIMITED' && err.retryAfterSec) wait.start(err.retryAfterSec);
         if (err.code === 'AUTH_INVALID_CREDENTIALS') suggestOtp = true;
+        if (err.code === 'AUTH_ACCOUNT_DISABLED') disabled = true;
         formError = err.message;
       } else formError = 'ورود ممکن نشد. دوباره تلاش کنید.';
     } finally {
@@ -72,7 +76,9 @@
   <PhoneField bind:value={phone} error={phoneError} disabled={loading} />
   <PasswordField bind:value={password} error={passError} disabled={loading} />
 
-  {#if formError}
+  {#if disabled}
+    <NoticeBanner tone="error" role="alert"><strong>حساب شما غیرفعال شده است.</strong> برای فعال‌سازی دوباره با پشتیبانی یا مدیر سیستم تماس بگیرید.</NoticeBanner>
+  {:else if formError}
     <NoticeBanner tone="error" role="alert">
       {formError}
       {#if wait.remaining > 0}<strong> ({formatCountdown(wait.remaining)})</strong>{/if}

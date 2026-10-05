@@ -93,21 +93,29 @@ describe('maintenance', () => {
 });
 
 describe('migration و seed', () => {
-  it('seed: ۲ نقش undeletable، ۷ مجوز، ماتریس، تنظیمات؛ CHECK روی undeletable؛ down/up تکرارپذیر', async () => {
+  it('seed: ۲ نقش undeletable، ۱۱ مجوز، ماتریس، تنظیمات؛ CHECK روی undeletable؛ down/up تکرارپذیر', async () => {
     const ds = new DataSource(dataSourceOptions(testEnv({ DB_MIGRATIONS_RUN: 'false', LOW_JWKS_URL: t.fake.jwksUrl })));
     await ds.initialize();
     try {
       const count = async (sql: string) => Number(((await ds.query(sql)) as { n: string }[])[0]!.n);
       expect(await count('SELECT COUNT(*) AS n FROM system_roles WHERE undeletable = 1')).toBe(2);
-      expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(7);
-      expect(await count("SELECT COUNT(*) AS n FROM role_permissions WHERE role_key = 'developer' AND locked = 1")).toBe(7);
+      expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(11);
+      expect(await count("SELECT COUNT(*) AS n FROM role_permissions WHERE role_key = 'developer' AND locked = 1")).toBe(11);
+      // قرارداد ۱.۴: super_admin فقط sessions.view/reports.view را (بدون قفل) می‌گیرد؛ users.manage/sessions.manage را نه
+      expect(await count("SELECT COUNT(*) AS n FROM role_permissions WHERE role_key = 'super_admin' AND permission_key IN ('system.sessions.view','system.reports.view') AND locked = 0")).toBe(2);
+      expect(await count("SELECT COUNT(*) AS n FROM role_permissions WHERE role_key = 'super_admin' AND permission_key IN ('system.users.manage','system.sessions.manage')")).toBe(0);
       await expect(ds.query("INSERT INTO system_roles (role_key, title, description, undeletable) VALUES ('x', 't', 'd', 0)")).rejects.toThrow();
+      await ds.undoLastMigration(); // AdminExpansion
+      expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(7);
+      expect(await count("SELECT COUNT(*) AS n FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'user_directory' AND column_name = 'status'")).toBe(0);
       await ds.undoLastMigration(); // RevokedSessions
       await ds.undoLastMigration(); // InitSchema
       expect(await count('SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name <> "migrations"')).toBe(0);
       await ds.runMigrations();
       expect(await count('SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name <> "migrations"')).toBe(12);
       expect(await count('SELECT COUNT(*) AS n FROM system_settings')).toBe(1);
+      expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(11);
+      expect(await count("SELECT COUNT(*) AS n FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'user_directory' AND index_name = 'idx_directory_status'")).toBeGreaterThan(0);
       const uq = (await ds.query("SELECT non_unique AS nu FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'user_directory' AND index_name = 'uq_directory_phone'")) as { nu: string | number }[];
       expect(Number(uq[0]!.nu)).toBe(0);
     } finally {

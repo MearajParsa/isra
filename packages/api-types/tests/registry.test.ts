@@ -66,8 +66,9 @@ describe('سیاست امنیت (قرارداد)', () => {
     for (const e of ALL_ENDPOINTS.filter((x) => x.auth === 'none')) expect(publicOk.test(e.path), e.id).toBe(true);
   });
 
-  it('همهٔ write‌های high (به‌جز OPS) نیازمند step-up و مجوز هستند', () => {
-    for (const e of ENDPOINTS.high.filter((x) => x.method !== 'get')) {
+  it('همهٔ write‌های high (به‌جز OPS و خودخدمتی «حساب من») نیازمند step-up و مجوز هستند', () => {
+    // خودخدمتی (/system/me/*): ویرایش نام و revoke نشست خودم بدون step-up؛ تغییر رمز خودم step-up دارد (H-04)
+    for (const e of ENDPOINTS.high.filter((x) => x.method !== 'get' && !x.path.startsWith('/system/me/'))) {
       expect(e.stepUp, e.id).toBe(true);
       expect(e.permission, e.id).toBeTruthy();
       expect(e.errors, e.id).toContain('AUTH_STEP_UP_REQUIRED');

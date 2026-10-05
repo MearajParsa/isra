@@ -59,4 +59,14 @@ export class AttendanceService {
     const rows = (await this.ds.query(`SELECT a.user_id, a.entered_at, ${NAME_SQL} AS name FROM attendance_entries a LEFT JOIN user_directory d ON d.user_id = a.user_id WHERE a.session_id = ? ORDER BY a.entered_at ASC, a.id ASC LIMIT 1000`, [uuidToBuf(sessionId)])) as { user_id: Buffer; entered_at: Date; name: string }[];
     return { items: rows.map((r) => ({ userId: bufToUuid(r.user_id), name: r.name || displayName(), enteredAt: r.entered_at.toISOString() })), total: rows.length };
   }
+
+  /** نمای ادمین (فقط‌خواندنی؛ بدون بررسی عضویت). فراخوان وجود جلسه را بررسی کرده است */
+  async adminList(sessionId: string) {
+    const sid = uuidToBuf(sessionId);
+    const [rows, cnt] = await Promise.all([
+      this.ds.query(`SELECT a.user_id, a.entered_at, ${NAME_SQL} AS name FROM attendance_entries a LEFT JOIN user_directory d ON d.user_id = a.user_id WHERE a.session_id = ? ORDER BY a.entered_at ASC, a.id ASC LIMIT 1000`, [sid]) as Promise<{ user_id: Buffer; entered_at: Date; name: string }[]>,
+      this.ds.query('SELECT COUNT(*) AS n FROM attendance_entries WHERE session_id = ?', [sid]) as Promise<{ n: string | number }[]>
+    ]);
+    return { items: rows.map((r) => ({ userId: bufToUuid(r.user_id), name: r.name || displayName(), enteredAt: r.entered_at.toISOString() })), total: Number(cnt[0]?.n ?? 0) };
+  }
 }

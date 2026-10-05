@@ -26,6 +26,8 @@
   let codeError = $state<string | null>(null);
   let locked = $state<'exhausted' | 'expired' | null>(null);
   let loading = $state(false);
+  /** AUTH_ACCOUNT_DISABLED: حساب غیرفعال/حذف‌شده است */
+  let disabled = $state(false);
   let resetSignal = $state(0);
   const wait = new Countdown();
   const expiry = new Countdown();
@@ -33,10 +35,16 @@
   function reset() {
     phoneError = passError = formError = codeError = null;
     locked = null;
+    disabled = false;
   }
 
   function handle(err: unknown, fallback: string) {
     if (err instanceof ApiError) {
+      if (err.code === 'AUTH_ACCOUNT_DISABLED') {
+        disabled = true;
+        step = 'phone';
+        loginFlow.clear();
+      }
       if (err.code === 'RATE_LIMITED' && err.retryAfterSec) wait.start(err.retryAfterSec);
       return err.message;
     }
@@ -76,7 +84,9 @@
       auth.applyLogin(r);
       toasts.success('خوش آمدید!');
     } catch (err) {
-      if (err instanceof ApiError) {
+      if (err instanceof ApiError && err.code === 'AUTH_ACCOUNT_DISABLED') {
+        formError = handle(err, '');
+      } else if (err instanceof ApiError) {
         if (err.code === 'AUTH_OTP_EXHAUSTED') locked = 'exhausted';
         else if (err.code === 'AUTH_OTP_EXPIRED') locked = 'expired';
         else if (err.code === 'AUTH_OTP_INVALID' && err.attemptsLeft !== undefined)
@@ -144,6 +154,9 @@
       <p class="muted">فقط برای مدیران سیستم. با شمارهٔ موبایل خود وارد شوید.</p>
     </div>
 
+    {#if auth.disabledNotice}
+      <NoticeBanner tone="error" role="alert"><strong>حساب شما غیرفعال شده است.</strong> برای فعال‌سازی دوباره با مدیر سیستم تماس بگیرید.</NoticeBanner>
+    {/if}
     {#if auth.expiredNotice}
       <NoticeBanner tone="warning" role="alert">نشست شما پایان یافته است؛ دوباره وارد شوید.</NoticeBanner>
     {/if}
@@ -158,7 +171,9 @@
         <PhoneField bind:value={phone} error={phoneError} disabled={loading} />
         {#if mode === 'password'}<PasswordField bind:value={password} error={passError} disabled={loading} />{/if}
 
-        {#if formError}
+        {#if disabled}
+          <NoticeBanner tone="error" role="alert"><strong>حساب شما غیرفعال شده است.</strong> نمی‌توانید وارد شوید؛ برای فعال‌سازی دوباره با مدیر سیستم تماس بگیرید.</NoticeBanner>
+        {:else if formError}
           <NoticeBanner tone="error" role="alert">
             {formError}{#if wait.remaining > 0}<strong> ({formatCountdown(wait.remaining)})</strong>{/if}
           </NoticeBanner>

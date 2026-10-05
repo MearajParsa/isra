@@ -36,7 +36,13 @@
     list: 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01',
     search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4',
     key: 'M14.5 10.5a4.5 4.5 0 1 0-8.2 2.6 4.5 4.5 0 0 0 8.2-2.6zM13.5 13.5 20 20M17 17l2-2',
-    'chevron-down': 'M6 9l6 6 6-6'
+    'chevron-down': 'M6 9l6 6 6-6',
+    chart: 'M4 20V9M10 20V4M16 20v-8M22 20H2',
+    more: 'M5 12h.01M12 12h.01M19 12h.01',
+    edit: 'M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4',
+    trash: 'M5 7h14M9 7V4.5h6V7M7 7l1 13h8l1-13M10 11v6M14 11v6',
+    ban: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM5.6 5.6l12.8 12.8',
+    filter: 'M4 5h16l-6 7.5V19l-4-2v-4.5z'
   } as const;
 
   export type IconName = keyof typeof paths;

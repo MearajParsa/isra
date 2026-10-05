@@ -35,6 +35,10 @@ class AuthStore {
   accessToken = $state<string | null>(null);
   /** پس از AUTH_REFRESH_INVALID: به صفحهٔ ورود اعلان «نشست منقضی شد» نشان داده می‌شود */
   expiredNotice = $state(false);
+  /** ورود/تمدید با AUTH_ACCOUNT_DISABLED رد شد؛ صفحهٔ ورود پیام روشن نشان می‌دهد */
+  disabledNotice = $state(false);
+  /** رمز موقت است (AUTH_PASSWORD_CHANGE_REQUIRED یا account.mustChangePassword): فقط فرم تعیین رمز نمایش داده می‌شود */
+  mustChangePassword = $state(false);
 
   #timer: ReturnType<typeof setTimeout> | null = null;
   #refreshing: Promise<void> | null = null;
@@ -51,7 +55,8 @@ class AuthStore {
         const r = await api.auth.refresh();
         this.#setToken(r.accessToken, r.accessExpiresIn);
         this.status = 'member';
-      } catch {
+      } catch (e) {
+        if (e instanceof ApiError && e.code === 'AUTH_ACCOUNT_DISABLED') this.disabledNotice = true;
         this.#reset();
       }
     })();
@@ -62,6 +67,8 @@ class AuthStore {
     hint.set();
     this.#setToken(result.accessToken, result.accessExpiresIn);
     this.expiredNotice = false;
+    this.disabledNotice = false;
+    this.mustChangePassword = false;
     this.status = 'member';
   }
 
@@ -91,8 +98,24 @@ class AuthStore {
         if (!this.accessToken) throw new ApiError('AUTH_REQUIRED', 'برای ادامه وارد شوید.', 401);
         return fn(this.accessToken);
       }
+      this.#observe(e);
       throw e;
     }
+  }
+
+  /** خطاهایی که وضعیت کل نشست را عوض می‌کنند */
+  #observe(e: unknown) {
+    if (!(e instanceof ApiError)) return;
+    if (e.code === 'AUTH_PASSWORD_CHANGE_REQUIRED') this.mustChangePassword = true;
+    else if (e.code === 'AUTH_ACCOUNT_DISABLED') {
+      this.disabledNotice = true;
+      this.#reset();
+    }
+  }
+
+  /** تمدید فوری توکن (مثلاً بعد از تغییر رمز موقت تا claim `mcp` از توکن حذف شود) */
+  refreshNow(): Promise<void> {
+    return this.#refresh();
   }
 
   #refresh(): Promise<void> {
@@ -111,7 +134,7 @@ class AuthStore {
         if (e instanceof ApiError && e.code === 'AUTH_REFRESH_INVALID') {
           this.expiredNotice = true;
           this.#reset();
-        }
+        } else this.#observe(e);
         throw e;
       }
     };
@@ -130,6 +153,7 @@ class AuthStore {
     this.#timer = null;
     this.accessToken = null;
     hint.clear();
+    this.mustChangePassword = false;
     this.status = 'guest';
   }
 }

@@ -13,6 +13,8 @@ export interface AccessClaims {
   roles: string[];
   grants: string[];
   permVer: number;
+  /** رمز موقت مدیر ⇒ claim `mcp: true` (mid/high همهٔ/بیشتر مسیرها را رد می‌کنند) */
+  mustChangePassword?: boolean;
 }
 
 export interface VerifiedAccess {
@@ -34,7 +36,7 @@ export class TokenService {
   async signAccess(c: AccessClaims): Promise<{ token: string; expiresIn: number }> {
     const iat = Math.floor(this.clock.now().getTime() / 1000);
     const exp = iat + this.env.ACCESS_TTL_SEC;
-    const token = await new SignJWT({ sid: c.sessionId, fid: c.sessionId, lvl: 'low', roles: c.roles, perms: c.grants, pv: c.permVer, did: c.deviceId })
+    const token = await new SignJWT({ sid: c.sessionId, fid: c.sessionId, lvl: 'low', roles: c.roles, perms: c.grants, pv: c.permVer, did: c.deviceId, ...(c.mustChangePassword ? { mcp: true } : {}) })
       .setProtectedHeader({ alg: 'RS256', kid: this.keys.kid, typ: 'JWT' })
       .setSubject(c.userId)
       .setIssuer(this.env.JWT_ISSUER)

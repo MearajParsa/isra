@@ -8,6 +8,8 @@ export type ApiErrorCode =
   | 'AUTH_TOKEN_INVALID'
   | 'AUTH_STEP_UP_REQUIRED'
   | 'AUTH_FORBIDDEN'
+  | 'AUTH_PASSWORD_CHANGE_REQUIRED'
+  | 'AUTH_ACCOUNT_DISABLED'
   | 'SESSION_INVALID_TRANSITION'
   | 'UNSUPPORTED_MEDIA_TYPE'
   | 'PAYLOAD_TOO_LARGE'
@@ -48,6 +50,11 @@ export class ApiError extends Error {
   get retryAfterSec(): number | undefined {
     const v = this.details.retryAfterSec;
     return typeof v === 'number' ? v : undefined;
+  }
+  /** دلیل ماشین‌خوان CONFLICT */
+  get reason(): string | undefined {
+    const v = this.details.reason;
+    return typeof v === 'string' ? v : undefined;
   }
   get attemptsLeft(): number | undefined {
     const v = this.details.attemptsLeft;
@@ -94,3 +101,18 @@ export interface DeviceInfo {
   deviceId: string;
   deviceLabel: string;
 }
+
+export type ConflictReason =
+  | 'ALREADY_MEMBER'
+  | 'ALREADY_DECIDED'
+  | 'NOT_APPROVED'
+  | 'NOT_PRESENT'
+  | 'ALREADY_IN_QUEUE'
+  | 'ALREADY_EVALUATED'
+  | 'SESSION_LOCKED'
+  | 'LAST_HOLDER'
+  | 'LOCKED_PERMISSION'
+  | 'VERSION_MISMATCH'
+  | 'PHONE_TAKEN'
+  | 'SELF_PROTECTED'
+  | 'USER_NOT_ACTIVE';
