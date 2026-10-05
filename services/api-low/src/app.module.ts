@@ -10,6 +10,8 @@ import { ConfigModule } from './config/config.module';
 import type { Env } from './config/env';
 import { DatabaseModule } from './db/database.module';
 import { InfraController } from './infra/infra.controller';
+import { AdminController } from './internal/admin.controller';
+import { AdminService } from './internal/admin.service';
 import { EventsController } from './internal/events.controller';
 import { EventsService } from './internal/events.service';
 import { InternalGuard } from './internal/internal.guard';
@@ -46,10 +48,11 @@ export class AppModule {
         MidModule,
         AuthModule
       ],
-      controllers: [MeController, PublicController, InfraController, EventsController],
+      controllers: [MeController, PublicController, InfraController, EventsController, AdminController],
       providers: [
         MeService,
         EventsService,
+        AdminService,
         InternalGuard,
         OutboxService,
         MaintenanceService,

@@ -120,14 +120,15 @@ export class LowAdminClient extends OriginClient {
   createUser(body: z.infer<typeof internal.LowAdminCreateUser>): Promise<LowUser> {
     return this.one(internal.LowAdminUser, 'POST', this.A.users, { body });
   }
-  updateUser(id: string, body: z.infer<typeof internal.LowAdminUpdateUser>): Promise<LowUser> {
-    return this.one(internal.LowAdminUser, 'PATCH', this.A.user, { params: { id }, body });
+  /** پاسخ استفاده نمی‌شود؛ حالت تازه با getUser خوانده می‌شود (وابسته نبودن به شکل پاسخ نوشتن‌ها) */
+  updateUser(id: string, body: z.infer<typeof internal.LowAdminUpdateUser>): Promise<void> {
+    return this.none('PATCH', this.A.user, { params: { id }, body });
   }
   deleteUser(id: string): Promise<void> {
     return this.none('DELETE', this.A.user, { params: { id } });
   }
-  setStatus(id: string, body: z.infer<typeof internal.LowAdminStatus>): Promise<LowUser> {
-    return this.one(internal.LowAdminUser, 'POST', this.A.status, { params: { id }, body });
+  setStatus(id: string, body: z.infer<typeof internal.LowAdminStatus>): Promise<void> {
+    return this.none('POST', this.A.status, { params: { id }, body });
   }
   setPassword(id: string, body: z.infer<typeof internal.LowAdminPassword>): Promise<void> {
     return this.none('PUT', this.A.password, { params: { id }, body });

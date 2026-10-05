@@ -8,6 +8,10 @@ export interface AuthedUser {
   /** نقش‌ها و مجوزهای مؤثر از DB (نه JWT) */
   roles: string[];
   perms: string[];
+  /** access token دارای claim `mcp` (رمز موقت) */
+  mcp: boolean;
+  /** step-up معتبر برای این کاربر/نشست در همین درخواست ارائه شده */
+  stepUpVerified: boolean;
 }
 
 export interface RequestContext {

@@ -12,6 +12,8 @@ import { RateLimitService } from '../rate-limit/rate-limit.service';
 import type { IsraRequest } from '../request-context';
 
 const GLOBAL_IP_LIMIT: RateLimit = { limit: 600, windowSec: 60, key: 'ip' };
+/** با پرچم رمز موقت (`mcp`) فقط این endpointها مجازند (docs-v2/26) */
+const MCP_ALLOWED = new Set(['H-00', 'H-02', 'H-04']);
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH']);
 
 /**
@@ -58,14 +60,28 @@ export class EndpointGuard implements CanActivate {
     if (!token) throw new AppError('AUTH_REQUIRED');
     const who = await this.jwt.verifyAccess(token);
     const a = await this.rbac.access(who.userId);
-    req.user = { userId: who.userId, sessionId: who.sessionId, roles: a.roles, perms: a.permissions };
+    req.user = { userId: who.userId, sessionId: who.sessionId, roles: a.roles, perms: a.permissions, mcp: who.mcp, stepUpVerified: false };
 
     if (a.roles.length === 0) throw new AppError('AUTH_FORBIDDEN', { message: 'دسترسی به پنل مدیریت ندارید.' });
+    if (who.mcp && !MCP_ALLOWED.has(def.id)) throw new AppError('AUTH_PASSWORD_CHANGE_REQUIRED');
     if (def.permission && !a.permissions.includes(def.permission as never)) throw new AppError('AUTH_FORBIDDEN');
     if (def.stepUp) {
       const t = req.header(HEADERS.stepUp);
-      if (!t || !(await this.jwt.verifyStepUp(t, who))) throw new AppError('AUTH_STEP_UP_REQUIRED');
+      req.user.stepUpVerified = !!t && (await this.jwt.verifyStepUp(t, who));
+      if (!req.user.stepUpVerified && !this.mustChangeException(def, who.mcp, req)) throw new AppError('AUTH_STEP_UP_REQUIRED');
     }
+  }
+
+  /**
+   * تنها استثنای step-up (H-04، docs-v2/26): کاربری که با رمز موقت وارد شده (`mcp`) هنوز نمی‌تواند step-up بگیرد
+   * (step-up به رمز/OTP نیاز دارد و همهٔ مسیرها جز تغییر رمز بسته‌اند)؛ پس به‌جای step-up، `currentPassword` (رمز موقت)
+   * پذیرفته می‌شود و low آن را با argon2 تطبیق می‌دهد (غلط ⇒ AUTH_INVALID_CREDENTIALS).
+   * شرط سخت‌گیرانه: فقط H-04 + توکن دارای `mcp` + `currentPassword` رشتهٔ غیرخالی. هر حالت دیگر ⇒ step-up الزامی.
+   */
+  private mustChangeException(def: EndpointDef, mcp: boolean, req: IsraRequest): boolean {
+    if (def.id !== 'H-04' || !mcp) return false;
+    const cur = (req.body as { currentPassword?: unknown } | undefined)?.currentPassword;
+    return typeof cur === 'string' && cur.length > 0;
   }
 
   private async rateLimit(def: EndpointDef, req: IsraRequest, res: Response) {
