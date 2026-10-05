@@ -10,7 +10,7 @@ beforeAll(async () => {
   t = await startApp();
 });
 afterAll(async () => t.close());
-beforeEach(async () => resetDb(t.ds));
+beforeEach(async () => resetDb(t.ds, t.app));
 
 const send = (type: string, payload: object, over: { caller?: string; token?: string; eventId?: string } = {}) =>
   request(t.http)

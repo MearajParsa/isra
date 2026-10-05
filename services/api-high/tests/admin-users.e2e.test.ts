@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { type TestApp, type User, api, failReply, mkUser, outboxTypes, rawReply, resetDb, startApp } from './helpers/app';
+import { type TestApp, type User, api, failReply, mkRoleDb, mkUser, outboxTypes, rawReply, resetDb, startApp } from './helpers/app';
 import { installFakeLow, installFakeMid } from './helpers/fakes';
 
 let t: TestApp;
@@ -15,7 +15,7 @@ beforeAll(async () => {
 });
 afterAll(async () => t.close());
 beforeEach(async () => {
-  await resetDb(t.ds);
+  await resetDb(t.ds, t.app);
   t.fake.admin.reset();
   low = installFakeLow(t);
   installFakeMid(t);
@@ -69,8 +69,9 @@ describe('ماتریس مجوز', () => {
     }
   });
 
-  it('step-up الزامی روی همهٔ نوشتن‌ها (بدون توکن ⇒ AUTH_STEP_UP_REQUIRED)', async () => {
-    const dev = await mkUser(t, 'توسعه', ['developer']);
+  it('step-up الزامی روی همهٔ نوشتن‌ها برای غیر developer (بدون توکن ⇒ AUTH_STEP_UP_REQUIRED)؛ developer معاف است', async () => {
+    await mkRoleDb(t, 'users_mgr', ['system.users.manage']);
+    const dev = await mkUser(t, 'مدیر کاربران', ['users_mgr']);
     const target = await mkUser(t, 'هدف');
     low.addUser(target);
     const sid = randomUUID();

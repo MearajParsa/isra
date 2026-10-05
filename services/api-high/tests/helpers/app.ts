@@ -9,7 +9,9 @@ import { createApp } from '../../src/bootstrap';
 import { Clock } from '../../src/common/clock';
 import { uuidv7 } from '../../src/common/ids';
 import { type Env, loadEnv } from '../../src/config/env';
-import { DEFAULT_FLAGS, DEFAULT_ROLE_PERMS, DEFAULT_THRESHOLDS, DEFAULT_WEIGHTS, LOCKED, ROLE_KEYS } from '../../src/domain/rules';
+import { seedRbac } from '../../src/db/rbac-seed';
+import { RbacService } from '../../src/domain/rbac.service';
+import { DEFAULT_FLAGS, DEFAULT_THRESHOLDS, DEFAULT_WEIGHTS } from '../../src/domain/rules';
 
 export class TestClock extends Clock {
   private t = Date.now();
@@ -21,7 +23,7 @@ export class TestClock extends Clock {
   }
 }
 
-const TABLES = ['user_directory', 'user_system_roles', 'user_grants', 'audit_logs', 'outbox_events', 'inbox_events', 'rate_limit_counters'];
+const TABLES = ['user_directory', 'user_system_roles', 'user_grants', 'audit_logs', 'outbox_events', 'inbox_events', 'rate_limit_counters', 'idempotency_keys'];
 
 /** low جعلی: JWKS + دریافت رویدادهای outbox (نقش api-low) */
 export interface FakeLow {
@@ -172,6 +174,8 @@ export interface TestApp {
   ds: DataSource;
   env: Env;
   fake: FakeLow;
+  /** کش RBAC حافظه را باطل می‌کند (پس از دست‌کاری مستقیم DB در تست) */
+  flush: () => void;
   close: () => Promise<void>;
 }
 
@@ -182,17 +186,24 @@ export async function startApp(over: Record<string, string> = {}): Promise<TestA
   const app = await createApp(env, { clock, silent: true });
   await app.listen(0, '127.0.0.1');
   const ds = app.get(DataSource);
-  await resetDb(ds);
-  return { app, http: app.getHttpServer() as Server, clock, ds, env, fake, close: async () => (await app.close(), await fake.close()) };
+  await resetDb(ds, app);
+  const rbac = app.get(RbacService);
+  return { app, http: app.getHttpServer() as Server, clock, ds, env, fake, flush: () => rbac.invalidate(), close: async () => (await app.close(), await fake.close()) };
 }
 
 /** وضعیت اولیهٔ سیستم: جدول‌های دادهٔ کاربر خالی + ماتریس مجوز و تنظیمات به seed برمی‌گردد */
-export async function resetDb(ds: DataSource) {
+export async function resetDb(ds: DataSource, app?: NestExpressApplication) {
   await ds.query('SET FOREIGN_KEY_CHECKS = 0');
   for (const t of TABLES) await ds.query(`TRUNCATE TABLE ${t}`);
   await ds.query('SET FOREIGN_KEY_CHECKS = 1');
-  await ds.query('DELETE FROM role_permissions');
-  for (const r of ROLE_KEYS) for (const p of DEFAULT_ROLE_PERMS[r]) await ds.query('INSERT INTO role_permissions (role_key, permission_key, locked) VALUES (?, ?, ?)', [r, p, LOCKED[r].includes(p) ? 1 : 0]);
+  for (const t of ['role_permissions', 'role_modules', 'role_step_up', 'user_grants']) await ds.query(`DELETE FROM ${t}`);
+  await ds.query('DELETE FROM system_roles WHERE undeletable = 0');
+  await ds.query('DELETE FROM permissions WHERE is_system = 0');
+  await ds.query('DELETE FROM system_modules WHERE is_system = 0');
+  await seedRbac(ds, new Date());
+  await ds.query('UPDATE rbac_meta SET version = 1');
+  // نقش‌های حذف‌شدهٔ پویا ردی در user_system_roles ندارند (جدول بالا truncate شده)
+  app?.get(RbacService).invalidate();
   await ds.query("UPDATE system_settings SET version = 1, eval_weights = ?, badge_thresholds = ?, flags = ?, updated_by = 'سیستم' WHERE setting_key = 'global'", [JSON.stringify(DEFAULT_WEIGHTS), JSON.stringify(DEFAULT_THRESHOLDS), JSON.stringify(DEFAULT_FLAGS)]);
 }
 
@@ -222,6 +233,7 @@ export async function mkUser(t: TestApp, name: string, roles: string[] = [], gra
   await t.ds.query('INSERT INTO user_directory (user_id, phone, first_name, last_name, status, perm_ver, created_at, updated_at) VALUES (UNHEX(?), ?, ?, ?, ?, 1, NOW(3), NOW(3))', [hex(id), phone, first ?? '', rest.join(' '), opts.status ?? 'active']);
   for (const r of roles) await t.ds.query('INSERT INTO user_system_roles (user_id, role_key, granted_by, granted_at) VALUES (UNHEX(?), ?, NULL, NOW(3))', [hex(id), r]);
   for (const g of grants) await t.ds.query('INSERT INTO user_grants (user_id, grant_key, granted_by, granted_at) VALUES (UNHEX(?), ?, NULL, NOW(3))', [hex(id), g]);
+  t.flush();
   const token = await t.fake.sign({ sub: id, sid, mcp: opts.mcp });
   return {
     id,
@@ -243,3 +255,10 @@ export const api = (t: TestApp) => ({
 });
 
 export const outboxTypes = async (t: TestApp) => ((await t.ds.query('SELECT type, payload FROM outbox_events ORDER BY created_at, id')) as { type: string; payload: unknown }[]).map((r) => ({ type: r.type, payload: typeof r.payload === 'string' ? JSON.parse(r.payload) : (r.payload as any) }));
+
+/** نقش پویا مستقیم در DB (برای تست guard با کاربر غیر developer دارای مجوزهای مشخص) */
+export async function mkRoleDb(t: TestApp, key: string, perms: string[]): Promise<void> {
+  await t.ds.query("INSERT INTO system_roles (role_key, title, description, undeletable) VALUES (?, ?, '', 0)", [key, `نقش ${key}`]);
+  for (const p of perms) await t.ds.query('INSERT INTO role_permissions (role_key, permission_key, locked) VALUES (?, ?, 0)', [key, p]);
+  t.flush();
+}

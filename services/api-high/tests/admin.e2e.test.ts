@@ -12,7 +12,7 @@ beforeAll(async () => {
 });
 afterAll(async () => t.close());
 beforeEach(async () => {
-  await resetDb(t.ds);
+  await resetDb(t.ds, t.app);
 });
 
 describe('هویت و دسترسی', () => {
@@ -34,6 +34,7 @@ describe('هویت و دسترسی', () => {
     const admin = await mkUser(t, 'مدیر', ['super_admin']);
     expect((await a.get('/system/me', admin)).status).toBe(200);
     await t.ds.query('DELETE FROM user_system_roles WHERE user_id = UNHEX(?)', [admin.id.replace(/-/g, '')]);
+    t.flush(); // کش حافظهٔ ۵ ثانیه‌ای (دست‌کاری مستقیم DB)
     expect((await a.get('/system/me', admin)).status).toBe(403);
   });
 
@@ -67,7 +68,7 @@ describe('هویت و دسترسی', () => {
 describe('step-up (JWT از low)', () => {
   const body = { roles: ['super_admin'] };
   it('بدون توکن 403 AUTH_STEP_UP_REQUIRED؛ منقضی/دیگر کاربر/دیگر نشست/lvl اشتباه ⇒ رد؛ معتبر ⇒ مجاز', async () => {
-    const dev = await mkUser(t, 'توسعه', ['developer']);
+    const dev = await mkUser(t, 'مدیر', ['super_admin']); // developer معاف از step-up است (docs-v2/27 §4)
     const target = await mkUser(t, 'هدف');
     const put = (h: Record<string, string>) => a.put(`/system/users/${target.id}/roles`, h, body);
     const none = await put(dev.h);
@@ -75,7 +76,7 @@ describe('step-up (JWT از low)', () => {
     expect(none.body.error.code).toBe('AUTH_STEP_UP_REQUIRED');
     const bearer = { ...dev.h };
     const withStep = (tok: string) => ({ ...bearer, 'X-Step-Up-Token': tok });
-    const other = await mkUser(t, 'دیگر', ['developer']);
+    const other = await mkUser(t, 'دیگر', ['super_admin']);
     expect((await put(withStep(await t.fake.sign({ sub: other.id, sid: dev.sid, lvl: 'stepup' })))).body.error.code).toBe('AUTH_STEP_UP_REQUIRED');
     expect((await put(withStep(await t.fake.sign({ sub: dev.id, sid: randomUUID(), lvl: 'stepup' })))).body.error.code).toBe('AUTH_STEP_UP_REQUIRED');
     expect((await put(withStep(await t.fake.sign({ sub: dev.id, sid: dev.sid, lvl: 'low' })))).body.error.code).toBe('AUTH_STEP_UP_REQUIRED');
@@ -138,14 +139,17 @@ describe('نقش‌های کاربران', () => {
     const d1 = await mkUser(t, 'دی یک', ['developer']);
     const d2 = await mkUser(t, 'دی دو', ['developer']);
     const [r1, r2] = await Promise.all([a.put(`/system/users/${d2.id}/roles`, await d1.step(), { roles: [] }), a.put(`/system/users/${d1.id}/roles`, await d2.step(), { roles: [] })]);
-    expect([r1.status, r2.status].sort()).toEqual([200, 409]);
+    // تراکنش‌ها پشت‌سرهم اجرا می‌شوند: دومی یا دیگر developer نیست (403) یا آخرین دارنده است (409)
+    const sorted = [r1.status, r2.status].sort();
+    expect(sorted[0]).toBe(200);
+    expect([403, 409]).toContain(sorted[1]);
     const [{ n }] = (await t.ds.query("SELECT COUNT(*) AS n FROM user_system_roles WHERE role_key = 'developer'")) as { n: string }[];
     expect(Number(n)).toBe(1);
   });
 
   it('ورودی نامعتبر 400؛ کاربر ناموجود 404؛ فقط system.role.assign', async () => {
     const dev = await mkUser(t, 'توسعه', ['developer']);
-    expect((await a.put(`/system/users/${dev.id}/roles`, await dev.step(), { roles: ['root'] })).status).toBe(400);
+    expect((await a.put(`/system/users/${dev.id}/roles`, await dev.step(), { roles: ['root'] })).status).toBe(404); // نقش ناموجود
     expect((await a.put(`/system/users/${dev.id}/roles`, await dev.step(), { roles: ['developer'], extra: 1 })).status).toBe(400);
     expect((await a.put(`/system/users/${randomUUID()}/roles`, await dev.step(), { roles: [] })).status).toBe(404);
     expect((await a.put('/system/users/not-a-uuid/roles', await dev.step(), { roles: [] })).status).toBe(404);
@@ -177,11 +181,11 @@ describe('ماتریس مجوز', () => {
     const roles = await a.get('/system/roles', dev);
     expect(roles.body.data.map((r: any) => r.key)).toEqual(['developer', 'super_admin']);
     expect(roles.body.data[0]).toMatchObject({ undeletable: true, holders: 1, title: 'توسعه‌دهنده' });
-    expect(roles.body.data[0].lockedPermissions).toHaveLength(11);
+    expect(roles.body.data[0].lockedPermissions).toHaveLength(14);
     expect(roles.body.data[1].lockedPermissions).toEqual(expect.arrayContaining(['system.users.view', 'system.role.assign', 'system.permission.edit', 'system.audit.view']));
     const perms = await a.get('/system/permissions?pageSize=50', dev);
-    expect(perms.body.meta.total).toBe(11);
-    expect(perms.body.data.find((p: any) => p.key === 'session.create')).toMatchObject({ group: 'session' });
+    expect(perms.body.meta.total).toBe(14);
+    expect(perms.body.data.find((p: any) => p.key === 'session.create')).toMatchObject({ moduleKey: 'sessions', grantable: true });
   });
 
   it('developer ثابت ⇒ 403؛ حذف مجوز قفل‌شده ⇒ 409 LOCKED_PERMISSION؛ تغییر مجاز ⇒ claim دارندگان تازه می‌شود', async () => {

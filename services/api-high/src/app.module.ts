@@ -17,6 +17,11 @@ import { AccountService } from './domain/account.service';
 import { AdminController } from './domain/admin.controller';
 import { HighController } from './domain/high.controller';
 import { OverviewService } from './domain/overview.service';
+import { AccessQueryService } from './domain/access/access-query.service';
+import { PermissionAdminService } from './domain/access/permission-admin.service';
+import { RegistryService } from './domain/access/registry.service';
+import { RbacController } from './domain/rbac.controller';
+import { IdempotencyInterceptor } from './common/idempotency.interceptor';
 import { RbacService } from './domain/rbac.service';
 import { RolesService } from './domain/roles.service';
 import { SettingsService } from './domain/settings.service';
@@ -32,7 +37,7 @@ import { InternalGuard } from './internal/internal.guard';
 import { MaintenanceService } from './outbox/maintenance.service';
 import { OutboxService } from './outbox/outbox.service';
 
-const PROVIDERS = [RevocationService, JwtVerifier, RateLimitService, RbacService, AuditService, ClaimsService, UsersService, UsersAdminService, AccountService, SessionsAdminService, ReportsService, LowAdminClient, MidAdminClient, RolesService, SettingsService, OverviewService, EventsService, InternalGuard, OutboxService, MaintenanceService, EndpointGuard];
+const PROVIDERS = [RevocationService, JwtVerifier, RateLimitService, RbacService, AuditService, ClaimsService, UsersService, UsersAdminService, AccountService, SessionsAdminService, ReportsService, LowAdminClient, MidAdminClient, RolesService, RegistryService, PermissionAdminService, AccessQueryService, SettingsService, OverviewService, EventsService, InternalGuard, OutboxService, MaintenanceService, EndpointGuard];
 
 @Global()
 @Module({ providers: PROVIDERS, exports: PROVIDERS })
@@ -60,10 +65,12 @@ export class AppModule {
         DatabaseModule,
         CoreModule
       ],
-      controllers: [HighController, AdminController, InfraController, EventsController],
+      controllers: [HighController, AdminController, RbacController, InfraController, EventsController],
       providers: [
         { provide: APP_FILTER, useClass: AllExceptionsFilter },
+        // ترتیب مهم: Envelope بیرونی، Idempotency داخلی (پاسخ ذخیره‌شده هم envelope می‌شود)
         { provide: APP_INTERCEPTOR, useClass: EnvelopeInterceptor },
+        { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
         { provide: APP_GUARD, useExisting: EndpointGuard }
       ]
     };

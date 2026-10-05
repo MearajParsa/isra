@@ -40,6 +40,7 @@ export class MaintenanceService implements OnApplicationBootstrap, OnApplication
       out.outbox = await del('DELETE FROM outbox_events WHERE published_at < ? LIMIT 5000', ago(7 * DAY));
       out.revokedSessions = await this.revocation.purgeExpired();
       out.inboxEvents = await del('DELETE FROM inbox_events WHERE received_at < ? LIMIT 5000', ago(30 * DAY));
+      out.idempotency = await del('DELETE FROM idempotency_keys WHERE created_at < ? LIMIT 5000', ago(DAY));
       out.counters = await this.limiter.purgeOlderThan(ago(2 * DAY));
     } catch (e) {
       this.log.error({ err: e instanceof Error ? e.message : 'unknown' }, 'maintenance failed');

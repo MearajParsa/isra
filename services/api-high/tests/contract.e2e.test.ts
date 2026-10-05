@@ -15,7 +15,7 @@ beforeAll(async () => {
   a = api(t);
 });
 afterAll(async () => t.close());
-beforeEach(async () => resetDb(t.ds));
+beforeEach(async () => resetDb(t.ds, t.app));
 
 describe('پوشش route ⇄ قرارداد', () => {
   it('هر handler با یک endpoint قرارداد علامت خورده و برعکس', () => {

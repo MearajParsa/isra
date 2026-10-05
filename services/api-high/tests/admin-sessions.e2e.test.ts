@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { type TestApp, api, failReply, mkUser, rawReply, resetDb, startApp } from './helpers/app';
+import { type TestApp, api, failReply, mkRoleDb, mkUser, rawReply, resetDb, startApp } from './helpers/app';
 import { installFakeLow, installFakeMid } from './helpers/fakes';
 
 let t: TestApp;
@@ -14,7 +14,7 @@ beforeAll(async () => {
 });
 afterAll(async () => t.close());
 beforeEach(async () => {
-  await resetDb(t.ds);
+  await resetDb(t.ds, t.app);
   t.fake.admin.reset();
   low = installFakeLow(t);
   mid = installFakeMid(t);
@@ -42,6 +42,8 @@ describe('ماتریس مجوز', () => {
       const n = await a.get(`/system/sessions${v}`, nobody);
       expect([v, n.status, n.body.error.code]).toEqual([v, 403, 'AUTH_FORBIDDEN']);
     }
+    await mkRoleDb(t, 'sessions_mgr', ['system.sessions.manage']);
+    const sm = await mkUser(t, 'مدیر جلسه', ['sessions_mgr']);
     const manage: [string, string, object?][] = [
       ['post', '/system/sessions', { session: input }],
       ['patch', `/system/sessions/${s.id}`, input],
@@ -53,7 +55,7 @@ describe('ماتریس مجوز', () => {
     ];
     t.fake.admin.calls.length = 0;
     for (const [mm, p, b] of manage) {
-      const noStep = await call(mm, p, dev.h, b);
+      const noStep = await call(mm, p, sm.h, b); // غیر developer با مجوز manage: step-up لازم (developer معاف)
       expect([mm, p, noStep.status, noStep.body.error.code]).toEqual([mm, p, 403, 'AUTH_STEP_UP_REQUIRED']);
       const adm = await call(mm, p, await admin.step(), b);
       expect([mm, p, adm.status, adm.body.error.code]).toEqual([mm, p, 403, 'AUTH_FORBIDDEN']);
@@ -63,6 +65,7 @@ describe('ماتریس مجوز', () => {
     expect(t.fake.admin.calls).toHaveLength(0);
     // super_admin بدون sessions.view (ماتریس ویرایش شد) ⇒ 403
     await t.ds.query("DELETE FROM role_permissions WHERE role_key = 'super_admin' AND permission_key = 'system.sessions.view'");
+    t.flush();
     expect((await a.get('/system/sessions', admin)).status).toBe(403);
   });
 });

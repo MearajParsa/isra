@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { loadEnv } from '../src/config/env';
-import { ALL_PERMISSIONS, DEFAULT_ROLE_PERMS, LOCKED, missingLocked, sameSet, touchesDeveloper } from '../src/domain/rules';
+import { ALL_PERMISSIONS, DEFAULT_ROLE_PERMS, LOCKED } from '../src/db/rbac-seed';
+import { missingLocked, sameSet, touchesDeveloper } from '../src/domain/rules';
 
 describe('قواعد نقش/مجوز', () => {
   it('developer همه‌چیز قفل؛ super_admin فقط ۴ مجوز قفل', () => {
@@ -8,11 +9,11 @@ describe('قواعد نقش/مجوز', () => {
     expect([...LOCKED.super_admin].sort()).toEqual(['system.audit.view', 'system.permission.edit', 'system.role.assign', 'system.users.view']);
   });
   it('پیش‌فرض‌ها شامل مجوزهای قفل‌اند', () => {
-    for (const r of ['developer', 'super_admin'] as const) expect(missingLocked(r, DEFAULT_ROLE_PERMS[r])).toEqual([]);
+    for (const r of ['developer', 'super_admin'] as const) expect(missingLocked(LOCKED[r]!, DEFAULT_ROLE_PERMS[r]!)).toEqual([]);
   });
   it('missingLocked مجوزهای حذف‌شده را برمی‌گرداند', () => {
-    expect(missingLocked('super_admin', ['session.create'])).toHaveLength(4);
-    expect(missingLocked('super_admin', [...DEFAULT_ROLE_PERMS.super_admin].filter((p) => p !== 'session.create'))).toEqual([]);
+    expect(missingLocked(LOCKED.super_admin!, ['session.create'])).toHaveLength(4);
+    expect(missingLocked(LOCKED.super_admin!, [...DEFAULT_ROLE_PERMS.super_admin!].filter((p) => p !== 'session.create'))).toEqual([]);
   });
   it('touchesDeveloper و sameSet', () => {
     expect(touchesDeveloper([], ['developer'])).toBe(true);
