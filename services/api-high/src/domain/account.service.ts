@@ -36,8 +36,8 @@ export class AccountService {
   async updateProfile(user: AuthedUser, body: z.infer<typeof high.UpdateMyProfileBody>) {
     await this.low.updateUser(user.userId, body);
     const acc = await this.me(user.userId);
-    await this.audit.write(this.ds, await this.entry(user, 'account.profile_update', 'پروفایل خود را ویرایش کرد.', { fields: Object.keys(body) }));
     await this.ds.query('UPDATE user_directory SET first_name = ?, last_name = ?, updated_at = ? WHERE user_id = ?', [acc.firstName, acc.lastName, this.clock.now(), uuidToBuf(user.userId)]);
+    await this.audit.write(this.ds, await this.entry(user, 'account.profile_update', 'پروفایل خود را ویرایش کرد.', { fields: Object.keys(body) }));
     return acc;
   }
 

@@ -71,7 +71,7 @@ export function installFakeLow(t: TestApp) {
   A.on('DELETE', `${LOW}/users/:id`, (_c, p) => {
     const u = find(p.id!);
     if (!u) return nf();
-    Object.assign(u, { status: 'deleted', phone: `d${p.id!.replace(/-/g, '').slice(0, 10)}`, firstName: '', lastName: '', hasPassword: false });
+    Object.assign(u, { status: 'deleted', phone: `d${p.id!.replace(/-/g, '').slice(-10)}`, firstName: '', lastName: '', hasPassword: false });
     return okReply({});
   });
   A.on('POST', `${LOW}/users/:id/status`, (c, p) => {

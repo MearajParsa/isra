@@ -1,3 +1,4 @@
+import { untrack } from 'svelte';
 import { errorMessage, isNetworkError } from './errors';
 
 /** وضعیت بارگذاری یک منبع سمت کلاینت (skeleton / خطا / خالی) */
@@ -21,9 +22,10 @@ export class Resource<T> {
     this.fetching = true;
     this.error = null;
     this.offline = false;
-    if (this.status !== 'ready') this.status = 'loading';
+    // خواندن وضعیت نباید effect فراخوان را به این منبع وابسته کند
+    if (untrack(() => this.status) !== 'ready') this.status = 'loading';
     try {
-      const d = await fn(ctl.signal);
+      const d = await untrack(() => fn(ctl.signal));
       if (seq !== this.#seq) return;
       this.data = d;
       this.status = 'ready';

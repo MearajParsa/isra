@@ -20,8 +20,13 @@ export interface Actor {
   roles: readonly SystemRoleKey[];
 }
 
-/** شمارهٔ ناشناس کاربر حذف‌شده: `d` + ۱۰ هگز اول شناسه (همان قاعدهٔ low) */
-export const anonPhone = (userId: string): string => `d${userId.replace(/-/g, '').slice(0, 10)}`;
+/**
+ * شمارهٔ ناشناس جایگزین (فقط وقتی low مقدارش را نداده): `d` + ۱۰ هگز **آخر** شناسه.
+ * ۱۰ هگز اولِ UUIDv7 بخشی از timestamp است (دو کاربر ساخته‌شده در یک بازهٔ ~۲۵۶ms همان پیشوند را دارند ⇒ نقض UNIQUE)؛
+ * بخش پایانی تصادفی است. مرجع شمارهٔ ناشناس همیشه low است و رویداد/پاسخ low بر این مقدار می‌نشیند.
+ */
+export const anonPhone = (userId: string): string => `d${userId.replace(/-/g, '').slice(-10)}`;
+const ANON = /^d[0-9a-f]{10}$/;
 
 const zeros = { points: { total: 0, badges: 0 }, sessions: { created: 0, memberships: 0, attended: 0 } };
 
@@ -188,13 +193,15 @@ export class UsersAdminService {
     if (row.status === 'deleted') return; // idempotent
     await this.protect(actor, id, 'delete');
     await this.low.deleteUser(id);
-    await this.anonymize(id, row, actor);
+    // شمارهٔ ناشناس را low تعیین کرده است؛ خواندنش ناموفق بود ⇒ جایگزین محلی (رویداد user.status.changed بعداً هم‌ترازش می‌کند)
+    const lu = await this.soft(this.low.getUser(id), 'low.getUser');
+    await this.anonymize(id, row, actor, lu && ANON.test(lu.phone) ? lu.phone : anonPhone(id));
   }
 
   /** ناشناس‌سازی محلی (همان اثر رویداد user.status.changed=deleted؛ هر دو idempotent) + audit */
-  private async anonymize(id: string, row: DirectoryRow, actor: Actor): Promise<void> {
+  private async anonymize(id: string, row: DirectoryRow, actor: Actor, phone: string): Promise<void> {
     await this.ds.transaction(async (m) => {
-      await this.applyDeleted(m, id, anonPhone(id), this.clock.now());
+      await this.applyDeleted(m, id, phone, this.clock.now());
       await this.audit.write(m, {
         actor: await this.audit.actorOf(actor.id, m),
         action: 'user.delete',

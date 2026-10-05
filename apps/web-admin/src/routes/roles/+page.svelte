@@ -58,7 +58,7 @@
       const res = await withStepUp((su) => auth.withAuth((t) => api.system.setRolePermissions(t, 'super_admin', draft.super_admin, su)));
       if (res) {
         toasts.success('ماتریس مجوز ذخیره شد و برای low و mid منتشر می‌شود.');
-        await Promise.all([load(), system.load()]);
+        await Promise.all([load(), system.load(true)]);
       }
     } catch (e) {
       error = errorMessage(e);
