@@ -236,8 +236,8 @@ export const MidAdminDecideBulk = z.object({ ...Actor, memberIds: z.array(Uuid).
 export const MidAdminDecideBulkResult = z.object({
   items: z.array(z.object({ memberId: Uuid, outcome: z.enum(['approved', 'rejected', 'skipped', 'full', 'not_found']) }))
 });
-/** mid: PUT MID_ADMIN.memberRoles — ۱.۶.۰ بدنه = AdminSetMemberRolesBody (+actorId اختیاری) */
-export const MidAdminSetRoles = AdminSetMemberRolesBody;
+/** mid: PUT MID_ADMIN.memberRoles — ۱.۶.۰ بدنه = AdminSetMemberRolesBody + actorId اختیاری */
+export const MidAdminSetRoles = AdminSetMemberRolesBody.extend({ actorId: Uuid.optional() }).strict();
 /** mid: PUT MID_ADMIN.manager */
 export const MidAdminManager = z
   .object({
@@ -251,6 +251,8 @@ export const MidAdminManager = z
     lastName: z.string().max(40).optional()
   })
   .strict();
+/** پاسخ PUT MID_ADMIN.manager */
+export const MidAdminManagerResult = AdminSession;
 export const MidAdminOccurrence = Occurrence;
 export const MidAdminMarkAttendance = z.object({ ...Actor, userIds: z.array(Uuid).min(1).max(100), occurrenceId: Uuid.optional(), reason: Reason }).strict();
 export const MidAdminMarkAttendanceResult = MarkAttendanceResult;
