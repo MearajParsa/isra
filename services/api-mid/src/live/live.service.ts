@@ -2,12 +2,14 @@ import type { Server as HttpServer } from 'node:http';
 import { Inject, Injectable, Logger, type OnApplicationShutdown } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { Server, type Socket } from 'socket.io';
+import type { z } from 'zod';
 import { mid } from '@isra/api-types';
 import { JwtVerifier } from '../auth/jwt-verifier';
 import { ENV, type Env } from '../config/env';
 import { MembersAccess } from '../domain/access.service';
 
-export type LiveType = 'attendance.updated' | 'queue.updated' | 'queue.turned' | 'eval.updated' | 'session.state';
+/** همهٔ انواع رویداد قرارداد (mid.LiveEvent) */
+export type LiveType = z.infer<typeof mid.LiveEvent>['type'];
 
 const room = (sessionId: string) => `s:${sessionId}`;
 
@@ -90,6 +92,22 @@ export class LiveService implements OnApplicationShutdown {
   /** پس از commit فراخوانی شود. بدون socket (تست/غیرفعال) بی‌اثر است */
   emit(sessionId: string, type: LiveType, payload?: Record<string, unknown>): void {
     this.io?.to(room(sessionId)).emit('live', { type, sessionId, ...(payload ? { payload } : {}) });
+  }
+
+  /**
+   * رویداد با payload فقط برای سوکت‌های یک کاربر و بدون payload برای بقیهٔ اتاق (حریم D4، docs-v2/30 §۱.۵):
+   * مثلاً `queue.turned` — فقط خود نفر userId را می‌گیرد.
+   */
+  emitPersonal(sessionId: string, type: LiveType, userId: string, payload: Record<string, unknown>): void {
+    const io = this.io;
+    if (!io) return;
+    void io
+      .in(room(sessionId))
+      .fetchSockets()
+      .then((sockets) => {
+        for (const s of sockets) s.emit('live', { type, sessionId, ...(s.data.userId === userId ? { payload } : {}) });
+      })
+      .catch(() => undefined);
   }
 
   async onApplicationShutdown() {

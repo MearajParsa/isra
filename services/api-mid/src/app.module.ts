@@ -28,13 +28,23 @@ import { EventsService } from './internal/events.service';
 import { InternalController } from './internal/internal.controller';
 import { InternalGuard } from './internal/internal.guard';
 import { LiveService } from './live/live.service';
+import { BadgesService } from './domain/badges.service';
+import { OccurrencesService } from './domain/occurrences.service';
+import { OpsController } from './domain/ops.controller';
+import { PostCommit } from './domain/post-commit';
+import { AdminOpsController, PointsInternalController } from './internal/admin-ops.controller';
+import { AdminOpsService } from './internal/admin-ops.service';
 import { MaintenanceService } from './outbox/maintenance.service';
 import { OutboxService } from './outbox/outbox.service';
 
 const PROVIDERS = [RevocationService, JwtVerifier, RateLimitService, MembersAccess, SettingsService, PointsService, LiveService, SessionsService, MembersService, AttendanceService, QueueService, EvaluationsService, EventsService, AdminService, InternalGuard, OutboxService, MaintenanceService, EndpointGuard];
 
+/** ۱.۶.۰ نوبت/حضور/صف/ارزیابی/امتیاز/نشان (docs-v2/30) */
+const OPS_PROVIDERS = [PostCommit, BadgesService, OccurrencesService, AdminOpsService];
+const OPS_CONTROLLERS = [OpsController, AdminOpsController, PointsInternalController];
+
 @Global()
-@Module({ providers: PROVIDERS, exports: PROVIDERS })
+@Module({ providers: [...PROVIDERS, ...OPS_PROVIDERS], exports: [...PROVIDERS, ...OPS_PROVIDERS] })
 class CoreModule {}
 
 @Module({})
@@ -59,7 +69,7 @@ export class AppModule {
         DatabaseModule,
         CoreModule
       ],
-      controllers: [MidController, InfraController, InternalController, AdminController],
+      controllers: [MidController, InfraController, InternalController, AdminController, ...OPS_CONTROLLERS],
       providers: [
         { provide: APP_FILTER, useClass: AllExceptionsFilter },
         // ترتیب مهم: Envelope بیرونی، Idempotency داخلی (پاسخ ذخیره‌شده هم envelope می‌شود)

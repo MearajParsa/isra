@@ -192,9 +192,13 @@ describe('Socket.IO realtime (قفل: روی api-mid)', () => {
       const leaked: unknown[] = [];
       sOut.on('live', (e) => leaked.push(e));
 
-      let p = next(sStu);
+      // once ⇒ started نوبت #۱ را خودکار باز می‌کند (occurrence.updated) و سپس session.state
+      const got: any[] = [];
+      const state = new Promise<any>((r) => sStu.on('live', (e) => (got.push(e), e.type === 'session.state' && r(e))));
       await a.post(`/sessions/${id}/transition`, m, { to: 'started' });
-      expect(await p).toEqual({ type: 'session.state', sessionId: id, payload: { status: 'started' } });
+      expect(await state).toEqual({ type: 'session.state', sessionId: id, payload: { status: 'started' } });
+      expect(got.map((e) => e.type)).toContain('occurrence.updated');
+      let p = next(sStu);
 
       p = next(sTeacher);
       await a.post(`/sessions/${id}/attendance`, stu);
@@ -215,7 +219,7 @@ describe('Socket.IO realtime (قفل: روی api-mid)', () => {
     }
   });
 
-  it('queue.turned حاوی userId نفر نوبت‌رسیده و eval.updated پس از ارزیابی', async () => {
+  it('queue.turned: userId فقط برای خود نفر (حریم D4، docs-v2/30 §۱.۵) و eval.updated پس از ارزیابی', async () => {
     const m = await creator(t);
     const id = await mkSession(t, m, 'started');
     const teacher = await mkUser(t, 'معلم دو');
@@ -232,7 +236,7 @@ describe('Socket.IO realtime (قفل: روی api-mid)', () => {
       const q = await a.post(`/sessions/${id}/queue/next`, teacher);
       await a.post(`/sessions/${id}/evaluations`, teacher, { queueItemId: q.body.data.current.id, voice: 5, tone: 5, tajweed: 5 });
       await new Promise((r) => setTimeout(r, 200));
-      expect(events.find((e) => e.type === 'queue.turned')).toMatchObject({ sessionId: id, payload: { userId: stu.id } });
+      expect(events.find((e) => e.type === 'queue.turned')).toEqual({ type: 'queue.turned', sessionId: id, payload: { userId: stu.id } });
       expect(events.some((e) => e.type === 'eval.updated')).toBe(true);
     } finally {
       s.disconnect();
@@ -251,21 +255,18 @@ describe('migration', () => {
         return rows.length > 0 && Number(rows[0]!.nu) === 0;
       };
       await ds.runMigrations();
-      expect(await tables()).toBe(16);
-      for (const [tb, ix] of [['attendance_entries', 'uq_attendance_session_user'], ['evaluations', 'uq_eval_queue_item'], ['point_ledger', 'uq_ledger_reason_ref'], ['badge_awards', 'uq_badge_user_key'], ['session_members', 'uq_member_session_user'], ['queue_items', 'uq_queue_active']] as const) expect(await unique(tb, ix), ix).toBe(true);
+      const full = await tables();
+      expect(full).toBeGreaterThanOrEqual(18);
+      for (const [tb, ix] of [['attendance_entries', 'uq_attendance_occ_user'], ['evaluations', 'uq_eval_queue_item'], ['point_ledger', 'uq_ledger_user_reason_ref'], ['badge_awards', 'PRIMARY'], ['session_members', 'uq_member_session_user'], ['queue_items', 'uq_queue_active_occ'], ['session_occurrences', 'uq_occ_live'], ['session_occurrences', 'uq_occ_session_seq']] as const) expect(await unique(tb, ix), ix).toBe(true);
       const hasCol = async (table: string, col: string) => ((await ds.query('SELECT 1 AS x FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?', [table, col])) as unknown[]).length > 0;
       expect(await hasCol('sessions', 'deleted_at')).toBe(true);
-      expect(await hasCol('user_directory', 'deleted')).toBe(true);
-      await ds.undoLastMigration(); // AdminExpansion
-      expect(await tables()).toBe(16);
-      expect(await hasCol('sessions', 'deleted_at')).toBe(false);
-      expect(await hasCol('user_directory', 'deleted')).toBe(false);
-      await ds.undoLastMigration(); // RevokedSessions
-      await ds.undoLastMigration(); // SessionRouteUrl
-      await ds.undoLastMigration(); // InitSchema
+      expect(await hasCol('attendance_entries', 'occurrence_id')).toBe(true);
+      // همهٔ migrationها (هر تعداد) برگشت‌پذیرند
+      const done = async () => Number(((await ds.query('SELECT COUNT(*) AS n FROM migrations')) as { n: string }[])[0]!.n);
+      while ((await done()) > 0) await ds.undoLastMigration();
       expect(await tables()).toBe(0);
       await ds.runMigrations();
-      expect(await tables()).toBe(16);
+      expect(await tables()).toBe(full);
     } finally {
       await ds.destroy();
     }

@@ -142,9 +142,13 @@ export async function startApp(over: Record<string, string> = {}): Promise<TestA
   };
 }
 
+/** ۱.۶.۰ نوبت/نشان پویا (docs-v2/30) */
+const OPS_TABLES = ['session_occurrences', 'badges_catalog'];
+
 export async function resetDb(ds: DataSource) {
   await ds.query('SET FOREIGN_KEY_CHECKS = 0');
   for (const t of TABLES) await ds.query(`TRUNCATE TABLE ${t}`);
+  for (const t of OPS_TABLES) await ds.query(`TRUNCATE TABLE ${t}`);
   await ds.query('SET FOREIGN_KEY_CHECKS = 1');
 }
 

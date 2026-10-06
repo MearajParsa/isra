@@ -7,6 +7,7 @@ import { Clock } from '../common/clock';
 import { bufToUuid, isUuid, uuidToBuf, uuidv7 } from '../common/ids';
 import { LiveService } from '../live/live.service';
 import { MembersAccess, type SessionRow, sortRoles } from './access.service';
+import { OccurrencesService } from './occurrences.service';
 import { SettingsService } from './settings.service';
 import { conflict, parseJson, type Q } from './db';
 import { canTransition, isStaffRole, permissionsFor, type SessionRole, type SessionState } from './rules';
@@ -31,7 +32,8 @@ export class SessionsService {
     private readonly clock: Clock,
     private readonly access: MembersAccess,
     private readonly live: LiveService,
-    private readonly settings: SettingsService
+    private readonly settings: SettingsService,
+    private readonly occurrences: OccurrencesService
   ) {}
 
   toDto(r: SessionRow): SessionDto {
@@ -110,6 +112,7 @@ export class SessionsService {
   private async applyTransition(m: Q, session: SessionRow, to: SessionState): Promise<void> {
     if (!canTransition(session.status, to)) throw new AppError('SESSION_INVALID_TRANSITION', { details: { from: session.status, to } });
     await m.query('UPDATE sessions SET status = ?, version = version + 1, updated_at = ? WHERE id = ?', [to, this.clock.now(), uuidToBuf(session.id)]);
+    await this.occurrences.onTransition(m, session, to);
   }
 
   // ───── مسیرهای ادمین (MID_ADMIN): بدون نیاز به عضویت؛ جلسهٔ حذف‌شده ⇒ NOT_FOUND ─────
@@ -146,12 +149,13 @@ export class SessionsService {
 
   async me(userId: string, sessionId: string) {
     const { session, membership, permissions } = await this.access.load(this.ds, sessionId, userId);
-    const att = (await this.ds.query('SELECT entered_at FROM attendance_entries WHERE session_id = ? AND user_id = ?', [uuidToBuf(sessionId), uuidToBuf(userId)])) as { entered_at: Date }[];
+    const occ = await this.occurrences.forMe(this.ds, sessionId, userId);
     return {
       session: this.toDto(session),
       membership: membership ? { status: membership.status, roles: membership.roles } : null,
       permissions,
-      myAttendance: att[0] ? { enteredAt: att[0].entered_at.toISOString() } : null,
+      myAttendance: occ.myAttendance,
+      occurrence: occ.occurrence,
       evalWeights: { ...(await this.settings.get()).weights }
     };
   }
@@ -231,10 +235,13 @@ export class SessionsService {
   async refreshSnapshots(limit = 500): Promise<number> {
     const now = this.clock.now();
     const rows = (await this.ds.query("SELECT id, schedule FROM sessions WHERE deleted_at IS NULL AND status IN ('scheduled','started') AND schedule_type <> 'once' AND (next_starts_at IS NULL OR next_starts_at < ?) LIMIT ?", [now, limit])) as { id: Buffer; schedule: unknown }[];
-    for (const r of rows) {
+    if (!rows.length) return 0;
+    // یک UPDATE دسته‌ای (docs-v2/30 §۱.۷) به‌جای یک کوئری per جلسه
+    const vals = rows.map((r) => {
       const ms = nextStartMs(parseJson<Schedule>(r.schedule), now.getTime());
-      await this.ds.query('UPDATE sessions SET next_starts_at = ? WHERE id = ?', [ms === null ? null : new Date(ms), r.id]);
-    }
+      return [r.id, ms === null ? null : new Date(ms)] as const;
+    });
+    await this.ds.query(`UPDATE sessions SET next_starts_at = CASE id ${vals.map(() => 'WHEN ? THEN ?').join(' ')} END WHERE id IN (${vals.map(() => '?').join(', ')})`, [...vals.flat(), ...vals.map((v) => v[0])]);
     return rows.length;
   }
 }

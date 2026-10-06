@@ -94,7 +94,7 @@ describe('جلسه: فهرست/جزئیات/ساخت/ویرایش/transition', (
     const s = high.AdminSession.parse(r.body.data);
     expect(s.status).toBe('draft');
     expect(s.createdBy).toEqual({ id: creatorUser.id, name: 'سازندهٔ ویژه' });
-    expect(s.counts).toEqual({ members: 1, pending: 0, attendance: 0, evaluations: 0 });
+    expect(s.counts).toEqual({ members: 1, pending: 0, attendance: 0, evaluations: 0, managers: 1, occurrences: 0 });
     expect(s.deletedAt).toBeNull();
     const me = await a.get(`/sessions/${s.id}/me`, creatorUser);
     expect(me.status).toBe(200);
@@ -456,7 +456,8 @@ describe('حضور/صف/ارزیابی (نمای کامل فقط‌خواندن�
     expect((await a.post(`/sessions/${r.id}/evaluations`, r.manager, { queueItemId: item, voice: 5, tone: 5, tajweed: 5 })).status).toBe(403);
     const empty = await room(0);
     expect((await ad.get(`/admin/sessions/${empty.id}/evaluations`)).body.data).toEqual({ items: [], total: 0 });
-    expect((await ad.get(`/admin/sessions/${empty.id}/attendance`)).body.data).toEqual({ items: [], total: 0 });
+    // once+started ⇒ نوبت #۱ باز است (بدون حضور)
+    expect((await ad.get(`/admin/sessions/${empty.id}/attendance`)).body.data).toMatchObject({ items: [], total: 0 });
     const q = (await ad.get(`/admin/sessions/${empty.id}/queue`)).body.data;
     expect(q).toMatchObject({ current: null, waiting: [], done: [], waitingCount: 0 });
   });
@@ -471,7 +472,7 @@ describe('خلاصهٔ کاربر', () => {
     expect(sum).toEqual({ points: { total: 5, badges: 0 }, sessions: { created: 0, memberships: 1, attended: 1 } });
     const mgr = internal.MidAdminUserSummary.parse((await ad.get(`/admin/users/${r.manager.id}/summary`)).body.data);
     expect(mgr.sessions).toEqual({ created: 1, memberships: 1, attended: 0 });
-    await t.ds.query("INSERT INTO badge_awards (id, user_id, badge_key, threshold, awarded_at) VALUES (?, ?, 'badge_50', 50, NOW(3))", [bin(uuidv7()), bin(s.id)]);
+    await t.ds.query('INSERT INTO badge_awards (user_id, badge_id, awarded_at) VALUES (?, ?, NOW(3))', [bin(s.id), bin(uuidv7())]);
     expect((await ad.get(`/admin/users/${s.id}/summary`)).body.data.points.badges).toBe(1);
     await ad.del(`/admin/sessions/${r.id}`);
     expect((await ad.get(`/admin/users/${s.id}/summary`)).body.data.sessions).toEqual({ created: 0, memberships: 0, attended: 0 });
@@ -553,7 +554,7 @@ describe('گزارش‌ها', () => {
     await rawSession({ createdAt: '2027-01-10T00:00:00Z', status: 'scheduled', updatedAt: '2027-03-05T10:00:00Z' }); // held نیست
     await rawSession({ createdAt: '2027-01-10T00:00:00Z', status: 'ended', updatedAt: '2027-03-06T10:00:00Z', deletedAt: '2027-03-07T00:00:00Z' }); // حذف‌شده
     const deletedS = await rawSession({ createdAt: '2027-01-10T00:00:00Z', status: 'started', updatedAt: '2027-03-05T10:00:00Z', deletedAt: '2027-03-07T00:00:00Z' });
-    const att = (sid: string, u: string, at: string) => t.ds.query('INSERT INTO attendance_entries (id, session_id, user_id, entered_at) VALUES (?, ?, ?, ?)', [bin(uuidv7()), bin(sid), bin(u), new Date(at)]);
+    const att = (sid: string, u: string, at: string) => t.ds.query('INSERT INTO attendance_entries (id, session_id, occurrence_id, user_id, entered_at) VALUES (?, ?, ?, ?, ?)', [bin(uuidv7()), bin(sid), bin(uuidv7()), bin(u), new Date(at)]);
     await att(startedS, uuidv7(), '2027-03-05T10:00:00Z');
     await att(startedS, uuidv7(), '2027-03-05T11:00:00Z');
     await att(endedS, uuidv7(), '2027-02-10T10:00:00Z');
@@ -607,7 +608,7 @@ describe('گزارش‌ها', () => {
     const [s1, s2, s3] = r.students as [User, User, User];
     const put = async (u: User, total: number, badges: number) => {
       await t.ds.query('INSERT INTO user_points (user_id, total, updated_at) VALUES (?, ?, NOW(3)) ON DUPLICATE KEY UPDATE total = VALUES(total)', [bin(u.id), total]);
-      for (let i = 0; i < badges; i++) await t.ds.query('INSERT INTO badge_awards (id, user_id, badge_key, threshold, awarded_at) VALUES (?, ?, ?, ?, NOW(3))', [bin(uuidv7()), bin(u.id), `badge_${i}`, 50 * (i + 1)]);
+      for (let i = 0; i < badges; i++) await t.ds.query('INSERT INTO badge_awards (user_id, badge_id, awarded_at) VALUES (?, ?, NOW(3))', [bin(u.id), bin(uuidv7())]);
     };
     await put(s1, 120, 2);
     await put(s2, 400, 3);
