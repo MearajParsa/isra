@@ -9,12 +9,8 @@ export const DEFAULT_WEIGHTS = { voice: 40, tone: 30, tajweed: 30 } as const;
 export const DEFAULT_THRESHOLDS = [50, 150, 300, 500] as const;
 export const ATTENDANCE_POINTS = 5;
 
-const PERMS: Record<SessionRole, Permission[]> = {
-  session_manager: ['session.edit', 'session.transition', 'membership.roles', 'membership.approve', 'queue.manage', 'attendance.view'],
-  session_supporter: ['membership.approve', 'queue.manage', 'eval.submit', 'attendance.view'],
-  teacher: ['queue.manage', 'eval.submit', 'attendance.view'],
-  quran_student: []
-};
+/** منبع حقیقت مشترک با H-48: `mid.SESSION_ROLE_PERMISSIONS` در api-types (۱.۶.۰) */
+const PERMS: Record<SessionRole, readonly Permission[]> = mid.SESSION_ROLE_PERMISSIONS;
 
 /** اجتماع مجوزهای نقش‌ها. manager به‌تنهایی eval.submit ندارد (قفل #15) */
 export const permissionsFor = (roles: readonly SessionRole[]): Permission[] => [...new Set(roles.flatMap((r) => PERMS[r]))];
