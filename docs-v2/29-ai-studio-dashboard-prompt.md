@@ -1,205 +1,311 @@
-# ۲۹ — پرامپت ساخت داشبورد مدیریت در Google AI Studio
+# ۲۹ — ساخت داشبورد مدیریت با Google AI Studio (صفحه‌به‌صفحه، اول موک، آخر API واقعی)
 
 ## راهنمای مالک (فارسی)
-1. در https://aistudio.google.com ← **Build** (یا یک چت جدید با مدل Gemini Pro، حالت Thinking روشن).
-2. این فایل‌ها را **پیوست** کن: ① عکس رفرنس UI ② `docs-v2/28-dashboard-api-reference.md` (مرجع کامل API؛ خودکار از قرارداد تولید می‌شود) ③ دو فونت `apps/web-admin/static/fonts/YekanBakhFaNum-*.woff2` و لوگو `apps/web-admin/static/icons/*` (اگر قابل پیوست بود).
-3. متن داخل کادر «PROMPT» پایین را **کامل** کپی کن و بفرست. اگر مدل وسط کار قطع شد بنویس: «Continue from the last file; output only the remaining files, complete, no placeholders.»
-4. خروجی را در پوشهٔ `apps/web-admin-v2/` (یا هر نام دلخواه) بگذار؛ بعد به من بگو تا build/pack و استقرار را زیر `israapp.ir/s` انجام دهم (اسکریپت pack برای SPA استاتیک آماده می‌شود).
-5. آدرس‌ها: در `.env.production` همین مقادیر را بگذار: `VITE_BASE_PATH=/s`، `VITE_API_LOW_URL=https://capi.israapp.ir`، `VITE_API_HIGH_URL=https://sapi.israapp.ir`.
 
-> نکتهٔ مهم: هر بار که قرارداد API عوض شد، `pnpm --filter @isra/api-types dashboard-ref` را بزن تا مرجع به‌روز شود و دوباره پیوست کن.
+### روند کلی
+| فاز | چه می‌دهی | خروجی | تست تو |
+|---|---|---|---|
+| **۰ — پایه** | «PROMPT 0» + عکس رفرنس + فایل `28-dashboard-api-reference.md` | اسکلت، طراحی، ورود، منو، لایهٔ دادهٔ **موک** روی localStorage، نوار ابزار توسعه | ورود با هر شماره و کد `11111`، جابه‌جایی نقش (persona) |
+| **۱..N — صفحه‌ها** | هر بار فقط یک «PROMPT صفحه» (ترتیب پایین) | فقط فایل‌های همان صفحه + شبیه‌ساز همان endpointها در موک | همان لحظه در پیش‌نمایش AI Studio تست می‌کنی؛ اشکال را با «PROMPT اصلاح» می‌گویی |
+| **نهایی — Go-live** | «PROMPT FINAL» | جایگزینی موک با API واقعی، حذف کامل موک و داده‌های localStorage، سخت‌سازی تولید | خروجی را zip کن و به من بده تا بررسی، تست زنده و استقرار کنم |
+
+### قواعد کار
+1. در AI Studio حالت **Build** را باز کن (مدل Gemini Pro، Thinking روشن).
+2. در اولین پیام: عکس رفرنس UI + فایل `docs-v2/28-dashboard-api-reference.md` + دو فونت `apps/web-admin-v2/public/fonts/*.woff2` را پیوست کن و «PROMPT 0» را بفرست.
+3. بعد از هر پیام، در پیش‌نمایش تست کن. اگر چیزی ایراد داشت از «PROMPT اصلاح» استفاده کن و **تا راضی نشدی سراغ صفحهٔ بعد نرو**.
+4. هر وقت قرارداد API عوض شد (من خبر می‌دهم)، `pnpm --filter @isra/api-types dashboard-ref` را بزن و فایل تازهٔ `28-...md` را دوباره پیوست کن و بنویس: «The API reference changed; re-read it and align types + mock for the pages built so far.»
+5. اگر مدل وسط کار قطع شد: `Continue exactly where you stopped; output only the remaining files in full.`
+6. در فاز موک هیچ آدرس API واقعی لازم نیست. در فاز نهایی این مقادیر را بده: `VITE_API_LOW_URL=https://capi.israapp.ir`، `VITE_API_HIGH_URL=https://sapi.israapp.ir`، `VITE_BASE_PATH=/s`.
 
 ---
 
-## PROMPT
+## PROMPT 0 — پایه (فقط یک‌بار)
 
 ```text
-You are a principal front-end engineer and product designer. Build a COMPLETE, production-grade, installable (PWA), fully responsive, Persian (RTL) admin dashboard SPA for a real, already-running backend. Output every file in full — no placeholders, no "TODO", no "rest of the code here", no mock/fake data in the production build. If you run out of space, stop at a file boundary and I will say "continue".
+You are a principal front-end engineer and product designer. We will build a production-grade, installable (PWA), fully responsive, Persian (RTL) ADMIN DASHBOARD together, PAGE BY PAGE. In this first step build ONLY the FOUNDATION described below, then stop and wait for my next instruction. Never build pages I have not asked for yet (show them in the navigation as disabled "به‌زودی" items).
 
-I attach: (1) a REFERENCE IMAGE of the desired look & feel — match its visual language (layout, spacing, radius, color feel, density, typography hierarchy, iconography); where it is silent, make tasteful choices consistent with it; (2) `28-dashboard-api-reference.md` — the AUTHORITATIVE API contract (endpoint table, per-endpoint query/body/data types, permissions, step-up flags, error codes). Never invent an endpoint, field, permission or error code that is not in that file. If something you need is missing, implement the closest documented capability and list the gap at the end under "Contract gaps".
+DEVELOPMENT MODE: until I send the FINAL prompt there is NO real backend. All data comes from a MOCK BACKEND that runs in the browser and persists in localStorage. The mock must behave like the real server described in the attached API reference so that switching to the real API later only replaces one module.
 
-════════════════════════════════════════
-0. PRODUCT CONTEXT
-════════════════════════════════════════
-"Isra" (اسراء) is a Quran-learning platform. This dashboard is the SYSTEM ADMIN PANEL used by developers and administrators. Everything in the system is a MODULE; access is controlled by dynamic ROLES, PERMISSIONS and MODULES that admins can create/edit/delete from this UI. The whole UI is Persian only (fa-IR), right-to-left, Jalali (Persian) calendar, Persian digits, Iran time zone (Asia/Tehran, UTC+03:30). The business week runs Saturday → Friday. No i18n framework is needed.
+I attach:
+(1) a REFERENCE IMAGE — match its visual language (layout, spacing, radii, color feel, density, typography hierarchy, iconography);
+(2) `28-dashboard-api-reference.md` — the AUTHORITATIVE API contract: every endpoint id (L-xx = auth service, H-xx = admin service), method, path, query/body/data TypeScript types, permission, step-up capability, error codes. NEVER invent an endpoint, field, permission or error code. If something is missing, list it under "Contract gaps" at the end of your answer.
+(3) the font files `YekanBakhFaNum-Regular.woff2` and `YekanBakhFaNum-Bold.woff2` (put them in `public/fonts/`).
 
-Three REST backends (no gateway), same registrable domain as the panel:
-- LOW  = `${VITE_API_LOW_URL}`  (auth only for this panel): paths start with `/c/v1/...`
-- HIGH = `${VITE_API_HIGH_URL}` (everything else): paths start with `/s/v1/...`
-The env vars hold ONLY the origin (e.g. `https://capi.israapp.ir`); the client appends the paths exactly as written in the reference file. NEVER call any other host. NEVER put keys/secrets in the client.
+══════════ 0. PRODUCT ══════════
+"Isra" (اسراء) is a Quran-session platform. This dashboard is the SYSTEM ADMIN PANEL for developers and administrators. Everything in the system is a MODULE; access is controlled by dynamic ROLES, PERMISSIONS and MODULES that admins create/edit in this UI. UI is Persian only (fa-IR), RTL, Jalali calendar, Persian digits, time zone Asia/Tehran (UTC+03:30), business week Saturday → Friday. No i18n framework.
 
-════════════════════════════════════════
-1. TECH STACK (fixed — do not substitute)
-════════════════════════════════════════
-- TypeScript 5 (strict, noUncheckedIndexedAccess, exactOptionalPropertyTypes), ES2022, pnpm/npm compatible.
-- React 19 + Vite 6, static SPA output in `dist/` (NO SSR, NO server code).
-- Router: React Router 7 in "library/data router" mode (`createBrowserRouter`), `basename = import.meta.env.BASE_URL` (the app is served under a sub-path, default `/s`, set by `VITE_BASE_PATH`; Vite `base` must read it; every asset/link/SW scope must work under that base). Provide SPA fallback behaviour expectations in README (server rewrites unknown paths under the base to `index.html`).
-- Data: TanStack Query v5 (caching, dedupe, abort, retry policy below). No Redux.
-- Forms/validation: react-hook-form + zod (mirror the server constraints from the reference file).
-- Styling: Tailwind CSS v4 with CSS logical properties (ps-/pe-/ms-/me-/start/end; NEVER left/right), design tokens as CSS variables (light + dark theme via `prefers-color-scheme` AND a manual toggle persisted in localStorage — but if the reference image shows only one theme, ship that theme polished first and make the other consistent).
-- Headless accessible primitives: Radix UI (Dialog, DropdownMenu, Tabs, Tooltip, Popover, Select, Switch, Checkbox, ScrollArea). Icons: `lucide-react` with per-icon imports only.
-- Charts: hand-written inline SVG components (line/area/bar/sparkline/donut) — NO chart library. Accessible (role="img" + aria-label summary + data table fallback), RTL-aware (time flows left→right inside the chart is acceptable and expected), keyboard-focusable points with tooltips.
-- PWA: `vite-plugin-pwa` (Workbox `generateSW`, `registerType: 'prompt'`).
-- Tests: Vitest + @testing-library/react + MSW (MSW ONLY in tests; never bundled in production).
-- Lint/format: ESLint (typescript-eslint strict, react-hooks, jsx-a11y), Prettier. No other runtime dependencies without a one-line justification in the README. FORBIDDEN: moment/dayjs/luxon, lodash, axios, UI kits (MUI/Ant/Chakra), icon fonts, CDN scripts/styles/fonts, jQuery, any analytics/tracking.
-- Dates: use `Intl.DateTimeFormat('fa-IR-u-ca-persian', { timeZone: 'Asia/Tehran' })` for display, and write a tiny tested Jalali⇄Gregorian converter (jalaali algorithm) for the date pickers (inputs/outputs to the API are Gregorian `YYYY-MM-DD` or ISO-8601 with offset exactly as the contract says). Persian digits for all numbers via `Intl.NumberFormat('fa-IR')`; inputs accept Persian/Arabic/Latin digits and normalise to Latin before sending.
-- Font: self-hosted "YekanBakh" (files `YekanBakhFaNum-Regular.woff2`, `YekanBakhFaNum-Bold.woff2` in `public/fonts/`), `font-display: swap`, preload the Regular weight. No Google Fonts.
+══════════ 1. STACK (fixed) ══════════
+TypeScript strict (noUncheckedIndexedAccess) · React 19 · Vite (static SPA in `dist/`, no SSR, no server code) · React Router (data router `createBrowserRouter`, `basename = import.meta.env.BASE_URL`) · TanStack Query v5 · react-hook-form + zod · Tailwind CSS v4 with logical properties only (ps/pe/ms/me/start/end — never left/right) · Radix UI primitives (Dialog, DropdownMenu, Tabs, Tooltip, Popover, Select, Switch, Checkbox) · lucide-react (per-icon imports) · hand-written inline-SVG charts (no chart library) · vite-plugin-pwa · Vitest + Testing Library.
+FORBIDDEN: express or any server code, @google/genai or any AI SDK, dotenv, axios, moment/dayjs/luxon, lodash, UI kits (MUI/Ant/Chakra), CDN scripts/styles/fonts, Google Fonts, analytics/trackers.
+`vite.config.ts`: `base` from `VITE_BASE_PATH` normalised to always start AND end with "/" (e.g. "/s" → "/s/"; default "/"). Every asset/link in code must use `import.meta.env.BASE_URL` (never an absolute "/logo.svg"). `build.sourcemap: 'hidden'`.
 
-════════════════════════════════════════
-2. HTTP LAYER (build once, test thoroughly)
-════════════════════════════════════════
-A single typed `http` module + a typed API client with one function per endpoint ID (named after the ID, e.g. `H13_createRole`). Types come from the reference file (copy them into `src/api/types.ts`).
+══════════ 2. DATA ACCESS ARCHITECTURE (most important part) ══════════
+- `src/api/types.ts`: copy ALL types from the reference file exactly (names and fields). These are the only domain types used by the UI.
+- `src/api/errors.ts`: `ApiError` (code, status, message (Persian, from server), details: { fields?, reason?, retryAfterSec?, attemptsLeft? }, requestId). Error codes exactly as in the reference catalog.
+- `src/api/contract.ts`: a TypeScript interface `AdminApi` with ONE method per endpoint id, named after the id and purpose, e.g. `H20_listUsers(query, opts)`, `H24_createUser(body, opts)`, `L06_stepUpRequest()`. Inputs/outputs use the reference types; list endpoints return `{ items, page, pageSize, total }`. `opts` carries `{ signal?, idempotencyKey?, stepUpToken? }`.
+- `src/api/index.ts`: exports the single `api: AdminApi` instance. During development it is the mock: `export const api: AdminApi = createMockApi()`. In the FINAL step this file will switch to `createHttpApi()` and the whole `src/api/mock/` folder will be deleted — so NOTHING outside `src/api/` may import from `src/api/mock/`, and the UI must never know which implementation it is talking to.
+- `src/api/mock/` = the MOCK BACKEND:
+  • `db.ts`: localStorage persistence under keys prefixed `isra.mock.v1.` with a schema version; JSON-serialised tables (users, roles, permissions, modules, roleModules, stepUpRules, sessions, members, attendance, queue, evaluations, auditLogs, settings, devices…). Write-through with debounced saving; tolerate corrupted/blocked storage (reset to seed).
+  • `seed.ts`: deterministic realistic Persian seed: ~120 users (Iranian first/last names, unique `09xxxxxxxxx` phones, mixed status active/disabled/deleted where deleted phones look like `d` + 10 hex), the system roles `developer` and `super_admin`, the modules + system permissions table below, ~40 sessions across all statuses with members (session roles teacher / session_supporter / quran_student / session_manager), attendance, queue items, evaluations, ~300 audit entries spread over the last 90 days, and settings `{ version, evalWeights {voice 40, tone 30, tajweed 30}, badgeThresholds [50,150,300,500], flags {maintenance_mode false, registration_open true} }`.
+  • `server.ts`: an in-browser "server" that implements each `AdminApi` method with THE SAME RULES THE REAL SERVER HAS (read them from the reference descriptions): validation with zod mirroring the reference constraints (strict bodies → `VALIDATION_FAILED` with `details.fields`), pagination caps, filters & sorting, permission checks for the current persona (`AUTH_FORBIDDEN`), step-up enforcement (see §3), `CONFLICT` with the right `details.reason` (KEY_TAKEN, SYSTEM_PROTECTED, ROLE_IN_USE, MODULE_NOT_EMPTY, LOCKED_PERMISSION, LAST_HOLDER, PHONE_TAKEN, SELF_PROTECTED, ALREADY_MEMBER, VERSION_MISMATCH, …), `NOT_FOUND`, idempotency (same Idempotency-Key ⇒ same result, no double write), an audit entry for every successful write (action names like `user.create`, `role.permissions.updated`, `session.member.add` …), random latency 150–600 ms, and cancellation via AbortSignal.
+  • Reports (H-80..H-84) are COMPUTED from the mock tables (bucketed by day / week starting Saturday / month in Asia/Tehran), never hard-coded numbers.
+- Mock auth: OTP request returns a challenge; the valid OTP code is always `11111` (show it in the dev toolbar); password login accepts any user that has `hasPassword`, password `Passw0rd!`. Access token = random string kept in memory only; the "refresh" works while the tab lives and via a non-secret localStorage hint `isra.admin.session=1`. Tokens are NEVER stored in localStorage — not even in mock mode.
+- DEV TOOLBAR (only rendered when `api.isMock === true`; deleted in FINAL): floating, collapsible, RTL panel with: current persona switcher (developer / super_admin / any custom role / a user without system role / a disabled user / a user with mustChangePassword), latency slider (0–2000 ms), error injection (none / 503 SERVICE_UNAVAILABLE / 429 RATE_LIMITED with retryAfterSec / network failure) for the next N requests, "force step-up on everything" toggle, the OTP hint `11111`, "reset mock data to seed", "export/import mock DB as JSON".
 
-Request rules
-- JSON only. Every request sends `X-Isra-Client: web-admin` and `X-Isra-Client-Version: <app version>`. Send `X-Request-Id: <uuid v4>` too.
-- Authorization: `Authorization: Bearer <accessToken>` for everything except the public auth endpoints.
-- LOW auth calls use `credentials: 'include'` (the refresh token lives in an HttpOnly cookie `isra_rt_admin`; JS can never read it). HIGH calls do not need cookies.
-- Mutations that the reference marks idempotent-by-key (e.g. POST create endpoints, H-24, H-62…) MUST send `Idempotency-Key: <uuid>`; generate it ONCE per user action and reuse it on automatic retries; disable the submit button while pending.
-- GET with `ETag` support: store ETag per URL in the Query cache layer and send `If-None-Match`; treat 304 as "use cached data".
-- Abort in-flight requests on route change / unmount / superseded search (AbortController via TanStack Query signal).
-- Timeout 15 s (30 s for CSV/export batches). Retry policy: idempotent GETs retry up to 2× with exponential backoff + jitter on network error/502/503/504 ONLY; never auto-retry mutations (except re-sending the SAME Idempotency-Key once on a network error). On 429 honour `Retry-After` (show a countdown toast; auto-retry GET once after the delay).
+══════════ 3. STEP-UP (critical business rule; implement in the shared layer now) ══════════
+Sensitive endpoints are "step-up capable" (marked in the reference). The SERVER decides; the UI follows:
+- `GET /system/me` (H-00) returns `stepUpExempt` (true for role `developer`) and `stepUp` (map permission → "required" | "none").
+- Developers NEVER need step-up EXCEPT H-04 (changing their own password) which always requires it.
+- Others need it when `stepUp[permission] === 'required'`.
+- UI: before a sensitive call, if not exempt and required → open the Step-up dialog: request OTP (L-06), 5-box OTP input (auto-advance, paste, `autocomplete="one-time-code"`, `inputmode="numeric"`), resend countdown, attempts left from `details.attemptsLeft`, verify (L-07) → `stepUpToken` (valid 5 min) kept in MEMORY only → send it as `X-Step-Up-Token` (in mock: as `opts.stepUpToken`). If any call still fails with `AUTH_STEP_UP_REQUIRED` (server is authoritative), clear the cached token, show the dialog, replay the call ONCE. Concurrent requests share ONE dialog (single-flight promise). Re-use the token until ~10 s before expiry.
+- The mock enforces exactly the same rule (including the developer H-04 exception) so the flow is testable now.
 
-Envelope & errors
-- Success: `{ success:true, data, meta:{requestId,...} }` ⇒ return `data` (+ `meta` for lists: `page,pageSize,total`).
-- Error: `{ success:false, error:{ code, message, details? }, meta }`. Build an `ApiError` class (code, status, message(fa), details.fields, details.reason, details.retryAfterSec, requestId). ALWAYS show the Persian `message` from the server; show `requestId` in a small "copy support code" affordance on unexpected errors.
-- Field errors (`VALIDATION_FAILED` with `details.fields`) map onto the form fields.
-- Map codes to behaviour (exhaustive switch, typed):
-  • `AUTH_REQUIRED` / `AUTH_TOKEN_EXPIRED` / `AUTH_TOKEN_INVALID` → try ONE silent refresh (single-flight: concurrent 401s share one refresh promise), replay the original request once; if refresh fails → clear session → login page with "session expired" notice and return-to path.
-  • `AUTH_PERM_STALE` → refresh the token (permissions changed), replay once.
-  • `AUTH_STEP_UP_REQUIRED` → open the Step-up dialog (§3), then replay the original request ONCE with `X-Step-Up-Token`.
-  • `AUTH_PASSWORD_CHANGE_REQUIRED` → force the "set new password" screen (§4.2).
-  • `AUTH_ACCOUNT_DISABLED` → dedicated "account disabled, contact admin" screen/notice.
-  • `AUTH_FORBIDDEN` → inline "no permission" state (never a crash); also re-fetch `/system/me` once (maybe permissions changed).
-  • `RATE_LIMITED` → countdown from `Retry-After`/`details.retryAfterSec`.
-  • `CONFLICT` → use `details.reason` (ALREADY_..., LAST_HOLDER, LOCKED_PERMISSION, KEY_TAKEN, SYSTEM_PROTECTED, ROLE_IN_USE, MODULE_NOT_EMPTY, PHONE_TAKEN, SELF_PROTECTED, USER_NOT_ACTIVE, …) to show a specific Persian explanation next to the action that failed.
-  • `NOT_FOUND` → friendly empty/not-found state with a back link.
-  • `SERVICE_UNAVAILABLE` (503) / network failure / 5xx → NEVER show a raw "503" or technical text. Show a calm Persian full-page or inline state: "سرویس موقتاً در دسترس نیست؛ چند لحظه بعد دوباره تلاش کنید" with a Retry button (+ automatic retry with backoff for GETs). Keep already-loaded data on screen (stale-while-error) with a subtle "data may be outdated" banner.
-- Global error boundary per route + a top-level one; never a blank screen.
+══════════ 4. FOUNDATION SCOPE (build now) ══════════
+1. Project config: `package.json` (only allowed deps), `vite.config.ts`, `tsconfig.json`, `.env.example` (`VITE_BASE_PATH=/s`, and commented `VITE_API_LOW_URL`/`VITE_API_HIGH_URL` for later), `index.html` (`lang="fa" dir="rtl"`, `viewport-fit=cover`, preload Regular font using `%BASE_URL%`), README.
+2. Design system from the reference image: CSS variables tokens (colors incl. dark theme, radii, spacing, shadows, typography scale), and UI kit: Button, IconButton, Input, Textarea, Select, Combobox (async user picker), Checkbox, Switch, Tabs, Dialog, BottomSheet (mobile), ConfirmDialog, TypeToConfirm, Toast (aria-live), Skeleton, EmptyState, ErrorState (Persian friendly message + retry + copyable support code `requestId`), Badge/StatusChip, Table (responsive → cards on mobile), Pagination, JalaliDatePicker (+ presets), OtpInput, Charts (Line/Area, Bar, Donut, Sparkline), KPI tile, PageHeader, FilterBar (URL-synced).
+3. App shell: desktop collapsible sidebar grouped by module + top bar (breadcrumbs, Ctrl/⌘+K command palette, theme toggle, user menu, connectivity indicator); mobile: bottom navigation (4 items + "more" sheet), sticky header, safe-area insets, no horizontal scroll at 320px, touch targets ≥ 44px. Navigation items appear only when the persona has the needed permission (UI gating is convenience; still handle 403 everywhere).
+4. Auth: Login page (two tabs: OTP with phone `^09\d{9}$` accepting Persian/Arabic digits → 5-digit code; and password), persistent non-secret `deviceId` + `deviceLabel`, rate-limit countdown, disabled-account screen, "no system role" screen, forced password change screen (when `mustChangePassword` or `AUTH_PASSWORD_CHANGE_REQUIRED`), idle lock after 30 min, multi-tab logout sync (BroadcastChannel), logout.
+5. Shared data hooks on TanStack Query: query-key factory, staleTime per resource, keepPreviousData for lists, abort on unmount/route change, retry only idempotent reads (not on 4xx), global error mapping: 401 → one silent refresh then login; 403 FORBIDDEN → inline "no permission"; 503/5xx/network → calm Persian "سرویس موقتاً در دسترس نیست…" + retry (never show raw status codes); 429 → countdown.
+6. Permission helpers: `can(perm)`, `<Can perm>`, route guards.
+7. Utilities (unit-tested): Jalali ⇄ Gregorian, Persian number/date formatting with `Intl` (`fa-IR-u-ca-persian`, Asia/Tehran), digit normalisation, phone formatting/masking (`0912***1234`), CSV builder with UTF-8 BOM and formula-injection neutralisation.
+8. PWA skeleton: manifest (name «اسراء — پنل مدیریت», short_name «پنل اسراء», lang fa, dir rtl, start_url/scope = BASE_URL, standalone, icons 192/512/maskable), service worker precaching only the app shell, NEVER caching API calls; update-available prompt; install button.
+9. Navigation (Persian labels, in this order; disabled «به‌زودی» until built): داشبورد · کاربران · جلسه‌ها · دسترسی‌ها (ماتریس، نقش‌ها، مجوزها، ماژول‌ها، سیاست تأیید هویت) · نشان‌ها · پیام همگانی · گزارش‌ها · گزارش اقدام‌ها · تنظیمات · حساب من.
+10. Pages now: Login, Forced password change, 403, 404, offline, a placeholder Overview ("داشبورد") that only greets the persona. All other menu items disabled «به‌زودی».
 
-Token handling (security-critical)
-- Access token ONLY in memory (module variable / React context). NEVER localStorage/sessionStorage/IndexedDB/URL/console. Refresh on app boot via `POST /c/v1/auth/refresh` (cookie) when a non-sensitive hint flag `isra.admin.session=1` exists in localStorage (hint only; contains no secret). Proactive refresh ~60 s before `accessExpiresIn` elapses (timer cleared on logout; also refresh on tab focus if close to expiry). Multi-tab: use `BroadcastChannel('isra-admin-auth')` to sync logout/login across tabs.
-- Logout: `POST /c/v1/auth/logout`, clear memory + query cache + hint, broadcast.
-- Step-up token: memory only, with its expiry (`expiresInSec`, 5 min); reuse until ~10 s before expiry, never persist.
+══════════ 5. NON-NEGOTIABLE QUALITY RULES (apply to every later page too) ══════════
+- Performance: route-level lazy loading; initial JS ≤ 150 KB gzip; per-route ≤ 60 KB gzip; memoise heavy lists; virtualise > 100 rows; debounce search 300 ms; prefetch on hover/focus; animate only transform/opacity ≤ 200 ms; respect prefers-reduced-motion.
+- Security: no `dangerouslySetInnerHTML`/`innerHTML`/`eval`; no inline scripts (strict CSP `script-src 'self'`); tokens only in memory; never log tokens or full phone numbers; validate links (https only); type-to-confirm for destructive actions; double-submit protection; Idempotency-Key per user action for create endpoints.
+- Accessibility WCAG 2.2 AA: contrast, focus rings, full keyboard, focus trap in dialogs, aria-live toasts, labelled controls, errors linked via aria-describedby, skip link.
+- Every data view has loading / empty / error / success states. Microcopy: natural, polite, concise Persian. Phone numbers shown LTR inside `<bdi dir="ltr">`.
+- No `any`; exhaustive switches on error codes; no console errors.
 
-════════════════════════════════════════
-3. STEP-UP (CRITICAL BUSINESS RULE)
-════════════════════════════════════════
-Sensitive actions may require a fresh identity confirmation (OTP) = "step-up". The decision is made by the SERVER from a policy that admins edit in this panel:
-- Users with the `developer` role need NO step-up for anything EXCEPT changing their own password (H-04, always OTP). `GET /s/v1/system/me` returns `stepUpExempt` (true for developers) and `stepUp` (map permission → "required" | "none").
-- For everyone else, an endpoint that is step-up-capable needs it only when `stepUp[permission] === 'required'`.
-UI behaviour:
-1. After login load `/system/me` (H-00). Store `stepUpExempt` and `stepUp`.
-2. Before an action: if `stepUpExempt` or `stepUp[perm]==='none'` → call the API directly (no dialog).
-3. Otherwise (or when the server answers `AUTH_STEP_UP_REQUIRED` anyway — the server is authoritative) → show the Step-up bottom-sheet/dialog: request OTP (`L-06`), 5-digit OTP input (auto-advance, paste support, `autocomplete="one-time-code"`, `inputmode="numeric"`), resend countdown (honour the server's wait), attempts-left from `details.attemptsLeft`, verify (`L-07`) → get `stepUpToken` → replay the original request with header `X-Step-Up-Token`. Cache the token in memory until expiry so several consecutive sensitive actions don't re-prompt.
-4. Provide a UX-friendly "pending action" promise queue so concurrent step-up-requiring requests share ONE dialog.
-5. Developers never see this dialog except for H-04 (own password change) — always run the step-up flow there; hide any "step-up" hints for them.
+══════════ 6. OUTPUT FORMAT ══════════
+1) Short plan (≤ 20 lines): file tree + design tokens you derived from the image.
+2) Every file in full, each preceded by its path. No placeholders.
+3) A manual TEST CHECKLIST for me (how to log in, switch persona, trigger step-up, inject a 503, reset data).
+4) "Contract gaps" (if any).
+Then STOP and wait for my next page prompt.
 
-════════════════════════════════════════
-4. SCREENS & FEATURES (all of it is required)
-════════════════════════════════════════
-Global shell: RTL layout; desktop = collapsible sidebar (grouped by module) + top bar (breadcrumbs, search-command palette Ctrl/⌘+K navigating to pages/users, theme toggle, user menu, connectivity indicator); mobile (<768px) = bottom navigation (4 key items + "more" sheet), sticky header, full-width sheets for forms, tables collapse into card lists. Navigation items and routes appear ONLY if the user holds the relevant permission (UI gating is a convenience; the server is the authority — still handle 403).
-
-4.1 Login (`/login`): two tabs — OTP (phone → 5-digit code, `L-01`,`L-02`) and password (`L-03`). Iranian mobile validation `^09\d{9}$` (accept Persian digits). Device info: a persistent random `deviceId` (uuid in localStorage — it is not a secret) and `deviceLabel` (browser + OS, ≤80 chars). Handle: rate limits (countdown), OTP expired/exhausted (offer resend), invalid credentials (generic message), disabled account. After success → load H-00; user without any system role gets a polite "no access to the admin panel" screen with logout. Return to the originally requested path.
-
-4.2 Forced password change: when login/`H-02` says `mustChangePassword`, or any call returns `AUTH_PASSWORD_CHANGE_REQUIRED`, lock the whole app to a full-screen form (current temporary password + new password + confirm, strength meter, show/hide) calling the documented endpoint (H-04 with `currentPassword`); on success refresh the token and continue.
-
-4.3 Overview (`/`): KPI tiles + trend charts from H-01 and H-80..H-84 (users, sessions, OTP volume, leaderboard top 5), date-range presets (today / 7d / 30d / this week (Sat–Fri) / this month / custom Jalali range), auto-refresh every 60 s while the tab is visible (pause when hidden). Skeletons, empty states.
-
-4.4 Users module
-- List (`H-20`): URL-synced filters (search q, role incl. dynamic roles + "none", direct-grant filter, status, created range with Jalali pickers, sort), server pagination (page size 10/25/50), column density toggle, CSV export of the FILTERED list (batch through pages respecting the 50-row cap and rate limit with progress + cancel; UTF-8 BOM; neutralise CSV formula injection by prefixing cells that start with `= + - @ \t` with a single quote). Debounced search (300 ms), keep previous data while loading.
-- Create (`H-24`, Idempotency-Key): phone, first/last name, optional temporary password (generator + copy once, "user must change it at first login" notice), optional initial roles/grants (only those the actor can assign).
-- Detail (`H-21`): header (name, masked phone, status chip, roles), tabs: Overview (stats, last activity, sessions by client) · Access (roles assignment `H-22`, direct grants `H-23`, and an "Effective access" explainer from `H-93` listing every permission with its SOURCES (role / module / grant) and whether step-up applies) · Devices (`H-50`, revoke `H-51`) · Activity (audit entries for this user via `H-40` filtered by target) · Danger zone.
-- Actions: edit profile/phone (`H-25`), enable/disable (`H-26`), soft-delete + anonymise (`H-27`, type-to-confirm with the phone/name), set/clear temporary password (`H-28`), force logout of all devices (`H-29`). Show server `CONFLICT` reasons verbatim (e.g. SELF_PROTECTED, LAST_HOLDER).
-
-4.5 Access module (roles, permissions, modules — THE CORE REQUIREMENT)
-- One data call `H-92` returns modules + permissions + roles + step-up rules + `version` (use ETag/If-None-Match; refetch on focus).
-- "Access matrix" page: a responsive matrix (roles = columns, permissions grouped by module = rows with collapsible module headers; module header has "grant whole module" toggle per role). Cells: explicit permission, inherited-from-module (visually distinct, not individually removable), locked (padlock, not removable), developer column read-only. Sticky header/first column; on mobile switch to a per-role accordion editor. Unsaved-changes bar with diff summary (added/removed) → Save calls `H-12` (explicit permissions) and `H-17` (modules) as needed; handle LOCKED_PERMISSION / AUTH_FORBIDDEN (anti-escalation: you cannot grant what you do not hold — disable such toggles proactively using the actor's own effective permissions from `H-94`, but still handle the server error).
-- Roles (`H-10/H-13/H-14/H-15/H-16`): list with holder counts, create (key validated `^[a-z][a-z0-9_]{2,31}$` with live availability hint, title, description, initial permissions/modules), edit title/description, delete (blocked with explanation for system roles and roles that still have holders — link to filtered users list). System roles (developer, super_admin) show a "system" badge; developer is fully read-only.
-- Permissions registry (`H-11/H-85/H-86/H-87`): create custom permission (key format `module.action` with 2–4 dot-separated lowercase segments; the prefix `system.` is reserved and rejected; title, description, module, grantable flag, default step-up), edit, delete (cascade warning: list impact), system permissions marked and only partially editable.
-- Modules (`H-88/H-89/H-90/H-91`): create/edit/delete, order, permission counts; a module can be granted to a role as a whole (all current AND future permissions).
-- Step-up policy editor (`H-18`, needs permission `system.stepup.manage`): per role × permission tri-state (Inherit / Required / None) with the permission's default shown; bulk-set per module; a clear banner "Developers never need step-up". Show for each cell the EFFECTIVE result. Warn when relaxing a sensitive permission.
-- Everything shows an optimistic-free, server-confirmed UX (no fake success), with toasts and focus management.
-
-4.6 Sessions module (`H-60..H-72`): filterable list (status draft/scheduled/started/ended, creator picker, include-deleted, date range, sort), create/edit form (title, description, schedule once/weekly per contract, location with optional route URL https-only), status transition stepper (one step forward only, show `SESSION_INVALID_TRANSITION` message), soft delete, detail with tabs: Info · Members (approve/reject/remove, role assignment teacher/supporter per contract) · Attendance · Queue · Evaluations. Respect contract notes (manager alone cannot evaluate; show the rule as helper text).
-
-4.7 Reports (`H-80..H-84`): comprehensive overview, registrations series, sessions series, OTP series, leaderboard; interval day/week(Saturday-start)/month; range limited to the contract maximum; chart + accessible table toggle; CSV export per report.
-
-4.8 Audit log (`H-40`): filters (action, actor, target type/id, Jalali date range, search), expandable rows showing `summary` and non-sensitive `meta`, CSV export. Never render raw HTML; never show secrets (the server already redacts; still escape everything).
-
-4.9 Settings (`H-30/H-31`): evaluation weights (sum must be exactly 100, live validator + donut preview), badge thresholds (strictly ascending), feature flags (maintenance_mode, registration_open) with confirmation for maintenance mode; optimistic-concurrency via the `version` field (handle `CONFLICT/VERSION_MISMATCH` with "reload latest" flow).
-
-4.10 My account (`H-02..H-07`, `H-94`): edit my name, change my password (step-up policy applies), my devices/sessions with revoke / revoke-others, my effective access (read-only, with step-up info).
-
-4.11 System pages: 404, 403, offline page, maintenance/503 friendly page, update-available toast (PWA).
-
-════════════════════════════════════════
-5. PWA (installable on phones)
-════════════════════════════════════════
-- `manifest.webmanifest`: name "اسراء — پنل مدیریت", short_name "پنل اسراء", `lang:"fa"`, `dir:"rtl"`, `start_url: "<base>/"`, `scope: "<base>/"`, `display:"standalone"`, theme/background colors from the design tokens, icons 192/512 + maskable 512 (generate simple SVG-based placeholders and document replacing them with the real logo), shortcuts (Users, Access, Reports).
-- Service worker (Workbox via vite-plugin-pwa), scope = the base path: precache ONLY the app shell (hashed JS/CSS/fonts/icons/offline page); `navigateFallback` to `index.html` with a denylist for API origins; runtime cache: fonts/images = CacheFirst (limited, expiring). **NEVER cache any API response, Authorization-bearing request, or anything from the LOW/HIGH origins** (no sensitive data at rest). Offline navigation shows the offline page; writes while offline are blocked with a clear message (no background sync of mutations).
-- Update flow: prompt-based ("نسخهٔ جدید آماده است" → reload). Add `beforeinstallprompt` custom install button (+ iOS "Add to Home Screen" hint). Respect `prefers-reduced-motion`. Safe-area insets (`env(safe-area-inset-*)`) for notched phones; `viewport-fit=cover`; no horizontal scroll at 320px; touch targets ≥ 44px; `overscroll-behavior` handled; no hover-only interactions.
-
-════════════════════════════════════════
-6. PERFORMANCE BUDGETS (treat as acceptance criteria)
-════════════════════════════════════════
-- Initial route JS ≤ 150 KB gzip (login/shell), each route chunk ≤ 60 KB gzip; total CSS ≤ 30 KB gzip. Route-based `React.lazy` code-splitting for every screen; heavy components (charts, matrix) lazy. Verify with `vite build` output and put the numbers in the README.
-- LCP < 2.0 s and INP < 200 ms on a mid-range phone over 4G; CLS < 0.05 (reserve space with skeletons; font `size-adjust` fallback).
-- Prefetch route chunks and data on link hover/focus/touchstart (TanStack Query `prefetchQuery`); `staleTime` tuned per resource (reference data like modules/permissions/roles: 60 s + ETag revalidation; lists: 15 s; reports: 30 s); `keepPreviousData` for paginated lists; dedupe identical requests; cancel superseded requests.
-- Virtualise any list > 100 rendered rows (write a small windowing hook; no heavy lib). Memoise matrix cells; avoid re-rendering the whole matrix on one toggle (store selection in a normalised map, subscribe per cell).
-- No layout-thrashing animations; animate only `transform`/`opacity`; ≤ 200 ms; disabled under reduced-motion.
-- Images: none required (SVG only). `<link rel="preconnect">` to the two API origins. HTTP caching headers are server-side; make hashed assets immutable-friendly.
-
-════════════════════════════════════════
-7. SECURITY REQUIREMENTS
-════════════════════════════════════════
-- Strict CSP-compatible output: NO inline scripts, NO inline event handlers, NO `eval`/`new Function`, no external origins except the two API origins. Provide the recommended CSP header in the README (`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' <LOW> <HIGH>; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'`). Tailwind/Vite must not require `unsafe-eval`.
-- No `dangerouslySetInnerHTML`, no `innerHTML`, no `target=_blank` without `rel="noopener noreferrer"`; validate/normalise any URL shown as a link (https only).
-- Tokens never logged, never in URLs, never in error reports; redact phone numbers in any client-side diagnostics (show `0912***1234` outside the user-detail page).
-- Treat all server strings as untrusted text (escape by default through React); CSV export neutralises formula injection.
-- UI permission gating mirrors the server but is NOT relied on; every destructive action requires explicit confirmation (type-to-confirm for delete user/role/permission/module); double-submit protection; idempotency keys.
-- Clickjacking/embedding: the app must not need to be framed. Auto-logout UX: on 401-after-refresh-failure clear everything. Idle timeout (configurable constant, default 30 min of inactivity) → lock screen asking to re-authenticate (call refresh; if it fails → login). Disable browser autofill on sensitive one-off fields; password fields use `autocomplete="current-password"|"new-password"`.
-- Dependency hygiene: pinned versions, `npm audit`-clean at generation time, README section "Supply chain" (lockfile committed, `--ignore-scripts` install).
-- Never expose source maps with sensitive comments; production build `sourcemap: 'hidden'`.
-
-════════════════════════════════════════
-8. UX / ACCESSIBILITY / RESPONSIVE
-════════════════════════════════════════
-- WCAG 2.2 AA: contrast ≥ 4.5:1 (verify tokens), visible focus rings, full keyboard operation (dialogs trap focus, ESC closes, roving tabindex in menus/tabs/matrix with arrow keys), `aria-live` toasts, `aria-busy` on loading regions, labels for every control, error messages linked by `aria-describedby`, skip-to-content link, `lang="fa" dir="rtl"` on `<html>`.
-- Breakpoints: 320, 480, 768, 1024, 1280, 1536; test layouts at 320/375/768/1280. Tables → card lists on mobile; dialogs → bottom sheets on mobile; sticky action bars respect safe areas.
-- Every data view has all four states designed: loading (skeleton), empty (illustration-free, helpful CTA), error (Persian message + retry + support code), success. Toasts for outcomes; inline errors for forms; unsaved-changes guard on dirty forms.
-- Microcopy in natural, polite, concise Persian (formal «شما»). Numbers/dates always localised. Phone numbers displayed as `0912 345 6789` (LTR isolate via `<bdi dir="ltr">`).
-
-════════════════════════════════════════
-9. CODE ORGANISATION & QUALITY
-════════════════════════════════════════
-```
-src/
-  app/            (router, providers, error boundaries, shell, guards)
-  api/            (http.ts, errors.ts, auth.ts, stepUp.ts, endpoints/*.ts one file per module, types.ts)
-  features/       (auth, users, access, sessions, reports, audit, settings, account) — each: routes, components, hooks, schemas
-  components/ui/  (Button, Input, Select, Dialog, Sheet, Tabs, Table, Pagination, Toast, Skeleton, EmptyState, ErrorState, Badge, Switch, DatePicker(Jalali), OtpInput, ConfirmDialog, TypeToConfirm, Charts/*)
-  lib/            (jalali.ts, format.ts, csv.ts, permissions.ts, deviceInfo.ts, windowing.ts, invariant.ts)
-  styles/         (tokens.css, base.css)
-  pwa/            (register.ts, InstallPrompt.tsx, UpdateToast.tsx)
-public/ (fonts, icons, offline.html, manifest assets)
-```
-- Typed permission helper: `can('system.users.manage')` from the `/system/me` data; `<Can perm="...">` component; route guards.
-- All API access through the typed client; no `fetch` elsewhere. No `any`. Exhaustive `switch` on error codes with `satisfies never`.
-- Unit tests (Vitest): http layer (refresh single-flight, 401 replay, step-up replay with the same Idempotency-Key, 429 Retry-After, 503 friendly mapping, ETag/304), jalali conversion (round-trips + known dates + Saturday week start), CSV injection, permission helpers, access-matrix diff logic, step-up decision logic (developer exempt / policy none / required), key validators. Component tests for Login, Step-up dialog, Access matrix toggle & save, Users filters↔URL sync.
-- Provide `package.json` scripts: `dev`, `build`, `preview`, `typecheck`, `lint`, `test`, `analyze` (bundle visualiser). `.env.example` with the three variables. A thorough `README.md` (architecture, env, scripts, CSP, PWA notes, deployment under a sub-path with SPA fallback, performance numbers, security notes, "Contract gaps").
-- Zero console errors/warnings at runtime. No leftover debug code.
-
-════════════════════════════════════════
-10. DELIVERY FORMAT
-════════════════════════════════════════
-1) First, a brief plan (≤ 25 lines): final file tree + the design tokens you derived from the reference image (colors, radii, spacing scale, type scale).
-2) Then EVERY file, each in its own fenced block preceded by its path as a heading, in dependency order (config → lib → api → ui components → features → app → tests → README).
-3) End with: a checklist mapping each section of this prompt to files that implement it, and the "Contract gaps" list.
-The project must build with `npm install && npm run build` and pass `npm run typecheck && npm run lint && npm test` with no manual edits.
+Seed modules and system permissions (keys are fixed; titles Persian):
+users: system.users.view (step-up none), system.users.manage (required)
+access: system.role.assign (required), system.permission.edit (required), system.role.manage (required), system.permission.manage (required), system.stepup.manage (required)
+settings: system.settings.view (none), system.settings.edit (required)
+audit: system.audit.view (none)
+sessions_admin: system.sessions.view (none), system.sessions.manage (required)
+reports: system.reports.view (none)
+sessions: session.create (none, grantable)
+sessions_admin (also): system.sessions.moderate (none)
+gamification: system.points.manage (required), system.badges.manage (required)
+messaging: system.inbox.send (required)
+exports: system.data.export (required)
+Role `developer` holds every permission (locked, read-only). Role `super_admin` holds: system.users.view, system.role.assign, system.permission.edit, system.settings.view, system.settings.edit, system.audit.view, system.sessions.view, system.reports.view, session.create (locked: users.view, role.assign, permission.edit, audit.view).
 ```
 
 ---
 
-## نکات برای استقرار (برای من، پس از دریافت خروجی)
-- خروجی SPA استاتیک است؛ با اسکریپت pack (مشابه `scripts/pack-web-admin.mjs`) داخل اپ Node زیر `israapp.ir/s` سرو می‌شود (CSP بدون inline script، rewrite به `index.html`، SW با scope `/s/`، cache immutable برای assetهای hash‌دار).
-- ساب‌دامنهٔ API باید CORS برای Origin پنل + `credentials` را مجاز کند (الان هست) و `Idempotency-Key` در `allowedHeaders` high (در این نسخه اضافه شد).
+## PROMPTهای صفحه (به همین ترتیب، هر بار یکی)
+
+هر PROMPT را جدا بفرست. همه با این جمله شروع می‌شوند که مدل قواعد پایه را فراموش نکند.
+
+### صفحهٔ ۱ — داشبورد (نمای کلی)
+```text
+PAGE 1 — Overview dashboard ("داشبورد", route "/"). Keep every rule from the FOUNDATION prompt. Build ONLY this page.
+Endpoints: H-01 (overview), H-80 (report overview), H-81 (registrations series), H-82 (sessions series), H-84 (leaderboard top 5).
+UI: KPI tiles (users total/registered in range/active admins; sessions by status; attendance; evaluations + avg score; points awarded), trend charts (registrations, sessions created/held/attendance) with interval day / week (Saturday start) / month, date-range presets (today, 7d, 30d, this week Sat–Fri, this month, custom Jalali range, max 366 days), top-5 leaderboard, last 5 audit items (from H-01) linking to the audit page. Auto-refresh every 60 s only while the tab is visible. Skeletons; empty and error states.
+Mock: compute every number from the mock tables (no hard-coded figures); respect the range and interval; bucket in Asia/Tehran.
+Output only new/changed files + a manual test checklist.
+```
+
+### صفحهٔ ۲ — کاربران (فهرست، ساخت، خروجی)
+```text
+PAGE 2 — Users list ("/users"). Keep all FOUNDATION rules. Build ONLY this page and the create-user dialog.
+Endpoints: H-20 (search/filters/sort/paging), H-24 (create, Idempotency-Key), H-43 (server CSV export with the same filters; needs system.data.export + system.users.view; step-up capable).
+UI: URL-synced filters (q name/phone, role incl. dynamic roles from H-10 + "none", direct grant, status active/disabled/deleted, created from/to Jalali, sort newest/oldest/name), page size 10/25/50, responsive table → cards on mobile, status chips, masked phones except on hover/detail, "export CSV" button (downloads the server CSV; show the file name), "new user" dialog: phone, first/last name, optional temporary password with generator + copy (show once, explain the user must change it at first login), optional roles/grants limited to what the actor may assign (anti-escalation: hide/disable roles whose permissions the actor lacks — use H-94).
+Mock: implement filters/sort/paging exactly; PHONE_TAKEN conflict; the CSV export returns a real CSV Blob (BOM, formula-injection neutralised).
+Output only new/changed files + manual test checklist.
+```
+
+### صفحهٔ ۳ — جزئیات کاربر
+```text
+PAGE 3 — User detail ("/users/:id"). Keep all FOUNDATION rules. Build ONLY this page.
+Endpoints: H-21 detail, H-25 edit name/phone, H-26 enable/disable, H-27 soft delete (type-to-confirm), H-28 temporary password set/clear, H-29 force logout everywhere, H-50/H-51 devices & revoke, H-22 roles, H-23 direct grants, H-93 effective access (permissions with sources role/module/grant and step-up), H-52 memberships (sessions + roles + attendance count + evaluations + points), H-97 points summary + ledger (paged), H-98 manual points adjustment (+/−, reason; needs system.points.manage).
+UI tabs: Overview · Access (roles/grants editors + effective-access explainer) · Sessions (memberships list linking to session detail) · Points & badges (badge shelf with images via the low image URL pattern, ledger table with reasons in Persian, adjust dialog) · Devices · Activity (H-40 filtered by targetType=user&targetId) · Danger zone.
+Respect server CONFLICT reasons (SELF_PROTECTED, LAST_HOLDER, PHONE_TAKEN, USER_NOT_ACTIVE) and AUTH_FORBIDDEN for account-takeover protection (you cannot manage an account that has more permissions than you; developer accounts only by developers).
+Mock: same rules incl. points floor 0 and badge revocation when total drops below a threshold.
+Output only new/changed files + manual test checklist.
+```
+
+### صفحهٔ ۴ — دسترسی: ماتریس
+```text
+PAGE 4 — Access matrix ("/access/matrix"). Keep all FOUNDATION rules. Build ONLY this page.
+Endpoints: H-92 (modules + permissions + roles + step-up rules + version; ETag), H-12 (explicit permissions of a role), H-17 (whole-module grants of a role), H-94 (my effective access — to disable toggles I am not allowed to grant).
+UI: matrix with roles as columns and permissions grouped by module as rows (collapsible module rows with a "grant whole module" toggle per role); cell states: explicit, inherited-from-module (distinct, not removable individually), locked (padlock), developer column read-only; sticky header/first column; on mobile a per-role accordion editor. Unsaved-changes bar with a diff summary; Save calls H-12/H-17 as needed. Proactively disable grants the actor doesn't hold (anti-escalation) but still handle AUTH_FORBIDDEN/LOCKED_PERMISSION from the server.
+Mock: anti-escalation, locked permissions, developer immutable, module grants include future permissions.
+Output only new/changed files + manual test checklist.
+```
+
+### صفحهٔ ۵ — دسترسی: نقش‌ها
+```text
+PAGE 5 — Roles ("/access/roles"). Keep all FOUNDATION rules. Build ONLY this page.
+Endpoints: H-10 list, H-13 create (key ^[a-z][a-z0-9_]{2,31}$, not "none"), H-14 detail, H-15 edit title/description, H-16 delete.
+UI: cards/table with holder counts and "system" badges; create dialog with live key validation; delete blocked with explanation for system roles (SYSTEM_PROTECTED) and roles that still have holders (ROLE_IN_USE → link to /users?role=key). Developer role fully read-only.
+Mock: same conflicts.
+Output only new/changed files + manual test checklist.
+```
+
+### صفحهٔ ۶ — دسترسی: مجوزها و ماژول‌ها
+```text
+PAGE 6 — Permissions & modules ("/access/permissions", "/access/modules"). Keep all FOUNDATION rules. Build ONLY these pages.
+Endpoints: H-11 permissions, H-85 create (key module.action, 2–4 lowercase segments; prefix "system." is reserved), H-86 edit (system permissions: title/description/stepUp/grantable only), H-87 delete (cascade warning listing impact), H-88 modules, H-89 create, H-90 edit (title, description, sort order), H-91 delete (MODULE_NOT_EMPTY, SYSTEM_PROTECTED).
+UI: two tabs; permission table grouped by module with step-up default and grantable flags; module list with drag-free sort order editing (numeric), permission counts.
+Mock: same rules; changing a permission's stepUp requires system.stepup.manage.
+Output only new/changed files + manual test checklist.
+```
+
+### صفحهٔ ۷ — دسترسی: سیاست step-up و نقش‌های جلسه
+```text
+PAGE 7 — Step-up policy ("/access/step-up") + session-roles reference. Keep all FOUNDATION rules. Build ONLY this page.
+Endpoints: H-92 (data), H-18 (per role × permission: inherit / required / none; needs system.stepup.manage), H-48 (read-only matrix of session roles → in-session permissions).
+UI: banner "توسعه‌دهنده برای هیچ اقدامی تأیید هویت مجدد لازم ندارد، جز تغییر رمز خودش"; role selector; per-module groups with tri-state controls showing the permission default and the EFFECTIVE result; bulk set per module; warning when relaxing a sensitive permission; a second tab "نقش‌های جلسه" rendering H-48 as a read-only table.
+Mock: same.
+Output only new/changed files + manual test checklist.
+```
+
+### صفحهٔ ۸ — جلسه‌ها: فهرست، ساخت، ویرایش
+```text
+PAGE 8 — Sessions list + create/edit ("/sessions", "/sessions/new", "/sessions/:id/edit"). Keep all FOUNDATION rules. Build ONLY these.
+Endpoints: H-60 list (q, status, creatorId, from/to, includeDeleted, sort), H-62 create (creatorId optional — searchable user picker; Idempotency-Key), H-63 edit (draft/scheduled only), H-64 transition (one step forward; SESSION_INVALID_TRANSITION), H-65 soft delete.
+Form fields per SessionInput: title, description, schedule (once: start/end; recurring: weekdays + time + duration; range: from/to + weekdays + time + duration) with Jalali pickers and Asia/Tehran handling, location label + optional https route URL, joinPolicy (request / open / invite_only), visibility (public / unlisted), capacity (empty = unlimited).
+List shows counts (members, pending, managers — highlight sessions with 0 managers, occurrences), next start, status stepper.
+Mock: same rules (once session auto-opens occurrence #1 on started; ended closes it).
+Output only new/changed files + manual test checklist.
+```
+
+### صفحهٔ ۹ — جزئیات جلسه: اعضا، استاد، پشتیبان، قرآن‌آموز
+```text
+PAGE 9 — Session detail: Info + Members ("/sessions/:id", tabs Info and Members). Keep all FOUNDATION rules. Build ONLY these tabs.
+Endpoints: H-61 detail, H-66 members (filters status/role/q/userId), H-73 ADD MEMBERS (bulk up to 200; each item by userId (user picker using H-20) OR phone; roles teacher / session_supporter / quran_student; onExisting skip/merge/replace; createMissing with first/last name requires system.users.manage; per-item outcomes added/approved/merged/replaced/unchanged/created_and_added/not_found/not_active/full/failed), H-53 bulk approve/reject, H-67 approve/reject one, H-68 set roles incl. co-manager (LAST_HOLDER), H-69 remove (SESSION_MANAGER_PROTECTED → offer H-74), H-74 set/transfer session manager (previous: demote/remove/keep, transferCreator).
+UI: role chips (مدیر، پشتیبان، معلم، قرآن‌آموز) with filters; an "افزودن عضو" sheet with two modes: search users, or paste many phone numbers (one per line, Persian digits ok) + role selector + onExisting; a result report table after submit; "تعیین مدیر" dialog; bulk-select pending requests to approve/reject; helper text: «مدیر به‌تنهایی نمی‌تواند ارزیابی کند؛ برای ارزیابی نقش معلم یا پشتیبان هم لازم است».
+Mock: identical outcome semantics, capacity, LAST_HOLDER, inactive users.
+Output only new/changed files + manual test checklist.
+```
+
+### صفحهٔ ۱۰ — جزئیات جلسه: نوبت‌ها، حضور، صف، ارزیابی
+```text
+PAGE 10 — Session detail: Occurrences · Attendance · Queue · Evaluations tabs. Keep all FOUNDATION rules. Build ONLY these tabs.
+Endpoints: H-75 occurrences (live/closed, counts), H-70 attendance (occurrenceId, paging), H-76 mark present (bulk, reason; works on closed occurrences too), H-77 revoke attendance (−5 points, reason), H-71 queue (occurrenceId), H-78 next (expectCurrentItemId → QUEUE_STATE_CHANGED), H-79 move up/down/skip/remove (expectPosition; Idempotency-Key), H-72 evaluations (occurrenceId, includeVoid), H-95 void evaluation (reason), H-96 correct scores (reason), H-44 export CSV (members/attendance/evaluations).
+UI: occurrence selector (default live, else latest) shared by the tabs; attendance roster with present/absent, multi-select "ثبت حضور", per-row "لغو حضور"; live queue board (current, waiting with drag-free up/down buttons, done) polling every 5 s while visible; evaluations table (voice/tone/tajweed/score/points, evaluator, void badge) with correct/void dialogs that show the points effect.
+Mock: +5 once per (occurrence,user), reversals floor at 0, badge revoke, queue concurrency precondition.
+Output only new/changed files + manual test checklist.
+```
+
+### صفحهٔ ۱۱ — نشان‌ها
+```text
+PAGE 11 — Badges ("/badges"). Keep all FOUNDATION rules. Build ONLY this page.
+Endpoints: H-32 list, H-33 create (key, title, description, threshold points, active, sort order; max 50 → LIMIT_REACHED), H-34 edit, H-35 delete (revoked from all holders — confirm), H-36 upload image (png/webp/jpeg ≤ 200 KB, ≤ 1024 px; read the file in the browser, check size/type/dimensions BEFORE upload, send base64), H-37 remove image.
+UI: grid of badge cards (image, title, threshold, holders, active switch), editor sheet with live preview, threshold helper («با رسیدن امتیاز کاربر به این عدد نشان داده می‌شود و اگر کمتر شود پس گرفته می‌شود»).
+Mock: store images as data URLs inside the mock DB; enforce the same validations.
+Output only new/changed files + manual test checklist.
+```
+
+### صفحهٔ ۱۲ — پیام همگانی
+```text
+PAGE 12 — Announcements ("/announcements"). Keep all FOUNDATION rules. Build ONLY this page.
+Endpoints: H-41 send (audience: all / specific users (user picker, ≤1000) / system role / members of a session optionally filtered by session roles; title ≤120, body ≤500, optional ref), H-42 history, H-46 detail with delivery/read stats.
+UI: composer with audience builder and a recipients estimate where possible, preview of how the inbox item looks, confirmation for audience=all; history table with status (queued/sending/done/failed) and stats.
+Mock: simulate asynchronous delivery (status moves queued → sending → done over a few seconds) and read counts.
+Output only new/changed files + manual test checklist.
+```
+
+### صفحهٔ ۱۳ — گزارش‌ها
+```text
+PAGE 13 — Reports ("/reports"). Keep all FOUNDATION rules. Build ONLY this page.
+Endpoints: H-80 overview, H-81 registrations, H-82 sessions, H-83 OTP (requested/verified), H-84 leaderboard (limit).
+UI: range + interval controls, chart + accessible table toggle per report, CSV download per report (client-side from the loaded data, BOM + injection-safe).
+Output only new/changed files + manual test checklist.
+```
+
+### صفحهٔ ۱۴ — گزارش اقدام‌ها (audit)
+```text
+PAGE 14 — Audit log ("/audit"). Keep all FOUNDATION rules. Build ONLY this page.
+Endpoints: H-40 (action exact/prefix, q, actorId, targetType user/role/settings/session/permission/module/badge/announcement, targetId, from/to), H-45 server CSV export.
+UI: filters, expandable rows (summary + non-sensitive meta as key/value), links to targets, export. Never render HTML from data.
+Output only new/changed files + manual test checklist.
+```
+
+### صفحهٔ ۱۵ — تنظیمات
+```text
+PAGE 15 — Settings ("/settings"). Keep all FOUNDATION rules. Build ONLY this page.
+Endpoints: H-30, H-31 (optimistic `version`; VERSION_MISMATCH → "reload latest" flow).
+UI: evaluation weights (sum must be exactly 100; live validator + donut preview), feature flags maintenance_mode (strong confirmation) and registration_open. Do NOT show badge thresholds (deprecated; badges page replaces them).
+Output only new/changed files + manual test checklist.
+```
+
+### صفحهٔ ۱۶ — حساب من
+```text
+PAGE 16 — My account ("/account"). Keep all FOUNDATION rules. Build ONLY this page.
+Endpoints: H-02 account, H-03 edit my name, H-04 change my password (ALWAYS step-up, even for developers; the forced-change flow with currentPassword already exists from the foundation), H-05/H-06/H-07 my devices + revoke + revoke others, H-94 my effective access (read-only, with step-up info).
+Output only new/changed files + manual test checklist.
+```
+
+
+---
+
+## PROMPT اصلاح (هر وقت لازم شد؛ متن داخل <> را خودت پر کن)
+
+```text
+FIX REQUEST for page <نام صفحه>:
+- What I did: <مراحل>
+- What happened: <رفتار فعلی / متن خطا / اسکرین‌شات پیوست>
+- What I expect: <رفتار درست>
+Rules: change only what is needed for this fix; keep the mock and the API-shaped types consistent with the attached reference; do not touch other pages; output only the changed files in full; then give me a 3–6 step manual test checklist for this fix.
+```
+
+### PROMPT تغییر/افزودن قابلیت
+```text
+CHANGE REQUEST for page <نام صفحه>: <چه چیزی اضافه/عوض شود>.
+Use only endpoints/fields that exist in the attached API reference (if something is missing, say so under "Contract gaps" and do NOT invent it). Extend the mock to emulate the server rules for anything you touch. Output only changed files in full + a manual test checklist.
+```
+
+---
+
+## PROMPT FINAL — اتصال به API واقعی و حذف کامل موک
+
+```text
+FINAL STEP — connect the dashboard to the REAL backend and remove every trace of the mock. I re-attach the latest `28-dashboard-api-reference.md`; it is authoritative.
+
+A) Real HTTP implementation
+1. Create `src/api/http/` implementing the SAME `AdminApi` interface (one function per endpoint id, exact method + path from the reference).
+   - Origins from env (origin only, no path, no trailing slash): `VITE_API_LOW_URL` (paths `/c/v1/...`, auth L-xx only) and `VITE_API_HIGH_URL` (paths `/s/v1/...`). No other host, ever.
+   - Headers on every call: `X-Isra-Client: web-admin`, `X-Isra-Client-Version: <app version>`, `X-Request-Id: <uuid v4>`, `Accept: application/json`; `Content-Type: application/json` only with a body; `Authorization: Bearer <access token>` except on L-01, L-02, L-03, L-04; `Idempotency-Key` when `opts.idempotencyKey` is set (generated ONCE per user action, re-used on the single automatic network retry); `X-Step-Up-Token` when a valid step-up token is cached (writes only) or passed.
+   - LOW (auth) calls use `credentials: 'include'` (refresh token is an HttpOnly cookie the browser handles; JS never sees it). HIGH calls don't need cookies.
+   - Envelope: success `{ success: true, data, meta }` ⇒ return `data` (lists: `{ items: data, page, pageSize, total }` from `meta`); error `{ success: false, error: { code, message, details }, meta: { requestId } }` ⇒ throw `ApiError`. Non-JSON 5xx ⇒ `SERVICE_UNAVAILABLE` with the friendly Persian message.
+   - 401 (AUTH_REQUIRED / AUTH_TOKEN_EXPIRED / AUTH_TOKEN_INVALID / AUTH_PERM_STALE): ONE single-flight silent refresh (`POST /c/v1/auth/refresh`, body `{}`) then replay; refresh failure ⇒ clear session ⇒ login with "session expired". Use SEPARATE retry flags for refresh, step-up and network retry so a request can be refreshed AND stepped-up.
+   - AUTH_STEP_UP_REQUIRED ⇒ clear cached step-up token, run the step-up dialog (L-06/L-07), replay once. Developers: exempt except H-04 (server-enforced; UI mirrors `GET /system/me` `stepUpExempt` + `stepUp`).
+   - 429: honour `Retry-After` / `details.retryAfterSec` (countdown; auto-retry GET once). Timeout 15 s (30 s for exports). Auto-retry only idempotent GETs on network error/502/503/504 (max 2, backoff + jitter). Abort via AbortSignal.
+   - ETag: for GETs keep `{etag, data}` per URL in memory, send `If-None-Match`, use cached data on 304; CLEAR this cache on logout/session change.
+   - Proactive token refresh ~60 s before `accessExpiresIn`; refresh on tab focus if near expiry; BroadcastChannel logout sync.
+2. `src/api/index.ts` ⇒ `export const api: AdminApi = createHttpApi()`.
+
+B) Remove the mock completely
+1. Delete `src/api/mock/` entirely and every import of it, the DEV TOOLBAR, persona switcher, OTP hint `11111`, seed data, fake latency/error injection and any `isMock` branches.
+2. Add a tiny startup cleanup (keep it in production) that deletes any leftover `isra.mock.*` keys from localStorage so test data never lingers in users' browsers.
+3. The only localStorage keys allowed in production: `isra.admin.session` (non-secret hint), `isra.admin.deviceId`, theme preference, UI preferences (table density, sidebar collapsed). Tokens: memory only.
+4. Search the whole project and confirm (show me the result) that none of these strings remain outside comments/tests: `mock`, `seed`, `11111`, `Passw0rd`, `faker`, `localStorage.setItem('isra.mock`.
+
+C) Production hardening
+1. `vite.config.ts`: `base` normalised from `VITE_BASE_PATH` ("/s" ⇒ "/s/"), `sourcemap: 'hidden'`, sensible manualChunks (react+router+query vendor; radix+icons ui).
+2. PWA: precache app shell only; `navigateFallback` = `${BASE_URL}index.html`; runtime caching ONLY for fonts/images from the same origin; NEVER cache anything from the API origins; prompt-based update toast.
+3. No inline scripts; no `eval`; CSP-ready (`script-src 'self'`). README must document the CSP: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' <LOW> <HIGH>; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'`.
+4. Every asset/link uses `import.meta.env.BASE_URL` (no absolute "/logo.svg" or "/fonts/..." in TSX).
+5. `.env.example`: `VITE_BASE_PATH=/s`, `VITE_API_LOW_URL=https://capi.israapp.ir`, `VITE_API_HIGH_URL=https://sapi.israapp.ir`. No other variables (no GEMINI keys, no APP_URL).
+6. `package.json`: name `@isra/web-admin-v2`, scripts `dev`, `build`, `preview`, `typecheck` (tsc --noEmit), `lint`, `test`; remove unused dependencies.
+7. Tests: replace mock-based tests with tests of the HTTP layer using a fetch stub (refresh single-flight, 401 replay, step-up replay keeping the same Idempotency-Key, 429, 503 mapping, ETag 304, logout clears ETag cache), plus the pure utils tests.
+
+D) Output
+1. List of deleted files, then every changed/new file in full.
+2. The grep proof from B4.
+3. Bundle size table from `vite build` (gzip) and a note if any budget is exceeded.
+4. A deploy checklist for me (build command: `VITE_BASE_PATH=/s VITE_API_LOW_URL=https://capi.israapp.ir VITE_API_HIGH_URL=https://sapi.israapp.ir npm run build`).
+5. "Contract gaps" (if any).
+```
