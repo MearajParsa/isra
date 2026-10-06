@@ -44,8 +44,8 @@ export const EnvSchema = z
     JWT_KEY_ID: z.string().min(1).max(64).optional(),
     JWT_ISSUER: z.string().min(1).default('isra-low'),
     JWT_AUDIENCE: z.string().min(1).default('isra'),
-    ACCESS_TTL_SEC: z.coerce.number().int().min(60).max(3600).default(900),
-    REFRESH_TTL_SEC: z.coerce.number().int().min(3600).default(1_209_600),
+    ACCESS_TTL_SEC: z.coerce.number().int().min(60).max(3600).default(1200).describe('قفل #9: ۲۰ دقیقه'),
+    REFRESH_TTL_SEC: z.coerce.number().int().min(3600).default(2_592_000).describe('قفل #9: ۳۰ روز'),
     SESSION_MAX_AGE_SEC: z.coerce.number().int().min(86_400).default(7_776_000).describe('سقف مطلق عمر نشست (۹۰ روز)؛ refresh لغزان است و بدون این سقف هرگز تمام نمی‌شد'),
     REFRESH_GRACE_SEC: z.coerce.number().int().min(0).max(60).default(10),
 
@@ -87,6 +87,8 @@ export const EnvSchema = z
     const need = (cond: boolean, path: string, message: string) => cond && ctx.addIssue({ code: 'custom', path: [path], message });
     need(prod && !e.JWT_PRIVATE_KEY_PEM, 'JWT_PRIVATE_KEY_PEM', 'در production الزامی است (کلید RS256).');
     need(prod && e.SMS_PROVIDER !== 'faraz', 'SMS_PROVIDER', 'در production فقط faraz مجاز است.');
+    need(e.SMS_PROVIDER === 'console' && e.NODE_ENV !== 'development', 'SMS_PROVIDER', 'console فقط در development مجاز است (کد OTP در لاگ).');
+    need(e.SMS_PROVIDER === 'capture' && e.NODE_ENV !== 'test', 'SMS_PROVIDER', 'capture فقط در test مجاز است.');
     need(e.SMS_PROVIDER === 'faraz' && !e.FARAZ_API_KEY && e.NODE_ENV !== 'test', 'FARAZ_API_KEY', 'برای Faraz الزامی است.');
     need(e.SMS_PROVIDER === 'faraz' && !e.FARAZ_SENDER && e.NODE_ENV !== 'test', 'FARAZ_SENDER', 'برای Faraz الزامی است.');
     need(e.SMS_PROVIDER === 'faraz' && !e.FARAZ_PATTERN_CODE && e.NODE_ENV !== 'test', 'FARAZ_PATTERN_CODE', 'برای Faraz الزامی است.');

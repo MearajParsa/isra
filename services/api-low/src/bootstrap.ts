@@ -45,6 +45,9 @@ export function configureApp(app: NestExpressApplication, env: Env, useLogger = 
     maxAge: 600
   });
   app.use(cookieParser());
+  // مسیرهای internal (رویداد دسته‌ای تا ۲۰۰ پیام، ساخت گروهی ۲۰۰ کاربر، broadcast با ۱۰۰۰ شناسه) بدنهٔ بزرگ‌تری دارند؛
+  // فقط پس از احراز InternalGuard پردازش می‌شوند. بقیهٔ مسیرها همان سقف ۱۶KB.
+  app.use('/c/internal', json({ limit: '512kb' }));
   app.use(json({ limit: '16kb' }));
 
   if (env.SWAGGER_ENABLED && env.NODE_ENV !== 'production') mountDocs(app);

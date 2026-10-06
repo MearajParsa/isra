@@ -546,14 +546,14 @@ describe('گزارش‌ها', () => {
 
     const week = await adm('get', '/admin/reports/otp?from=2026-09-05&to=2026-09-20&interval=week');
     expect(week.body.data.items).toEqual([
-      { bucket: '2026-09-05', requested: 1, verified: 1 },
-      { bucket: '2026-09-12', requested: 3, verified: 2 },
-      { bucket: '2026-09-19', requested: 0, verified: 0 }
+      { bucket: '2026-09-05', requested: 1, verified: 1, failed: 0 },
+      { bucket: '2026-09-12', requested: 3, verified: 2, failed: 0 },
+      { bucket: '2026-09-19', requested: 0, verified: 0, failed: 0 }
     ]);
     const month = await adm('get', '/admin/reports/otp?from=2026-09-05&to=2026-10-02&interval=month');
     expect(month.body.data.items).toEqual([
-      { bucket: '2026-09-01', requested: 4, verified: 3 },
-      { bucket: '2026-10-01', requested: 0, verified: 0 }
+      { bucket: '2026-09-01', requested: 4, verified: 3, failed: 0 },
+      { bucket: '2026-10-01', requested: 0, verified: 0, failed: 0 }
     ]);
   });
 

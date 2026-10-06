@@ -1,6 +1,6 @@
-import { AuthSessionEntity, OtpChallengeEntity, RateLimitCounterEntity, RefreshTokenEntity } from './auth.entities';
-import { InboxEventEntity, InboxMessageEntity, OutboxEventEntity } from './messaging.entities';
-import { SettingsCacheEntity } from './settings.entity';
+import { AuthSessionEntity, OtpChallengeEntity, OtpCooldownEntity, RateLimitCounterEntity, RefreshTokenEntity } from './auth.entities';
+import { DeadLetterEventEntity, InboxBroadcastEntity, InboxEventEntity, InboxMessageEntity, OutboxEventEntity } from './messaging.entities';
+import { BadgeCatalogEntity, SettingsCacheEntity } from './settings.entity';
 import { ProfileEntity, UserClaimsEntity, UserCredentialEntity, UserEntity } from './user.entities';
 
 export * from './auth.entities';
@@ -20,5 +20,9 @@ export const ENTITIES = [
   RateLimitCounterEntity,
   InboxMessageEntity,
   OutboxEventEntity,
-  InboxEventEntity
+  InboxEventEntity,
+  OtpCooldownEntity,
+  InboxBroadcastEntity,
+  DeadLetterEventEntity,
+  BadgeCatalogEntity
 ];

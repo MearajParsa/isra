@@ -139,7 +139,7 @@ export const LowAdminSession = z.object({
 });
 export const LowAdminSessionsQuery = z.object({ page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().int().min(1).max(50).default(20), activeOnly: z.enum(['true', 'false']).default('false') });
 export const LowAdminRangeQuery = z.object({ from: IsoDate, to: IsoDate, interval: Interval.default('day') });
-export const LowAdminOtpSeries = z.object({ interval: Interval, items: z.array(z.object({ bucket: IsoDate, requested: Count, verified: Count })) });
+export const LowAdminOtpSeries = z.object({ interval: Interval, items: z.array(z.object({ bucket: IsoDate, requested: Count, verified: Count, failed: Count.optional().meta({ description: '۱.۶.۰: ارسال پیامک ناموفق' }) })) });
 export const LowAdminClients = z.object({ items: z.array(z.object({ client: z.string().max(24), activeSessions: Count })) });
 /** GET LOW_ADMIN.reportUsers?from&to — شمارش‌های حساب (منبع حقیقت low) */
 export const LowAdminUsersReport = z.object({
@@ -265,7 +265,7 @@ export const MidAdminEvaluationVoid = z.object({ ...Actor, reason: Reason }).str
 export const MidAdminEvaluation = Evaluation;
 /** mid: POST MID_ADMIN.notify — پیام به اعضای جلسه (mid رویداد دسته‌ای inbox.messages.created می‌سازد) */
 export const MidAdminNotify = z
-  .object({ ...Actor, broadcastId: Uuid, roles: z.array(SessionRole).min(1).max(4).optional(), title: z.string().min(2).max(120), body: z.string().min(2).max(500), ref: z.string().max(200).nullable() })
+  .object({ ...Actor, broadcastId: Uuid, roles: z.array(SessionRole).min(1).max(4).optional(), title: z.string().min(2).max(120), body: z.string().min(2).max(500), ref: z.string().regex(/^(session:[A-Za-z0-9_-]{1,64}|points|badge:[A-Za-z0-9_-]{1,64}|announcement:[A-Za-z0-9_-]{1,64})$/).max(200).nullable() })
   .strict();
 export const MidAdminNotifyResult = z.object({ recipients: Count });
 export const MidAdminUserMembershipsQuery = UserMembershipsQuery;

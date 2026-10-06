@@ -16,7 +16,8 @@ export default {
         'default-src': ['self'],
         'script-src': ['self'],
         'style-src': ['self', 'unsafe-inline'],
-        'img-src': ['self', 'data:'],
+        // تصویر نشان‌ها از api-low (L-34)
+        'img-src': ['self', 'data:', apis[0]],
         'font-src': ['self', 'data:'],
         'connect-src': ['self', ...new Set([...apis, ...sockets])],
         'manifest-src': ['self'],

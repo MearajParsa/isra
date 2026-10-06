@@ -119,7 +119,8 @@ export interface DeviceSession {
   current: boolean;
 }
 
-export type InboxKind = 'membership' | 'turn' | 'evaluation' | 'system';
+/** ۱.۶.۰: announcement و session افزوده شد؛ نوع ناشناخته مثل system نمایش داده می‌شود */
+export type InboxKind = 'membership' | 'turn' | 'evaluation' | 'system' | 'announcement' | 'session';
 
 export interface InboxItem {
   id: string;
@@ -137,10 +138,21 @@ export interface InboxQuery {
   unreadOnly?: boolean;
 }
 
-export type BadgeKey = 'badge_50' | 'badge_150' | 'badge_300' | 'badge_500';
+/** ۱.۶.۰: نشان‌ها پویا (مدیریت در high)؛ تصویر از L-34 */
+export type BadgeKey = string;
+export interface BadgeView {
+  id: string;
+  key: BadgeKey;
+  title: string;
+  description: string;
+  threshold: number;
+  image: { hash: string } | null;
+  /** null = هنوز کسب نشده (یا با افت امتیاز پس گرفته شده) */
+  awardedAt: string | null;
+}
 export interface PointsSummary {
   total: number;
-  badges: { key: BadgeKey; threshold: number; awardedAt: string | null }[];
+  badges: BadgeView[];
 }
 
 export type SessionStatus = 'scheduled' | 'started' | 'ended';

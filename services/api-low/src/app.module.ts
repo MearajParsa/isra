@@ -19,6 +19,8 @@ import { MeController } from './me/me.controller';
 import { MeService } from './me/me.service';
 import { MidModule } from './mid/mid.module';
 import { MaintenanceService } from './outbox/maintenance.service';
+import { BroadcastService } from './messaging/broadcast.service';
+import { AccountDeletionService } from './users/account-deletion.service';
 import { OutboxService } from './outbox/outbox.service';
 import { PublicController } from './public/public.controller';
 import { SmsModule } from './sms/sms.module';
@@ -56,6 +58,8 @@ export class AppModule {
         InternalGuard,
         OutboxService,
         MaintenanceService,
+        BroadcastService,
+        AccountDeletionService,
         { provide: APP_FILTER, useClass: AllExceptionsFilter },
         { provide: APP_INTERCEPTOR, useClass: EnvelopeInterceptor },
         { provide: APP_GUARD, useExisting: EndpointGuard }

@@ -54,8 +54,17 @@ export class AuthService {
     @Inject(ENV) private readonly env: Env
   ) {}
 
-  requestOtp(phone: string, ctx: AuthContext) {
-    return this.otp.issue(phone, 'login', null, ctx.ip);
+  /**
+   * ثبت‌نام بسته (پرچم high) و شمارهٔ ناشناس ⇒ پیامکی نمی‌رود (هزینه/سوءاستفاده) ولی پاسخ، cooldown و سقف‌ها دقیقاً مثل حالت عادی است
+   * (ضد enumeration). verify چنین challengeای هرگز موفق نمی‌شود چون کد آن به کسی نرسیده است.
+   */
+  async requestOtp(phone: string, ctx: AuthContext) {
+    let deliver = true;
+    if (!(await this.flags.get()).registrationOpen) {
+      const known = (await this.ds.query("SELECT 1 AS x FROM users WHERE phone = ? AND status <> 'deleted'", [phone])) as unknown[];
+      deliver = known.length > 0;
+    }
+    return this.otp.issue(phone, 'login', null, ctx.ip, { deliver });
   }
 
   async verifyOtp(b: { challengeId: string; code: string; deviceId: string; deviceLabel: string }, ctx: AuthContext): Promise<AuthOutput> {

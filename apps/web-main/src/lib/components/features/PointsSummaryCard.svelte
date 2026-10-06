@@ -32,7 +32,7 @@
   </div>
   <p class="muted hint">
     {#if next}
-      {formatNumber(Math.max(0, next.threshold - points.total))} امتیاز تا نشان «{formatNumber(next.threshold)} امتیاز»
+      {formatNumber(Math.max(0, next.threshold - points.total))} امتیاز تا نشان «{next.title}»
     {:else}
       همهٔ نشان‌ها را کسب کرده‌اید.
     {/if}

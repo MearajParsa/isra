@@ -61,7 +61,7 @@ describe('JWT: دست‌کاری و جعل', () => {
 
   it('منقضی ⇒ AUTH_TOKEN_EXPIRED؛ پس از refresh نشست ادامه دارد', async () => {
     const l = await loginOtp(t);
-    t.clock.advance(16 * 60_000);
+    t.clock.advance(21 * 60_000);
     const r = await get('/me', l.headers);
     expect(r.status).toBe(401);
     expect(r.body.error.code).toBe('AUTH_TOKEN_EXPIRED');

@@ -39,11 +39,20 @@ describe('پرچم‌های سراسری از high', () => {
     await settings(2, { maintenance_mode: false, registration_open: false }).expect(202);
     t.clock.advance(6_000);
     const phone = freshPhone();
+    const sentBefore = t.sms.sent.length;
     const rq = await request(t.http).post('/c/v1/auth/otp/request').set(ANDROID).set('X-Forwarded-For', freshIp()).send({ phone });
-    const v = await request(t.http).post('/c/v1/auth/otp/verify').set(ANDROID).set('X-Forwarded-For', freshIp()).send({ challengeId: rq.body.data.challengeId, code: t.sms.lastCode(phone), deviceId: randomUUID(), deviceLabel: 'x' });
-    expect(v.status).toBe(403);
-    expect(v.body.error.message).toContain('ثبت‌نام');
+    // پاسخ یکسان (ضد enumeration) ولی هیچ پیامکی به شمارهٔ ناشناس نمی‌رود
+    expect(rq.status).toBe(200);
+    expect(Object.keys(rq.body.data).sort()).toEqual(['challengeId', 'expiresInSec', 'resendAfterSec']);
+    expect(t.sms.sent.length).toBe(sentBefore);
+    // cooldown مثل حالت عادی
+    expect((await request(t.http).post('/c/v1/auth/otp/request').set(ANDROID).set('X-Forwarded-For', freshIp()).send({ phone })).status).toBe(429);
+    const v = await request(t.http).post('/c/v1/auth/otp/verify').set(ANDROID).set('X-Forwarded-For', freshIp()).send({ challengeId: rq.body.data.challengeId, code: '12345', deviceId: randomUUID(), deviceLabel: 'x' });
+    expect(v.status).toBe(400);
+    expect(v.body.error.code).toBe('AUTH_OTP_INVALID');
+    expect(await t.ds.query('SELECT 1 FROM users WHERE phone = ?', [phone])).toHaveLength(0);
     t.clock.advance(61_000);
+    // کاربر موجود همچنان پیامک می‌گیرد
     await expect(loginOtp(t, { phone: existing.phone })).resolves.toBeTruthy();
     await settings(3, { maintenance_mode: false, registration_open: true }).expect(202);
     t.clock.advance(6_000);

@@ -1,6 +1,10 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Logger, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { z } from 'zod';
 import { internal } from '@isra/api-types';
 import type { IsraRequest } from '../common/request-context';
+import { AppError } from '../common/app-error';
+import { RateLimitService } from '../common/rate-limit/rate-limit.service';
+import { BroadcastService } from '../messaging/broadcast.service';
 import { AdminService } from './admin.service';
 import { InternalGuard } from './internal.guard';
 import { InternalCallers, InternalRoute } from './internal-auth';
@@ -12,6 +16,10 @@ const ok = (req: IsraRequest, data: unknown, page?: { page: number; pageSize: nu
   ...(page ? { meta: { requestId: req.ctx.requestId, ...page } } : { meta: { requestId: req.ctx.requestId } })
 });
 
+const RESOLVE_PER_MIN = 600;
+/** فیلتر افزودنی گزارش OTP (خارج از LowAdminRangeQuery) */
+const OtpPurposeQuery = z.object({ purpose: z.enum(['login', 'step_up']).optional() });
+
 /**
  * مدیریت کاربر/نشست/گزارش برای api-high (`LOW_ADMIN`؛ docs-v2/26). فقط فرستندهٔ `high` (secret جفتی + ACL).
  * ورودی با schemaهای قرارداد `internal.LowAdmin*` اعتبارسنجی می‌شود (خطا ⇒ VALIDATION_FAILED).
@@ -20,7 +28,41 @@ const ok = (req: IsraRequest, data: unknown, page?: { page: number; pageSize: nu
 @InternalRoute()
 @UseGuards(InternalGuard)
 export class AdminController {
-  constructor(private readonly admin: AdminService) {}
+  private readonly log = new Logger('InternalAdmin');
+
+  constructor(
+    private readonly admin: AdminService,
+    private readonly broadcasts: BroadcastService,
+    private readonly limiter: RateLimitService
+  ) {}
+
+  /** LOW_INTERNAL.resolveUsers — mid و high؛ فقط POST (شماره در URL/لاگ دسترسی نمی‌آید)؛ سقف durable ۶۰۰/دقیقه per فرستنده؛ لاگ بدون شماره */
+  @Post('users/resolve')
+  @InternalCallers('mid', 'high')
+  @HttpCode(200)
+  async resolve(@Body() raw: unknown, @Req() req: IsraRequest) {
+    const lim = await this.limiter.hit('durable', `int:resolve:${req.internalCaller}`, RESOLVE_PER_MIN, 60);
+    if (!lim.allowed) throw new AppError('RATE_LIMITED', { details: { retryAfterSec: lim.resetSec } });
+    const body = internal.LowResolveUsersBody.parse(raw ?? {});
+    const out = await this.admin.resolveUsers(body);
+    this.log.debug({ caller: req.internalCaller, asked: body.phones.length, found: out.items.length }, 'users resolved');
+    return ok(req, out);
+  }
+
+  /** LOW_ADMIN.usersBulk (۱.۶.۰) */
+  @Post('admin/users/bulk')
+  @InternalCallers('high')
+  @HttpCode(200)
+  async bulk(@Body() raw: unknown, @Req() req: IsraRequest) {
+    return ok(req, await this.admin.usersBulk(internal.LowAdminUsersBulkBody.parse(raw ?? {})));
+  }
+
+  /** LOW_ADMIN.broadcast (۱.۶.۰): آمار تحویل پیام همگانی */
+  @Get('admin/broadcasts/:id')
+  @InternalCallers('high')
+  async broadcast(@Param('id') id: string, @Req() req: IsraRequest) {
+    return ok(req, await this.broadcasts.stats(id));
+  }
 
   @Post('admin/users')
   @InternalCallers('high')
@@ -83,14 +125,16 @@ export class AdminController {
   @Post('admin/users/:id/logout-all')
   @InternalCallers('high')
   @HttpCode(200)
-  async logoutAll(@Param('id') id: string, @Req() req: IsraRequest) {
-    return ok(req, await this.admin.logoutAll(id));
+  async logoutAll(@Param('id') id: string, @Body() raw: unknown, @Req() req: IsraRequest) {
+    const b = internal.LowAdminLogoutAllBody.parse(raw ?? {});
+    return ok(req, await this.admin.logoutAll(id, b.exceptSessionId));
   }
 
   @Get('admin/reports/otp')
   @InternalCallers('high')
   async reportOtp(@Query() raw: unknown, @Req() req: IsraRequest) {
-    return ok(req, await this.admin.reportOtp(internal.LowAdminRangeQuery.parse(raw ?? {})));
+    const purpose = OtpPurposeQuery.parse(raw ?? {}).purpose;
+    return ok(req, await this.admin.reportOtp({ ...internal.LowAdminRangeQuery.parse(raw ?? {}), purpose }));
   }
 
   @Get('admin/reports/clients')

@@ -1,9 +1,12 @@
-import { Controller, Req } from '@nestjs/common';
+import { Controller, Inject, Req, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import type { z } from 'zod';
 import { low } from '@isra/api-types';
 import { In, Route } from '../common/ep';
 import type { IsraRequest } from '../common/request-context';
 import { MidClient } from '../mid/mid.client';
+import { clearRefreshCookie } from '../auth/cookie';
+import { ENV, type Env } from '../config/env';
 import { MeService } from './me.service';
 
 type Page = { page: number; pageSize: number };
@@ -13,7 +16,8 @@ const uid = (r: IsraRequest) => r.user!.userId;
 export class MeController {
   constructor(
     private readonly me: MeService,
-    private readonly mid: MidClient
+    private readonly mid: MidClient,
+    @Inject(ENV) private readonly env: Env
   ) {}
 
   @Route('L-10')
@@ -74,5 +78,25 @@ export class MeController {
   @Route('L-21')
   points(@Req() r: IsraRequest) {
     return this.mid.points(uid(r));
+  }
+
+  /** L-22: حذف حساب من (step-up در EndpointGuard)؛ cookie refresh پاک می‌شود */
+  @Route('L-22')
+  async deleteMe(@Req() r: IsraRequest, @Res({ passthrough: true }) res: Response) {
+    await this.me.deleteMe(uid(r));
+    clearRefreshCookie(res, this.env, r.ctx.client);
+    return {};
+  }
+
+  /** L-23: دفتر امتیاز من (proxy به mid با cache خصوصی ۱۵ ثانیه) */
+  @Route('L-23')
+  pointsHistory(@Req() r: IsraRequest, @In() { query }: { query: Page }) {
+    return this.mid.pointsLedger(uid(r), query.page, query.pageSize);
+  }
+
+  /** L-28: حذف پیام خودم */
+  @Route('L-28')
+  deleteMessage(@Req() r: IsraRequest, @In() { params }: { params: { id: string } }) {
+    return this.me.deleteMessage(uid(r), params.id);
   }
 }

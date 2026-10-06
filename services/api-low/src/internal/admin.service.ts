@@ -9,6 +9,7 @@ import { AppError, conflict } from '../common/app-error';
 import { Clock } from '../common/clock';
 import { bufToUuid, isUuid, uuidToBuf, uuidv7 } from '../common/ids';
 import { RateLimitService } from '../common/rate-limit/rate-limit.service';
+import { AccountDeletionService } from '../users/account-deletion.service';
 
 type Create = z.infer<typeof internal.LowAdminCreateUser>;
 type Update = z.infer<typeof internal.LowAdminUpdateUser>;
@@ -58,7 +59,8 @@ export class AdminService {
     private readonly passwords: PasswordService,
     private readonly sessions: SessionService,
     private readonly cache: SessionStatusCache,
-    private readonly limiter: RateLimitService
+    private readonly limiter: RateLimitService,
+    private readonly deletion: AccountDeletionService
   ) {}
 
   // ───────────────────────── کمکی‌ها ─────────────────────────
@@ -187,43 +189,66 @@ export class AdminService {
     return this.getUser(id);
   }
 
-  /**
-   * حذف نرم + ناشناس‌سازی (برگشت‌ناپذیر، idempotent). شمارهٔ ناشناس `d` + ۱۰ هگز از شناسه؛ ده نویسهٔ ابتدای UUIDv7 فقط بخش زمان است
-   * (کاربران هم‌پنجره ⇒ برخورد) پس در برخورد از قطعهٔ تصادفی انتهای شناسه استفاده می‌شود.
-   */
+  /** حذف نرم + ناشناس‌سازی (هستهٔ مشترک با L-22؛ ادمین نقش سیستمی را هم حذف می‌کند — ضد تصاحب در high بررسی می‌شود) */
   async deleteUser(id: string) {
-    const now = this.clock.now();
-    const uid = this.uid(id);
-    const hex = uid.toString('hex');
-    await this.ds.transaction(async (m) => {
-      const cur = await this.lock(m, id);
-      if (cur.status === 'deleted') return;
-      let anon = '';
-      for (const c of [hex.slice(-10), hex.slice(0, 10), hex.slice(10, 20)]) {
-        const used = (await m.query('SELECT 1 AS x FROM users WHERE phone = ?', [`d${c}`])) as unknown[];
-        if (!used.length) {
-          anon = `d${c}`;
-          break;
-        }
-      }
-      if (!anon) throw new AppError('INTERNAL_ERROR');
-      await m.query("UPDATE users SET status = 'deleted', phone = ?, must_change_password = 0, updated_at = ? WHERE id = ?", [anon, now, uid]);
-      await m.query("UPDATE profiles SET first_name = '', last_name = '', avatar_path = NULL, updated_at = ? WHERE user_id = ?", [now, uid]);
-      await m.query('DELETE FROM user_credentials WHERE user_id = ?', [uid]);
-      await m.query('DELETE FROM inbox_messages WHERE user_id = ?', [uid]);
-      // OTP باز پاک؛ بقیه برای آمار می‌مانند ولی شمارهٔ واقعی از آن‌ها حذف می‌شود
-      await m.query('DELETE FROM otp_challenges WHERE phone = ? AND consumed_at IS NULL', [cur.phone]);
-      await m.query('UPDATE otp_challenges SET phone = ? WHERE phone = ?', [anon, cur.phone]);
-      await this.sessions.revokeAllInTx(m, id, now);
-      await m.query(
-        `INSERT INTO user_claims (user_id, system_roles, grants, perm_ver, updated_at) VALUES (?, '[]', '[]', 2, ?)
-         ON DUPLICATE KEY UPDATE system_roles = '[]', grants = '[]', perm_ver = perm_ver + 1, updated_at = VALUES(updated_at)`,
-        [uid, now]
-      );
-      await this.emit(m, 'user.status.changed', { userId: id, status: 'deleted', changedAt: now.toISOString(), anonymizedPhone: anon }, now);
-    });
-    this.cache.invalidateUser(id);
+    this.uid(id);
+    await this.deletion.softDelete(id, 'admin', false);
     return this.getUser(id);
+  }
+
+  /**
+   * LOW_ADMIN.usersBulk: ساخت گروهی در یک تراکنش با insert چندردیفی؛ موجود ⇒ exists (بدون تغییر)؛ هر ساخت ⇒ user.registered.
+   * شمارهٔ تکراری در ورودی ⇒ دومی exists با همان شناسه. ترتیب خروجی = ترتیب ورودی.
+   */
+  async usersBulk(b: z.infer<typeof internal.LowAdminUsersBulkBody>) {
+    const now = this.clock.now();
+    const phones = [...new Set(b.items.map((i) => i.phone))];
+    // مسابقه با ثبت‌نام OTP هم‌زمان (ER_DUP_ENTRY) ⇒ یک بار تکرار؛ بار دوم آن شماره «exists» دیده می‌شود
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.bulkOnce(b, phones, now);
+      } catch (e) {
+        if (attempt === 0 && isDup(e)) continue;
+        throw e;
+      }
+    }
+  }
+
+  private async bulkOnce(b: z.infer<typeof internal.LowAdminUsersBulkBody>, phones: string[], now: Date) {
+    const out = await this.ds.transaction(async (m) => {
+      const existing = (await m.query(`SELECT id, phone FROM users WHERE phone IN (${phones.map(() => '?').join(',')}) FOR UPDATE`, phones)) as { id: Buffer; phone: string }[];
+      const byPhone = new Map(existing.map((r) => [r.phone, bufToUuid(r.id)]));
+      const created: { id: string; phone: string; firstName: string; lastName: string }[] = [];
+      const res = b.items.map((it) => {
+        const known = byPhone.get(it.phone);
+        if (known) return { phone: it.phone, userId: known, outcome: 'exists' as const, code: null };
+        const id = uuidv7(now.getTime());
+        byPhone.set(it.phone, id);
+        created.push({ id, phone: it.phone, firstName: it.firstName, lastName: it.lastName });
+        return { phone: it.phone, userId: id, outcome: 'created' as const, code: null };
+      });
+      if (created.length) {
+        const q = (n: number) => created.map(() => `(${Array(n).fill('?').join(', ')})`).join(', ');
+        await m.query(`INSERT INTO users (id, phone, status, must_change_password, created_at, updated_at) VALUES ${q(6)}`, created.flatMap((c) => [uuidToBuf(c.id), c.phone, 'active', 0, now, now]));
+        await m.query(`INSERT INTO profiles (user_id, first_name, last_name, updated_at) VALUES ${q(4)}`, created.flatMap((c) => [uuidToBuf(c.id), c.firstName, c.lastName, now]));
+        await m.query(
+          `INSERT INTO outbox_events (id, type, payload, created_at, attempts, next_attempt_at) VALUES ${q(6)}`,
+          created.flatMap((c) => [uuidToBuf(uuidv7(now.getTime())), 'user.registered', JSON.stringify({ userId: c.id, phone: c.phone, firstName: c.firstName, lastName: c.lastName, createdAt: now.toISOString() }), now, 0, now])
+        );
+      }
+      return res;
+    });
+    return { items: out };
+  }
+
+  /** LOW_INTERNAL.resolveUsers: فقط کاربران موجود (حذف‌شده‌ها شمارهٔ ناشناس دارند و پیدا نمی‌شوند) */
+  async resolveUsers(b: z.infer<typeof internal.LowResolveUsersBody>) {
+    const phones = [...new Set(b.phones)];
+    const rows = (await this.ds.query(
+      `SELECT u.id, u.phone, u.status, p.first_name, p.last_name FROM users u LEFT JOIN profiles p ON p.user_id = u.id WHERE u.phone IN (${phones.map(() => '?').join(',')})`,
+      phones
+    )) as { id: Buffer; phone: string; status: UserRow['status']; first_name: string | null; last_name: string | null }[];
+    return { items: rows.map((r) => ({ phone: r.phone, userId: bufToUuid(r.id), firstName: r.first_name ?? '', lastName: r.last_name ?? '', status: r.status })) };
   }
 
   // ───────────────────────── رمز ─────────────────────────
@@ -323,11 +348,12 @@ export class AdminService {
     return {};
   }
 
-  async logoutAll(id: string) {
+  /** ۱.۶.۰: `exceptSessionId` اختیاری (H-07 در یک فراخوانی: خروج از همه جز نشست جاری) */
+  async logoutAll(id: string, exceptSessionId?: string) {
     const now = this.clock.now();
     await this.ds.transaction(async (m) => {
       await this.lock(m, id);
-      await this.sessions.revokeAllInTx(m, id, now);
+      await this.sessions.revokeAllInTx(m, id, now, exceptSessionId);
     });
     this.cache.invalidateUser(id);
     return {};
@@ -357,15 +383,17 @@ export class AdminService {
     return out;
   }
 
-  async reportOtp(q: { from: string; to: string; interval: Interval }) {
+  /** verified = مصرف‌شده و نه ارسال ناموفق؛ failed = ارسال پیامک ناموفق (افزودنی ۱.۶.۰)؛ purpose اختیاری */
+  async reportOtp(q: { from: string; to: string; interval: Interval; purpose?: 'login' | 'step_up' }) {
     const r = this.range(q);
     const rows = (await this.ds.query(
-      `SELECT DATE_FORMAT(DATE_ADD(created_at, INTERVAL ${TEHRAN_OFFSET_MIN} MINUTE), '%Y-%m-%d') AS d, COUNT(*) AS requested, SUM(consumed_at IS NOT NULL) AS verified
-         FROM otp_challenges WHERE created_at >= ? AND created_at < ? GROUP BY d`,
-      [r.fromUtc, r.toUtc]
-    )) as { d: string; requested: string | number; verified: string | number | null }[];
-    const f = this.fold(r.buckets, rows, ['requested', 'verified'], q.interval);
-    return { interval: q.interval, items: r.buckets.map((b) => ({ bucket: b, requested: f[b]![0]!, verified: f[b]![1]! })) };
+      `SELECT DATE_FORMAT(DATE_ADD(created_at, INTERVAL ${TEHRAN_OFFSET_MIN} MINUTE), '%Y-%m-%d') AS d, COUNT(*) AS requested,
+              SUM(consumed_at IS NOT NULL AND send_failed_at IS NULL) AS verified, SUM(send_failed_at IS NOT NULL) AS failed
+         FROM otp_challenges WHERE created_at >= ? AND created_at < ?${q.purpose ? ' AND purpose = ?' : ''} GROUP BY d`,
+      q.purpose ? [r.fromUtc, r.toUtc, q.purpose] : [r.fromUtc, r.toUtc]
+    )) as { d: string; requested: string | number; verified: string | number | null; failed: string | number | null }[];
+    const f = this.fold(r.buckets, rows, ['requested', 'verified', 'failed'], q.interval);
+    return { interval: q.interval, items: r.buckets.map((b) => ({ bucket: b, requested: f[b]![0]!, verified: f[b]![1]!, failed: f[b]![2]! })) };
   }
 
   async reportClients() {
