@@ -52,7 +52,25 @@ export const CONFLICT_REASONS = [
   'KEY_TAKEN',
   'SYSTEM_PROTECTED',
   'ROLE_IN_USE',
-  'MODULE_NOT_EMPTY'
+  'MODULE_NOT_EMPTY',
+  // ۱.۶.۰ (docs-v2/30) — موارد قبلاً استفاده‌شده در کد که اعلام نشده بودند
+  'SESSION_MANAGER_PROTECTED',
+  'SELF_EVALUATION',
+  'QUEUE_ITEM_STATE',
+  'IDEMPOTENCY_KEY_REUSED',
+  'IDEMPOTENCY_IN_PROGRESS',
+  // ۱.۶.۰ — تازه
+  'QUEUE_STATE_CHANGED',
+  'EVALUATION_VOIDED',
+  'SESSION_FULL',
+  'REQUEST_COOLDOWN',
+  'JOIN_CLOSED',
+  'INVITE_EXPIRED',
+  'INVITE_EXHAUSTED',
+  'NOT_STUDENT',
+  'OCCURRENCE_CLOSED',
+  'OCCURRENCE_LIVE',
+  'LIMIT_REACHED'
 ] as const;
 export type ConflictReason = (typeof CONFLICT_REASONS)[number];
 

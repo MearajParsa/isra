@@ -4,6 +4,7 @@ import { Empty } from '../core/envelope';
 import { healthEndpoints } from '../core/ops';
 import { Id, pageQuery } from '../core/primitives';
 import { PublicSession, PublicSessionStatus } from '../domain/session';
+import { PointsLedgerItem } from '../domain/points';
 import * as S from './schemas';
 
 const T = { auth: 'احراز هویت', me: 'حساب من', pub: 'محتوای عمومی', sec: 'نشست و امنیت' };
@@ -369,6 +370,109 @@ export const lowEndpoints = [
     cache: { scope: 'public', maxAgeSec: 300, staleWhileRevalidateSec: 3600, etag: true },
     sloP95Ms: 20,
     since: '1.0.0'
+  }),
+  defineEndpoint({
+    id: 'L-22',
+    service: 'low',
+    method: 'delete',
+    path: '/me',
+    summary: 'حذف حساب من (حذف نرم + ناشناس‌سازی)',
+    description: 'step-up لازم. دارندهٔ نقش سیستمی ⇒ CONFLICT(SYSTEM_PROTECTED). همهٔ نشست‌ها revoke و cookie پاک می‌شود؛ رویداد user.status.changed (source=self).',
+    tags: [T.sec],
+    auth: 'bearer',
+    stepUp: true,
+    body: S.DeleteMeBody,
+    response: Empty,
+    errors: ['VALIDATION_FAILED', 'AUTH_STEP_UP_REQUIRED', 'CONFLICT'],
+    rateLimit: [{ limit: 3, windowSec: 86400, key: 'user' }],
+    cache: 'no-store',
+    idempotency: 'natural',
+    setsCookie: true,
+    sloP95Ms: 300,
+    since: '1.6.0'
+  }),
+  defineEndpoint({
+    id: 'L-23',
+    service: 'low',
+    method: 'get',
+    path: '/me/points/history',
+    summary: 'تاریخچهٔ امتیاز من (دفتر؛ از mid)',
+    tags: [T.me],
+    auth: 'bearer',
+    query: pageQuery(50),
+    response: PointsLedgerItem,
+    list: true,
+    errors: ['SERVICE_UNAVAILABLE'],
+    cache: { scope: 'private', maxAgeSec: 15 },
+    sloP95Ms: 200,
+    since: '1.6.0'
+  }),
+  defineEndpoint({
+    id: 'L-28',
+    service: 'low',
+    method: 'delete',
+    path: '/me/inbox/{id}',
+    summary: 'حذف یک پیام از اینباکس',
+    tags: [T.me],
+    auth: 'bearer',
+    params: z.object({ id: Id }),
+    response: Empty,
+    errors: ['NOT_FOUND'],
+    rateLimit: [{ limit: 120, windowSec: 60, key: 'user' }],
+    cache: 'no-store',
+    idempotency: 'natural',
+    sloP95Ms: 60,
+    since: '1.6.0'
+  }),
+  defineEndpoint({
+    id: 'L-32',
+    service: 'low',
+    method: 'get',
+    path: '/public/config',
+    summary: 'پیکربندی عمومی (حالت نگهداری، ثبت‌نام باز، نسخهٔ نشان‌ها)',
+    tags: [T.pub],
+    auth: 'none',
+    response: S.PublicConfig,
+    rateLimit: [{ limit: 120, windowSec: 60, key: 'ip' }],
+    cache: { scope: 'public', maxAgeSec: 60, etag: true },
+    sloP95Ms: 30,
+    since: '1.6.0'
+  }),
+  defineEndpoint({
+    id: 'L-33',
+    service: 'low',
+    method: 'get',
+    path: '/public/badges',
+    summary: 'فهرست عمومی نشان‌ها (عنوان، آستانه، تصویر)',
+    tags: [T.pub],
+    auth: 'none',
+    response: S.PublicBadge,
+    list: true,
+    query: pageQuery(100),
+    rateLimit: [{ limit: 120, windowSec: 60, key: 'ip' }],
+    cache: { scope: 'public', maxAgeSec: 300, etag: true },
+    sloP95Ms: 30,
+    since: '1.6.0'
+  }),
+  defineEndpoint({
+    id: 'L-34',
+    service: 'low',
+    method: 'get',
+    path: '/public/badges/{id}/image',
+    summary: 'تصویر نشان (باینری؛ v=hash ⇒ کش immutable)',
+    description: 'تصویر از high (internal) گرفته و در low کش می‌شود. `v` با hash فعلی برابر ⇒ `Cache-Control: public, max-age=31536000, immutable`؛ وگرنه کوتاه‌مدت. فقط png/webp/jpeg (SVG هرگز). `X-Content-Type-Options: nosniff`.',
+    tags: [T.pub],
+    auth: 'none',
+    raw: true,
+    contentType: 'image/webp',
+    params: z.object({ id: Id }),
+    query: z.object({ v: z.string().regex(/^[a-f0-9]{16,64}$/).optional() }),
+    response: z.string(),
+    errors: ['NOT_FOUND'],
+    rateLimit: [{ limit: 300, windowSec: 60, key: 'ip' }],
+    cache: { scope: 'public', maxAgeSec: 31536000, etag: true },
+    sloP95Ms: 30,
+    since: '1.6.0'
   }),
   ...healthEndpoints('low', 'زیرساخت')
 ] as const;

@@ -44,7 +44,7 @@ ACL رویداد (فقط افزودن): low⇒mid: `user.phone.changed`(نادی
 - ساخت از ادمین: سازنده `creatorId` = `session_manager` (همان منطق `SessionsService.create`).
 - ویرایش/transition: قوانین موجود (فقط‌رو‌به‌جلو؛ edit فقط draft/scheduled)؛ بدون نیاز به عضویت. حذف: هر وضعیتی.
 - اعضا: تأیید/رد/نقش/حذف با همان قواعد دامنه (مدیر قابل‌حذف نیست؛ `manager` به‌تنهایی ارزیابی ندارد). رویدادهای live/inbox موجود (مثلاً پیام عضویت) حفظ شود.
-- نمای ادمین صف/ارزیابی/حضور فقط‌خواندنی و بدون استثنای حریم خصوصی.
+- ~~نمای ادمین صف/ارزیابی/حضور فقط‌خواندنی~~ — **باز شد (مالک ۱۴۰۵/۰۷/۱۵؛ docs-v2/30):** ادمین حضور ثبت/لغو، صف را مدیریت و ارزیابی را اصلاح/باطل می‌کند.
 
 ## audit (high؛ بدون PII/رمز در meta)
 `user.create`، `user.update`، `user.status_change`، `user.delete`، `user.password_set`، `user.password_clear`، `user.logout_all`، `user.session_revoke`، `account.profile_update`، `account.password_change`، `account.session_revoke`، `session.create`، `session.update`، `session.transition`، `session.delete`، `session.member_decide`، `session.member_roles`، `session.member_remove`. هدف: `target {type:'user'|'session', id, label}`. نوشتن audit **در همان تراکنش/پس از موفقیت اقدام** (شکست مبدأ ⇒ audit نیست).

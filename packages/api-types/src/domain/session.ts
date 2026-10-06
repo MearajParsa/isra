@@ -1,9 +1,26 @@
 import { z } from 'zod';
 import { HHmm, Id, IsoDateTime, Weekday, named } from '../core/primitives';
 
+/** نوبت برگزاری (occurrence): حضور، صف و ارزیابی به نوبت تعلق دارند؛ +۵ حضور یک‌بار per نوبت */
+export const Occurrence = named(
+  'Occurrence',
+  z.object({
+    id: Id,
+    seq: z.number().int().min(1).meta({ description: 'شمارهٔ نوبت در جلسه (۱، ۲، …)' }),
+    status: z.enum(['live', 'closed']),
+    openedAt: IsoDateTime,
+    closedAt: IsoDateTime.nullable(),
+    counts: z.object({ attendance: z.number().int().min(0), evaluations: z.number().int().min(0) })
+  })
+);
+
 /** وضعیت قابل‌نمایش عمومی؛ `draft` هرگز عمومی نیست */
 export const PublicSessionStatus = named('PublicSessionStatus', z.enum(['scheduled', 'started', 'ended']));
-/** چرخهٔ حیات کامل — فقط رو به جلو: draft → scheduled → started → ended (قفل #17) */
+/**
+ * چرخهٔ حیات کامل — فقط رو به جلو: draft → scheduled → started → ended (قفل #17).
+ * ۱.۶.۰ (docs-v2/30): برای جلسهٔ تکرارشونده `started` = «دوره در جریان»؛ هر برگزاری یک «نوبت» (occurrence) جدا دارد
+ * که کادر باز/بسته می‌کند. جلسهٔ once: ورود به started نوبت #۱ را خودکار باز و ended آن را می‌بندد.
+ */
 export const SessionState = named('SessionState', z.enum(['draft', 'scheduled', 'started', 'ended']));
 
 const Duration = z.number().int().min(15).max(360).meta({ description: 'مدت (دقیقه)' });
@@ -29,6 +46,12 @@ export const SessionLocation = z
   })
   .strict();
 
+/** سیاست پیوستن (۱.۶.۰): request = درخواست + تأیید کادر؛ open = عضویت فوری قرآن‌آموز؛ invite_only = فقط افزودن کادر/لینک دعوت */
+export const JoinPolicy = named('JoinPolicy', z.enum(['request', 'open', 'invite_only']));
+/** public = در فهرست عمومی؛ unlisted = فقط با لینک مستقیم/دعوت (در فهرست عمومی و جست‌وجو نمی‌آید) */
+export const SessionVisibility = named('SessionVisibility', z.enum(['public', 'unlisted']));
+const Capacity = z.number().int().min(1).max(1000).nullable().meta({ description: 'سقف اعضای تأییدشده (null = بی‌سقف)' });
+
 const sessionBase = {
   id: Id,
   title: z.string().trim().min(3).max(80),
@@ -38,8 +61,17 @@ const sessionBase = {
   location: SessionLocation
 };
 
-export const PublicSession = named('PublicSession', z.object({ ...sessionBase, status: PublicSessionStatus }).strict());
-export const MidSession = named('MidSession', z.object({ ...sessionBase, status: SessionState }).strict());
+/** فیلدهای ۱.۶.۰ با default تا نسخهٔ قبلی سرویس‌ها (ترتیب استقرار) پاسخ را نشکند */
+const sessionPolicy = {
+  joinPolicy: JoinPolicy.default('request'),
+  capacity: Capacity.default(null),
+  memberCount: z.number().int().min(0).default(0).meta({ description: 'اعضای تأییدشده' })
+};
+export const PublicSession = named('PublicSession', z.object({ ...sessionBase, status: PublicSessionStatus, ...sessionPolicy }).strict());
+export const MidSession = named(
+  'MidSession',
+  z.object({ ...sessionBase, status: SessionState, ...sessionPolicy, visibility: SessionVisibility.default('public') }).strict()
+);
 
 /** ورودی ساخت/ویرایش جلسه (بدون id/status) */
 export const SessionInput = named(
@@ -49,7 +81,10 @@ export const SessionInput = named(
       title: sessionBase.title,
       description: sessionBase.description,
       schedule: SessionSchedule,
-      location: SessionLocation
+      location: SessionLocation,
+      joinPolicy: JoinPolicy.default('request'),
+      visibility: SessionVisibility.default('public'),
+      capacity: Capacity.optional().meta({ description: 'نبود = بدون تغییر (ویرایش) / بی‌سقف (ساخت)' })
     })
     .strict()
     .superRefine((v, ctx) => {

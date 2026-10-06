@@ -34,10 +34,12 @@ describe('یکپارچگی registry', () => {
     }
   });
 
-  it('هر endpoint سمت سرور هدف تأخیر معقول دارد (p95 ≤ ۴۰۰ms)', () => {
+  it('هر endpoint سمت سرور هدف تأخیر معقول دارد (p95 ≤ ۴۰۰ms؛ عملیات گروهی/خروجی با سقف صریح)', () => {
+    // استثنای صریح: افزودن گروهی تا ۲۰۰ عضو (H-73)، تأیید گروهی (H-53)، افزودن/حضور گروهی (M-14/H-76) و خروجی CSV (H-43..H-45)
+    const heavy: Record<string, number> = { 'H-73': 1500, 'H-53': 800, 'H-76': 400, 'M-14': 400, 'H-43': 3000, 'H-44': 3000, 'H-45': 3000 };
     for (const e of ALL_ENDPOINTS) {
       expect(e.sloP95Ms, e.id).toBeGreaterThan(0);
-      expect(e.sloP95Ms, e.id).toBeLessThanOrEqual(400);
+      expect(e.sloP95Ms, e.id).toBeLessThanOrEqual(heavy[e.id] ?? 400);
     }
   });
 });

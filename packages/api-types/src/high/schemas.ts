@@ -1,8 +1,22 @@
 import { z } from 'zod';
 import { Id, IranMobile, IsoDateTime, PersonName, named, pageQuery } from '../core/primitives';
 import { Uuid } from '../core/primitives';
-import { MidSession, SessionInput, SessionState } from '../domain/session';
-import { AttendanceEntry, Evaluation, Member, QueueState } from '../mid/schemas';
+import { MidSession, Occurrence, SessionInput, SessionState } from '../domain/session';
+import { BadgeKey, PointsLedgerItem, PointsSummary } from '../domain/points';
+import {
+  AddMemberOutcome,
+  AttendanceEntry,
+  AttendanceQuery,
+  Evaluation,
+  EvaluationsQuery,
+  Member,
+  MembershipStatus,
+  Permission as SessionPermission,
+  QueueActBody,
+  QueueState,
+  SessionRole,
+  StaffAssignableRole
+} from '../mid/schemas';
 
 /** کلید نقش: انگلیسی کوچک/underscore (نقش‌های سیستمی `developer` و `super_admin` حذف‌نشدنی‌اند؛ بقیه پویا) */
 export const SystemRoleKey = named('SystemRoleKey', z.string().regex(/^[a-z][a-z0-9_]{2,31}$/, 'کلید نقش: حروف کوچک انگلیسی/عدد/_ (۳ تا ۳۲)').meta({ example: 'content_editor' }));
@@ -249,7 +263,14 @@ export const AdminSession = named(
   'AdminSession',
   MidSession.extend({
     createdBy: z.object({ id: Id, name: z.string().max(80) }),
-    counts: z.object({ members: z.number().int().min(0), pending: z.number().int().min(0), attendance: z.number().int().min(0), evaluations: z.number().int().min(0) }),
+    counts: z.object({
+      members: z.number().int().min(0),
+      pending: z.number().int().min(0),
+      attendance: z.number().int().min(0),
+      evaluations: z.number().int().min(0),
+      managers: z.number().int().min(0).default(1).meta({ description: '۰ = جلسهٔ بی‌مدیر (مثلاً مدیرش حذف شده) — با H-74 مدیر بگذارید' }),
+      occurrences: z.number().int().min(0).default(0)
+    }),
     createdAt: IsoDateTime,
     updatedAt: IsoDateTime,
     deletedAt: IsoDateTime.nullable()
@@ -269,9 +290,244 @@ export const AdminCreateSessionBody = named(
   z.object({ creatorId: Id.optional().meta({ description: 'سازندهٔ جلسه (پیش‌فرض: خود ادمین)؛ سازنده session_manager می‌شود' }), session: SessionInput }).strict()
 );
 export const AdminMember = named('AdminMember', Member.extend({ phone: IranMobile.nullable(), decidedAt: IsoDateTime.nullable() }));
-export const AdminMembersQuery = pageQuery(100).extend({ status: z.enum(['pending', 'approved', 'rejected']).optional() });
+export const AdminMembersQuery = pageQuery(100).extend({
+  status: z.enum(['pending', 'approved', 'rejected']).optional(),
+  role: SessionRole.optional(),
+  q: z.string().trim().min(1).max(40).optional().meta({ description: 'نام یا شماره (شماره در high به userId تبدیل می‌شود)' }),
+  userId: Id.optional()
+});
+/** H-68 (۱.۶.۰): ادمین می‌تواند session_manager را هم بدهد/بگیرد (هم‌مدیر)؛ آخرین مدیر ⇒ CONFLICT(LAST_HOLDER) */
+export const AdminSetMemberRolesBody = named('AdminSetMemberRolesBody', z.object({ roles: z.array(SessionRole).min(1).max(4) }).strict());
+
+// ───── افزودن مستقیم اعضا (H-73) ─────
+const AdminMemberRef = z
+  .object({ userId: Id.optional(), phone: IranMobile.optional() })
+  .strict()
+  .refine((v) => (v.userId ? 1 : 0) + (v.phone ? 1 : 0) === 1, { message: 'دقیقاً یکی از userId یا phone لازم است.' });
+export const AdminAddMembersBody = named(
+  'AdminAddMembersBody',
+  z
+    .object({
+      items: z
+        .array(
+          z
+            .object({
+              user: AdminMemberRef,
+              roles: z.array(StaffAssignableRole).min(1).max(3).optional().meta({ description: 'پیش‌فرض: defaultRoles' }),
+              firstName: PersonName.optional().meta({ description: 'فقط با createMissing برای شمارهٔ ثبت‌نام‌نکرده' }),
+              lastName: PersonName.optional()
+            })
+            .strict()
+        )
+        .min(1)
+        .max(200),
+      defaultRoles: z.array(StaffAssignableRole).min(1).max(3).default(['quran_student']),
+      onExisting: z.enum(['skip', 'merge', 'replace']).default('skip').meta({ description: 'عضو موجود: skip دست نمی‌خورد؛ merge نقش‌ها اضافه؛ replace نقش‌ها جایگزین (مدیر حفظ می‌شود)' }),
+      createMissing: z.boolean().default(false).meta({ description: 'شمارهٔ ثبت‌نام‌نکرده ⇒ ساخت کاربر (نیازمند system.users.manage هم)' }),
+      notify: z.boolean().default(true)
+    })
+    .strict()
+);
+export const AdminAddMembersResult = named(
+  'AdminAddMembersResult',
+  z.object({
+    items: z.array(
+      z.object({
+        index: z.number().int().min(0),
+        userId: Id.nullable(),
+        outcome: AddMemberOutcome,
+        code: z.string().max(40).nullable().meta({ description: 'کد خطای آیتم ناموفق (مثلاً PHONE_TAKEN)' }),
+        member: AdminMember.nullable()
+      })
+    ),
+    counts: z.record(AddMemberOutcome, z.number().int().min(0))
+  })
+);
+/** H-74 انتقال/تعیین مدیر جلسه */
+export const TransferManagerBody = named(
+  'TransferManagerBody',
+  z
+    .object({
+      userId: Id,
+      previous: z.enum(['demote', 'remove', 'keep']).default('demote').meta({ description: 'demote: مدیر قبلی عضو با previousRoles می‌ماند؛ remove: حذف؛ keep: هم‌مدیر می‌ماند' }),
+      previousRoles: z.array(StaffAssignableRole).min(1).max(3).default(['quran_student']),
+      transferCreator: z.boolean().default(false).meta({ description: 'سازندهٔ جلسه (createdBy) هم عوض شود' }),
+      notify: z.boolean().default(true)
+    })
+    .strict()
+);
+/** H-53 تأیید/رد گروهی درخواست‌ها */
+export const AdminDecideBulkBody = named('AdminDecideBulkBody', z.object({ memberIds: z.array(Id).min(1).max(200), action: z.enum(['approve', 'reject']) }).strict());
+export const AdminDecideBulkResult = named(
+  'AdminDecideBulkResult',
+  z.object({ items: z.array(z.object({ memberId: Id, outcome: z.enum(['approved', 'rejected', 'skipped', 'full', 'not_found']) })) })
+);
+
+// ───── اصلاحات حضور/صف/ارزیابی توسط ادمین ─────
+const Reason = z.string().trim().min(3).max(300);
+export const AdminOccurrence = named('AdminOccurrence', Occurrence);
+export const AdminAttendanceQuery = AttendanceQuery;
+export const AdminEvaluationsQuery = EvaluationsQuery;
+export const AdminMarkAttendanceBody = named(
+  'AdminMarkAttendanceBody',
+  z.object({ userIds: z.array(Id).min(1).max(100), occurrenceId: Id.optional().meta({ description: 'پیش‌فرض: نوبت باز؛ ادمین روی نوبت بسته هم (اصلاح) مجاز است' }), reason: Reason }).strict()
+);
+export const AdminRevokeAttendanceBody = named('AdminRevokeAttendanceBody', z.object({ occurrenceId: Id.optional(), reason: Reason }).strict());
+export const AdminQueueNextBody = named(
+  'AdminQueueNextBody',
+  z.object({ expectCurrentItemId: Id.nullable().optional().meta({ description: 'شرط هم‌زمانی؛ ناهمخوان ⇒ CONFLICT(QUEUE_STATE_CHANGED)' }) }).strict()
+);
+export const AdminQueueActBody = named('AdminQueueActBody', QueueActBody.extend({ expectPosition: z.number().int().min(1).optional() }).strict());
+export const AdminVoidEvaluationBody = named('AdminVoidEvaluationBody', z.object({ reason: Reason }).strict());
+const Score = z.number().int().min(0).max(10);
+export const AdminEvaluationPatchBody = named(
+  'AdminEvaluationPatchBody',
+  z
+    .object({ voice: Score.optional(), tone: Score.optional(), tajweed: Score.optional(), note: z.string().trim().max(300).optional(), reason: Reason })
+    .strict()
+    .refine((v) => v.voice !== undefined || v.tone !== undefined || v.tajweed !== undefined || v.note !== undefined, { message: 'دست‌کم یک فیلد ارزیابی لازم است.' })
+);
+
+// ───── تاریخچهٔ عضویت و امتیاز کاربر ─────
+export const UserMembershipsQuery = pageQuery(50).extend({
+  status: MembershipStatus.optional(),
+  role: SessionRole.optional(),
+  includeDeleted: z.enum(['true', 'false']).default('false')
+});
+export const UserMembership = named(
+  'UserMembership',
+  z.object({
+    session: z.object({ id: Id, title: z.string().max(80), status: SessionState, nextStartsAt: IsoDateTime.nullable(), deletedAt: IsoDateTime.nullable() }),
+    memberId: Id,
+    roles: z.array(SessionRole).max(4),
+    status: MembershipStatus,
+    requestedAt: IsoDateTime,
+    decidedAt: IsoDateTime.nullable(),
+    attendanceCount: z.number().int().min(0),
+    evaluations: z.object({ count: z.number().int().min(0), avgScore: z.number().min(0).max(100).nullable() }),
+    points: z.number().int()
+  })
+);
+export const AdminUserPointsQuery = pageQuery(50);
+export const AdminUserPoints = named(
+  'AdminUserPoints',
+  z.object({
+    summary: PointsSummary,
+    ledger: z.object({ items: z.array(PointsLedgerItem), page: z.number().int().min(1), pageSize: z.number().int().min(1), total: z.number().int().min(0) })
+  })
+);
+export const PointsAdjustBody = named(
+  'PointsAdjustBody',
+  z
+    .object({ delta: z.number().int().min(-10000).max(10000).refine((d) => d !== 0, { message: 'مقدار نباید صفر باشد.' }), reason: Reason })
+    .strict()
+);
+export const PointsAdjustResult = named('PointsAdjustResult', z.object({ summary: PointsSummary, entry: PointsLedgerItem }));
+
+// ───── نشان‌ها (پویا؛ تصمیم مالک ۱۴۰۵/۰۷/۱۵) ─────
+export const BadgeImageType = z.enum(['image/png', 'image/webp', 'image/jpeg']);
+export const AdminBadge = named(
+  'AdminBadge',
+  z.object({
+    id: Id,
+    key: BadgeKey,
+    title: z.string().max(60),
+    description: z.string().max(300),
+    threshold: z.number().int().min(1),
+    active: z.boolean(),
+    sortOrder: z.number().int().min(0).max(1000),
+    image: z.object({ hash: z.string().regex(/^[a-f0-9]{16,64}$/), contentType: BadgeImageType, bytes: z.number().int().min(1), width: z.number().int().min(1), height: z.number().int().min(1) }).nullable(),
+    holders: z.number().int().min(0),
+    createdAt: IsoDateTime,
+    updatedAt: IsoDateTime
+  })
+);
+export const CreateBadgeBody = named(
+  'CreateBadgeBody',
+  z
+    .object({
+      key: BadgeKey,
+      title: z.string().trim().min(2).max(60),
+      description: z.string().trim().max(300).default(''),
+      threshold: z.number().int().min(1).max(1_000_000),
+      active: z.boolean().default(true),
+      sortOrder: z.number().int().min(0).max(1000).default(100)
+    })
+    .strict()
+);
+export const UpdateBadgeBody = named(
+  'UpdateBadgeBody',
+  z
+    .object({
+      title: z.string().trim().min(2).max(60).optional(),
+      description: z.string().trim().max(300).optional(),
+      threshold: z.number().int().min(1).max(1_000_000).optional(),
+      active: z.boolean().optional(),
+      sortOrder: z.number().int().min(0).max(1000).optional()
+    })
+    .strict()
+    .refine((v) => Object.keys(v).length > 0, { message: 'دست‌کم یک فیلد لازم است.' })
+);
+/** H-36: تصویر به‌صورت base64 (≤ ۲۰۰KB خام؛ ابعاد ≤ ۱۰۲۴px؛ SVG ممنوع؛ نوع با magic bytes بررسی می‌شود) */
+export const BadgeImageBody = named(
+  'BadgeImageBody',
+  z.object({ contentType: BadgeImageType, dataBase64: z.string().min(16).max(280_000).regex(/^[A-Za-z0-9+/]+={0,2}$/) }).strict()
+);
+
+// ───── پیام همگانی (inbox؛ فقط درون‌برنامه — بدون پیامک/پوش) ─────
+export const AnnouncementAudience = named(
+  'AnnouncementAudience',
+  z.discriminatedUnion('type', [
+    z.object({ type: z.literal('all') }).strict(),
+    z.object({ type: z.literal('users'), userIds: z.array(Id).min(1).max(1000) }).strict(),
+    z.object({ type: z.literal('role'), role: SystemRoleKey }).strict(),
+    z.object({ type: z.literal('session'), sessionId: Id, roles: z.array(SessionRole).min(1).max(4).optional() }).strict()
+  ])
+);
+export const CreateAnnouncementBody = named(
+  'CreateAnnouncementBody',
+  z
+    .object({
+      audience: AnnouncementAudience,
+      title: z.string().trim().min(2).max(120),
+      body: z.string().trim().min(2).max(500),
+      ref: z.string().regex(/^(session:[A-Za-z0-9_-]{1,64}|points|badge:[A-Za-z0-9_-]{1,64})$/).optional()
+    })
+    .strict()
+);
+export const Announcement = named(
+  'Announcement',
+  z.object({
+    id: Id,
+    audience: AnnouncementAudience,
+    title: z.string().max(120),
+    body: z.string().max(500),
+    ref: z.string().max(200).nullable(),
+    status: z.enum(['queued', 'sending', 'done', 'failed']),
+    recipients: z.number().int().min(0).nullable(),
+    delivered: z.number().int().min(0).nullable(),
+    read: z.number().int().min(0).nullable(),
+    createdBy: z.object({ id: Id, name: z.string().max(80) }),
+    createdAt: IsoDateTime
+  })
+);
+
+// ───── خروجی CSV (سمت سرور؛ BOM UTF-8؛ خنثی‌سازی فرمول) ─────
+export const SessionExportQuery = z.object({
+  kind: z.enum(['members', 'attendance', 'evaluations']).default('members'),
+  occurrenceId: Id.optional()
+});
+
+// ───── ماتریس نقش‌های جلسه (فقط‌خواندنی) ─────
+export const SessionRolesMatrix = named(
+  'SessionRolesMatrix',
+  z.object({
+    roles: z.array(z.object({ key: SessionRole, title: z.string().max(40), permissions: z.array(SessionPermission) })),
+    permissions: z.array(z.object({ key: SessionPermission, title: z.string().max(80) }))
+  })
+);
 export const AdminDecideBody = named('AdminDecideBody', z.object({ action: z.enum(['approve', 'reject']) }).strict());
-export const AdminAttendanceList = named('AdminAttendanceList', z.object({ items: z.array(AttendanceEntry), total: z.number().int().min(0) }));
+export const AdminAttendanceList = named('AdminAttendanceList', z.object({ items: z.array(AttendanceEntry), total: z.number().int().min(0), occurrenceId: Id.nullable().default(null) }));
 export const AdminQueue = named('AdminQueue', QueueState);
 export const AdminEvaluations = named('AdminEvaluations', z.object({ items: z.array(Evaluation), total: z.number().int().min(0) }));
 
@@ -332,7 +588,7 @@ export const SystemSettings = named(
   z.object({
     version: z.number().int().min(1).meta({ description: 'نسخهٔ خوش‌بینانه (optimistic concurrency)' }),
     evalWeights: EvalWeights,
-    badgeThresholds: Thresholds,
+    badgeThresholds: Thresholds.meta({ description: 'منسوخ (۱.۶.۰): نشان‌ها از H-32..H-37 مدیریت می‌شوند؛ این مقدار نادیده گرفته می‌شود' }),
     flags: Flags,
     updatedAt: IsoDateTime,
     updatedBy: z.string().max(80)
@@ -340,9 +596,10 @@ export const SystemSettings = named(
 );
 export const UpdateSettingsBody = named(
   'UpdateSettingsBody',
-  z.object({ version: z.number().int().min(1), evalWeights: EvalWeights, badgeThresholds: Thresholds, flags: Flags }).strict()
+  z.object({ version: z.number().int().min(1), evalWeights: EvalWeights, badgeThresholds: Thresholds.optional().meta({ description: 'منسوخ؛ نادیده گرفته می‌شود' }), flags: Flags }).strict()
 );
 
+export const AuditTargetType = named('AuditTargetType', z.enum(['user', 'role', 'settings', 'session', 'permission', 'module', 'badge', 'announcement']));
 export const AuditEntry = named(
   'AuditEntry',
   z.object({
@@ -350,7 +607,7 @@ export const AuditEntry = named(
     at: IsoDateTime,
     actor: z.object({ id: Id, name: z.string().max(80) }),
     action: z.string().regex(/^[a-z_]+(\.[a-z_]+)+$/).max(64),
-    target: z.object({ type: z.enum(['user', 'role', 'settings', 'session']), id: Id, label: z.string().max(120) }).optional(),
+    target: z.object({ type: AuditTargetType, id: Id, label: z.string().max(120) }).optional(),
     summary: z.string().max(300),
     meta: z.record(z.string(), z.unknown()).meta({ description: 'جزئیات فنی بدون PII حساس (OTP/توکن/رمز هرگز)' })
   })
@@ -359,7 +616,7 @@ export const AuditQuery = z.object({
   action: z.string().max(64).optional().meta({ description: 'نوع دقیق اقدام یا پیشوند (مثلاً `user.`)' }),
   q: z.string().trim().max(60).optional(),
   actorId: Id.optional(),
-  targetType: z.enum(['user', 'role', 'settings', 'session']).optional(),
+  targetType: AuditTargetType.optional(),
   targetId: Id.optional(),
   from: IsoDate.optional(),
   to: IsoDate.optional()

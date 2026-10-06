@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { PointsSummary } from '../domain/points';
+export { PointsLedgerItem } from '../domain/points';
 export { PointsSummary } from '../domain/points';
 import { DeviceId, DeviceLabel, Id, IranMobile, IsoDateTime, OtpCode, PersonName, Uuid, named } from '../core/primitives';
 
@@ -102,7 +103,10 @@ export const DeviceSession = named(
   })
 );
 
-export const InboxKind = z.enum(['membership', 'turn', 'evaluation', 'system']);
+/** ۱.۶.۰: announcement (پیام سیستمی ادمین) و session (تغییر جلسه/نقش). کلاینت نوع ناشناخته را مثل system نمایش دهد. */
+export const InboxKind = z.enum(['membership', 'turn', 'evaluation', 'system', 'announcement', 'session']);
+/** قالب ارجاع deep-link (اعتبارسنجی در مرز low) */
+export const InboxRef = z.string().regex(/^(session:[A-Za-z0-9_-]{1,64}|points|badge:[A-Za-z0-9_-]{1,64}|announcement:[A-Za-z0-9_-]{1,64})$/).max(200);
 export const InboxItem = named(
   'InboxItem',
   z.object({
@@ -116,6 +120,30 @@ export const InboxItem = named(
   })
 );
 export const UnreadCount = named('UnreadCount', z.object({ count: z.number().int().min(0) }));
+
+/** L-22 حذف حساب توسط خود کاربر (step-up لازم) */
+export const DeleteMeBody = named('DeleteMeBody', z.object({ reason: z.string().trim().max(200).optional() }).strict());
+/** L-32 پیکربندی عمومی کلاینت‌ها */
+export const PublicConfig = named(
+  'PublicConfig',
+  z.object({
+    maintenanceMode: z.boolean(),
+    registrationOpen: z.boolean(),
+    badgesVersion: z.number().int().min(0).meta({ description: 'تغییر ⇒ کلاینت فهرست نشان‌ها (L-33) را دوباره بگیرد' })
+  })
+);
+/** L-33 فهرست عمومی نشان‌ها (بدون وضعیت کسب) */
+export const PublicBadge = named(
+  'PublicBadge',
+  z.object({
+    id: Id,
+    key: z.string().max(40),
+    title: z.string().max(60),
+    description: z.string().max(300),
+    threshold: z.number().int().min(1),
+    image: z.object({ hash: z.string().regex(/^[a-f0-9]{16,64}$/) }).nullable()
+  })
+);
 
 export const Jwks = named(
   'Jwks',

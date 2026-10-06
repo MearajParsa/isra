@@ -26,8 +26,10 @@ export interface EndpointDef {
   path: string;
   /** مسیر بدون نسخه (مثل health و JWKS) */
   unversioned?: boolean;
-  /** پاسخ خام بدون envelope (JWKS، health) */
+  /** پاسخ خام بدون envelope (JWKS، health، CSV، تصویر) */
   raw?: boolean;
+  /** نوع محتوای پاسخ خام غیر JSON (مثلاً `text/csv; charset=utf-8` یا `image/webp`) */
+  contentType?: string;
   summary: string;
   description?: string;
   tags: string[];
