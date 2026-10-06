@@ -6,6 +6,8 @@ import { LowAdminClient, MidAdminClient } from '../internal/admin-clients';
 import { REPORT_ROLE_KEYS } from './rules';
 
 const n = (v: unknown) => Number(v ?? 0);
+const MEMO_TTL_MS = 30_000;
+const MEMO_MAX = 64;
 
 /**
  * گزارش‌ها (H-80..H-84): کاربران از دایرکتوری/نقش‌های خود high، حساب/OTP/کلاینت از low، جلسه/مشارکت از mid.
@@ -14,6 +16,7 @@ const n = (v: unknown) => Number(v ?? 0);
 @Injectable()
 export class ReportsService {
   private readonly log = new Logger('Reports');
+  private readonly memo = new Map<string, { v: Awaited<ReturnType<ReportsService['computeOverview']>>; exp: number }>();
 
   constructor(
     private readonly ds: DataSource,
@@ -42,8 +45,20 @@ export class ReportsService {
     return { interval: q.interval, items: fillSeries(range, q.interval, perDay) };
   }
 
+  /** H-80: memo درون‌پروسه‌ای ۳۰ ثانیه per بازه (۷ query/فراخوانی مبدأ؛ داشبورد مکرراً تازه می‌شود) */
   async overview(q: { from?: string; to?: string }) {
     const range = resolveRange(this.clock.now(), q.from, q.to);
+    const key = `${range.from}|${range.to}`;
+    const now = this.clock.now().getTime();
+    const hit = this.memo.get(key);
+    if (hit && hit.exp > now) return hit.v;
+    const v = await this.computeOverview(range);
+    if (this.memo.size >= MEMO_MAX) this.memo.clear();
+    this.memo.set(key, { v, exp: now + MEMO_TTL_MS });
+    return v;
+  }
+
+  private async computeOverview(range: ReturnType<typeof resolveRange>) {
     const [dir, roles, reg, lowUsers, otp, clients, mid] = await Promise.all([
       this.ds.query("SELECT COUNT(*) AS total, SUM(status = 'active') AS active, SUM(status = 'disabled') AS disabled, SUM(status = 'deleted') AS deleted FROM user_directory") as Promise<Record<string, string | null>[]>,
       this.ds.query('SELECT role_key, COUNT(DISTINCT user_id) AS c FROM user_system_roles GROUP BY role_key') as Promise<{ role_key: string; c: string | number }[]>,

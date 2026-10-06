@@ -21,6 +21,8 @@ export interface UserAccess {
   /** مجوزهای مؤثر = نقش‌ها (صریح ∪ ماژول) ∪ grant؛ مرتب */
   permissions: PermissionKey[];
   sources: ReadonlyMap<PermissionKey, readonly RawSource[]>;
+  /** وضعیت دایرکتوری کاربر (active|disabled|deleted)؛ null/undefined = در دایرکتوری نیست (docs-v2/30 §۳ امنیت ۶) */
+  status?: string | null;
 }
 
 export interface StepUpPolicy {
@@ -33,10 +35,10 @@ export interface StepUpPolicy {
 export const ruleKey = (role: string, perm: string): string => `${role}\u0000${perm}`;
 export const isDeveloper = (a: Pick<UserAccess, 'roles'>): boolean => a.roles.includes(DEVELOPER);
 
-/** سطر نتیجهٔ query تجمیعی: t = r(نقش بدون مجوز) | p(صریح) | m(ماژول) | g(grant) */
+/** سطر نتیجهٔ query تجمیعی: t = r(نقش بدون مجوز) | p(صریح) | m(ماژول) | g(grant) | s(وضعیت دایرکتوری در ref) */
 export interface AccessRow {
   uid: string;
-  t: 'r' | 'p' | 'm' | 'g';
+  t: 'r' | 'p' | 'm' | 'g' | 's';
   role: string | null;
   ref: string | null;
   perm: string | null;
@@ -47,8 +49,9 @@ export function accessFromRows(userIds: readonly string[], rows: readonly Access
     roles: Set<string>;
     grants: Set<string>;
     src: Map<string, RawSource[]>;
+    status: string | null;
   }
-  const by = new Map<string, Acc>(userIds.map((u) => [u, { roles: new Set(), grants: new Set(), src: new Map() }]));
+  const by = new Map<string, Acc>(userIds.map((u) => [u, { roles: new Set(), grants: new Set(), src: new Map(), status: null }]));
   const add = (a: Acc, perm: string, s: RawSource) => {
     const list = a.src.get(perm);
     if (!list) a.src.set(perm, [s]);
@@ -57,13 +60,14 @@ export function accessFromRows(userIds: readonly string[], rows: readonly Access
   for (const r of rows) {
     const a = by.get(r.uid);
     if (!a) continue;
-    if (r.t === 'r') a.roles.add(r.role!);
+    if (r.t === 's') a.status = r.ref;
+    else if (r.t === 'r') a.roles.add(r.role!);
     else if (r.t === 'p') (a.roles.add(r.role!), add(a, r.perm!, { type: 'role', ref: r.role!, role: r.role }));
     else if (r.t === 'm') (a.roles.add(r.role!), add(a, r.perm!, { type: 'module', ref: r.ref!, role: r.role }));
     else (a.grants.add(r.perm!), add(a, r.perm!, { type: 'grant', ref: r.perm!, role: null }));
   }
   const out = new Map<string, UserAccess>();
-  for (const [uid, a] of by) out.set(uid, { roles: [...a.roles].sort(), grants: [...a.grants].sort(), permissions: [...a.src.keys()].sort(), sources: a.src });
+  for (const [uid, a] of by) out.set(uid, { roles: [...a.roles].sort(), grants: [...a.grants].sort(), permissions: [...a.src.keys()].sort(), sources: a.src, status: a.status });
   return out;
 }
 

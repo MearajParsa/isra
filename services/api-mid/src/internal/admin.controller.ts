@@ -1,14 +1,16 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
-import { high, internal, pageQuery } from '@isra/api-types';
+import { Body, Controller, Delete, Get, Headers, HttpCode, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { DataSource } from 'typeorm';
+import { HEADERS, high, internal, pageQuery } from '@isra/api-types';
+import { Clock } from '../common/clock';
 import { AppError } from '../common/app-error';
 import { isUuid } from '../common/ids';
 import { AdminService, parseRange } from './admin.service';
 import { InternalGuard } from './internal.guard';
 import { InternalCallers, InternalRoute } from './internal-auth';
+import { internalIdempotent } from './internal-idempotency';
 
 const R = internal.MID_ADMIN;
 const ListQuery = high.AdminSessionsQuery.extend(pageQuery(100).shape);
-const MembersQuery = high.AdminMembersQuery;
 
 /** شناسهٔ نامعتبر = وجود ندارد */
 const id = (v: string): string => {
@@ -32,7 +34,11 @@ const range = (raw: unknown) => {
 @InternalRoute()
 @UseGuards(InternalGuard)
 export class AdminController {
-  constructor(private readonly admin: AdminService) {}
+  constructor(
+    private readonly admin: AdminService,
+    private readonly ds: DataSource,
+    private readonly clock: Clock
+  ) {}
 
   @InternalCallers('high')
   @Get(R.sessions)
@@ -43,9 +49,9 @@ export class AdminController {
   @InternalCallers('high')
   @Post(R.sessions)
   @HttpCode(200)
-  async create(@Body() raw: unknown) {
+  async create(@Body() raw: unknown, @Headers(HEADERS.idempotencyKey.toLowerCase()) key?: string) {
     const b = internal.MidAdminCreateSession.parse(raw);
-    return ok(await this.admin.create(b.creatorId, b.session));
+    return ok(await internalIdempotent(this.ds, this.clock, 'sessions', key, b, () => this.admin.create(b.creatorId, b.session)));
   }
 
   @InternalCallers('high')
@@ -75,37 +81,6 @@ export class AdminController {
   @HttpCode(200)
   async remove(@Param('id') sid: string) {
     return ok(await this.admin.remove(id(sid)));
-  }
-
-  @InternalCallers('high')
-  @Get(R.members)
-  async members(@Param('id') sid: string, @Query() raw: unknown) {
-    const q = MembersQuery.parse(raw);
-    return okList(await this.admin.listMembers(id(sid), q.status, q.page, q.pageSize));
-  }
-
-  @InternalCallers('high')
-  @Patch(R.member)
-  @HttpCode(200)
-  async decide(@Param('id') sid: string, @Param('memberId') mid: string, @Body() raw: unknown) {
-    const b = internal.MidAdminDecide.parse(raw);
-    return ok(await this.admin.decide(id(sid), mid, b.action));
-  }
-
-  @InternalCallers('high')
-  @Put(R.memberRoles)
-  @HttpCode(200)
-  async setRoles(@Param('id') sid: string, @Param('memberId') mid: string, @Body() raw: unknown) {
-    const b = internal.MidAdminSetRoles.parse(raw);
-    return ok(await this.admin.setRoles(id(sid), mid, b.roles));
-  }
-
-  @InternalCallers('high')
-  @Delete(R.member)
-  @HttpCode(200)
-  async removeMember(@Param('id') sid: string, @Param('memberId') mid: string) {
-    await this.admin.removeMember(id(sid), mid);
-    return ok({});
   }
 
   @InternalCallers('high')

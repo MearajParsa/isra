@@ -31,6 +31,8 @@ export class EnvelopeInterceptor implements NestInterceptor {
 
     return next.handle().pipe(
       map((value: unknown) => {
+        // پاسخ stream‌شده (خروجی CSV با @Res): هدرها/بدنه را خود handler نوشته است
+        if (res.headersSent) return undefined;
         const cache = def.cache ?? 'no-store';
         if (cache === 'no-store') res.setHeader('Cache-Control', 'no-store');
         else {

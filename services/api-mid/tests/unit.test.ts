@@ -11,7 +11,7 @@ describe('مجوزها (قفل #15)', () => {
   });
   it('جدول مجوزها', () => {
     expect(permissionsFor(['quran_student'])).toEqual([]);
-    expect(permissionsFor(['teacher']).sort()).toEqual(['attendance.view', 'eval.submit', 'queue.manage']);
+    expect(permissionsFor(['teacher']).sort()).toEqual(['attendance.manage', 'attendance.view', 'eval.submit', 'occurrence.manage', 'queue.manage']);
     expect(permissionsFor(['session_supporter'])).toContain('membership.approve');
     expect(permissionsFor(['teacher'])).not.toContain('membership.approve');
     expect(permissionsFor(['session_manager'])).toEqual(expect.arrayContaining(['session.edit', 'session.transition', 'membership.roles']));

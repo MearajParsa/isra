@@ -64,6 +64,9 @@ export class EndpointGuard implements CanActivate {
     const a = await this.rbac.access(who.userId);
     req.user = { userId: who.userId, sessionId: who.sessionId, roles: a.roles, perms: a.permissions, mcp: who.mcp, stepUpVerified: false };
 
+    // docs-v2/30 §۳ امنیت ۶: وضعیت دایرکتوری از همان query کش‌شدهٔ دسترسی (بدون round-trip اضافه)
+    if (a.status === 'disabled' || a.status === 'deleted') throw new AppError('AUTH_ACCOUNT_DISABLED');
+
     if (a.roles.length === 0) throw new AppError('AUTH_FORBIDDEN', { message: 'دسترسی به پنل مدیریت ندارید.' });
     if (who.mcp && !MCP_ALLOWED.has(def.id)) throw new AppError('AUTH_PASSWORD_CHANGE_REQUIRED');
     if (def.permission && !a.permissions.includes(def.permission as never)) throw new AppError('AUTH_FORBIDDEN');

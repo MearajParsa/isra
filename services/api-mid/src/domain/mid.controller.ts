@@ -6,13 +6,16 @@ import { In, Route } from '../common/ep';
 import type { IsraRequest } from '../common/request-context';
 import { AttendanceService } from './attendance.service';
 import { EvaluationsService } from './evaluations.service';
-import { MembersService } from './members.service';
+import { InvitesService } from './invites.service';
+import { MembersService, memberDto } from './members.service';
 import { PointsService } from './points.service';
 import { QueueService } from './queue.service';
+import type { SessionRole, SessionState } from './rules';
 import { SessionsService } from './sessions.service';
 
 type Page = { page: number; pageSize: number };
 type Id = { params: { id: string } };
+type Mem = { params: { id: string; memberId: string } };
 const uid = (r: IsraRequest) => r.user!.userId;
 
 @Controller()
@@ -23,7 +26,8 @@ export class MidController {
     private readonly attendance: AttendanceService,
     private readonly queue: QueueService,
     private readonly evals: EvaluationsService,
-    private readonly points: PointsService
+    private readonly points: PointsService,
+    private readonly invites: InvitesService
   ) {}
 
   @Route('M-00')
@@ -32,8 +36,18 @@ export class MidController {
   }
 
   @Route('M-01')
-  mine(@Req() r: IsraRequest, @In() { query }: { query: Page & { scope: 'all' | 'staff' } }) {
-    return this.sessions.mySessions(uid(r), query.scope, query.page, query.pageSize);
+  mine(@Req() r: IsraRequest, @In() { query }: { query: Page & { scope: 'all' | 'staff'; status?: SessionState; role?: SessionRole } }) {
+    return this.sessions.mySessions(uid(r), query.scope, query.page, query.pageSize, { status: query.status, role: query.role });
+  }
+
+  @Route('M-06')
+  discover(@In() { query }: { query: z.infer<typeof mid.SessionsSearchQuery> }) {
+    return this.sessions.search(query.page, query.pageSize, query);
+  }
+
+  @Route('M-07')
+  deleteDraft(@Req() r: IsraRequest, @In() { params }: Id) {
+    return this.sessions.deleteDraft(uid(r), params.id);
   }
 
   @Route('M-02')
@@ -62,18 +76,58 @@ export class MidController {
   }
 
   @Route('M-11')
-  listMembers(@Req() r: IsraRequest, @In() { params, query }: Id & { query: Page & { status?: string } }) {
-    return this.members.list(uid(r), params.id, query.status, query.page, query.pageSize);
+  listMembers(@Req() r: IsraRequest, @In() { params, query }: Id & { query: z.infer<typeof mid.MembersQuery> }) {
+    return this.members.list(uid(r), params.id, query, query.page, query.pageSize);
   }
 
   @Route('M-12')
-  decide(@Req() r: IsraRequest, @In() { params, body }: { params: { id: string; memberId: string }; body: z.infer<typeof mid.DecideBody> }) {
-    return this.members.decide(uid(r), params.id, params.memberId, body.action);
+  async decide(@Req() r: IsraRequest, @In() { params, body }: { params: { id: string; memberId: string }; body: z.infer<typeof mid.DecideBody> }) {
+    return memberDto(await this.members.decide(uid(r), params.id, params.memberId, body.action));
   }
 
   @Route('M-13')
   setRoles(@Req() r: IsraRequest, @In() { params, body }: { params: { id: string; memberId: string }; body: z.infer<typeof mid.SetRolesBody> }) {
     return this.members.setRoles(uid(r), params.id, params.memberId, body.roles);
+  }
+
+  @Route('M-14')
+  addMembers(@Req() r: IsraRequest, @In() { params, body }: Id & { body: z.infer<typeof mid.AddMembersBody> }) {
+    return this.members.add(uid(r), params.id, body);
+  }
+
+  @Route('M-15')
+  removeMember(@Req() r: IsraRequest, @In() { params }: Mem) {
+    return this.members.remove(uid(r), params.id, params.memberId);
+  }
+
+  @Route('M-16')
+  manager(@Req() r: IsraRequest, @In() { params, body }: Mem & { body: z.infer<typeof mid.ManagerBody> }) {
+    return this.members.setManager(uid(r), params.id, params.memberId, body.manager, body.stepDown);
+  }
+
+  @Route('M-17')
+  leave(@Req() r: IsraRequest, @In() { params }: Id) {
+    return this.members.leave(uid(r), params.id);
+  }
+
+  @Route('M-50')
+  createInvite(@Req() r: IsraRequest, @In() { params, body }: Id & { body: z.infer<typeof mid.CreateInviteBody> }) {
+    return this.invites.create(uid(r), params.id, body);
+  }
+
+  @Route('M-51')
+  listInvites(@Req() r: IsraRequest, @In() { params, query }: Id & { query: Page }) {
+    return this.invites.list(uid(r), params.id, query.page, query.pageSize);
+  }
+
+  @Route('M-52')
+  revokeInvite(@Req() r: IsraRequest, @In() { params }: { params: { id: string; inviteId: string } }) {
+    return this.invites.revoke(uid(r), params.id, params.inviteId);
+  }
+
+  @Route('M-53')
+  acceptInvite(@Req() r: IsraRequest, @In() { body }: { body: z.infer<typeof mid.AcceptInviteBody> }) {
+    return this.invites.accept(uid(r), r.ctx.ip, body.code);
   }
 
   @Route('M-20')

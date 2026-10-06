@@ -6,11 +6,10 @@ import { AppError } from '../common/app-error';
 import { bufToUuid, isUuid, uuidToBuf } from '../common/ids';
 import { type SessionRow } from '../domain/access.service';
 import { AttendanceService } from '../domain/attendance.service';
-import { NAME_SQL, displayName, nameSql } from '../domain/db';
+import { NAME_SQL, conflict, displayName, nameSql } from '../domain/db';
 import { EvaluationsService } from '../domain/evaluations.service';
-import { MembersService } from '../domain/members.service';
 import { QueueService } from '../domain/queue.service';
-import type { SessionRole, SessionState } from '../domain/rules';
+import type { SessionState } from '../domain/rules';
 import { SessionsService } from '../domain/sessions.service';
 
 type SessionInput = z.infer<typeof SessionInputSchema>;
@@ -92,6 +91,7 @@ interface AdminRow extends SessionRow {
   c_pending: string | number;
   c_attendance: string | number;
   c_evaluations: string | number;
+  c_managers: string | number;
 }
 
 const SORTS: Record<ListQuery['sort'], string> = {
@@ -102,8 +102,10 @@ const SORTS: Record<ListQuery['sort'], string> = {
 };
 
 const SELECT_ADMIN = `SELECT s.id, s.title, s.description, s.status, s.schedule, s.location_label, s.location_route_url, s.created_by, s.created_at, s.updated_at, s.deleted_at, s.next_starts_at,
+        s.join_policy, s.visibility, s.capacity,
         ${nameSql('c')} AS creator_name,
         (SELECT COUNT(*) FROM session_members x WHERE x.session_id = s.id AND x.status = 'approved') AS c_members,
+        (SELECT COUNT(*) FROM session_members x JOIN session_member_roles xr ON xr.member_id = x.id AND xr.role = 'session_manager' WHERE x.session_id = s.id AND x.status = 'approved') AS c_managers,
         (SELECT COUNT(*) FROM session_members x WHERE x.session_id = s.id AND x.status = 'pending') AS c_pending,
         (SELECT COUNT(*) FROM attendance_entries x WHERE x.session_id = s.id) AS c_attendance,
         (SELECT COUNT(*) FROM evaluations x WHERE x.session_id = s.id) AS c_evaluations
@@ -119,7 +121,6 @@ export class AdminService {
   constructor(
     private readonly ds: DataSource,
     private readonly sessions: SessionsService,
-    private readonly members: MembersService,
     private readonly attendance: AttendanceService,
     private readonly queue: QueueService,
     private readonly evals: EvaluationsService
@@ -127,11 +128,11 @@ export class AdminService {
 
   // ───────────────────────── جلسه ─────────────────────────
   private dto(r: AdminRow) {
-    const base = this.sessions.toDto({ ...r, id: bufToUuid(r.id as unknown as Buffer), created_by: bufToUuid(r.created_by as unknown as Buffer) });
+    const base = this.sessions.toDto({ ...r, member_count: r.c_members, id: bufToUuid(r.id as unknown as Buffer), created_by: bufToUuid(r.created_by as unknown as Buffer) });
     return {
       ...base,
       createdBy: { id: bufToUuid(r.created_by as unknown as Buffer), name: r.creator_name || displayName() },
-      counts: { members: num(r.c_members), pending: num(r.c_pending), attendance: num(r.c_attendance), evaluations: num(r.c_evaluations) },
+      counts: { members: num(r.c_members), pending: num(r.c_pending), attendance: num(r.c_attendance), evaluations: num(r.c_evaluations), managers: num(r.c_managers) },
       createdAt: r.created_at.toISOString(),
       updatedAt: r.updated_at.toISOString(),
       deletedAt: r.deleted_at ? r.deleted_at.toISOString() : null
@@ -191,8 +192,11 @@ export class AdminService {
     return id;
   }
 
-  /** ساخت برای creatorId: draft + سازنده session_manager (همان SessionsService.create) */
+  /** ساخت برای creatorId: draft + سازنده session_manager (همان SessionsService.create)؛ سازنده باید در دایرکتوری و فعال باشد */
   async create(creatorId: string, input: SessionInput) {
+    const d = ((await this.ds.query('SELECT status, deleted FROM user_directory WHERE user_id = ?', [uuidToBuf(creatorId)])) as { status: string; deleted: number }[])[0];
+    if (!d) throw new AppError('NOT_FOUND', { message: 'کاربر سازنده پیدا نشد.' });
+    if (d.deleted || d.status !== 'active') throw conflict('USER_NOT_ACTIVE', 'کاربر سازنده فعال نیست.');
     const s = await this.sessions.create(creatorId, input);
     return this.one(s.id);
   }
@@ -213,18 +217,6 @@ export class AdminService {
   }
 
   // ───────────────────────── اعضا / حضور / صف / ارزیابی ─────────────────────────
-  async listMembers(id: string, status: string | undefined, page: number, pageSize: number) {
-    return this.members.adminList(await this.exists(id), status, page, pageSize);
-  }
-  decide(id: string, memberId: string, action: 'approve' | 'reject') {
-    return this.members.adminDecide(id, memberId, action);
-  }
-  setRoles(id: string, memberId: string, roles: readonly SessionRole[]) {
-    return this.members.adminSetRoles(id, memberId, roles);
-  }
-  removeMember(id: string, memberId: string) {
-    return this.members.adminRemove(id, memberId);
-  }
   async attendanceOf(id: string) {
     return this.attendance.adminList(await this.exists(id));
   }

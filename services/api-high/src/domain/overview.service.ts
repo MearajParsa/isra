@@ -1,19 +1,16 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { z } from 'zod';
+import { Injectable, Logger } from '@nestjs/common';
 import { AppError } from '../common/app-error';
 import { Clock } from '../common/clock';
-import { internalHeaders } from '../internal/internal-auth';
-import { ENV, type Env } from '../config/env';
+import { MidAdminClient } from '../internal/admin-clients';
 import { AuditService } from './audit.service';
 import { UsersService } from './users.service';
 
-const Stats = z.object({ success: z.literal(true), data: z.object({ draft: z.number().int().min(0), scheduled: z.number().int().min(0), started: z.number().int().min(0), ended: z.number().int().min(0) }) });
-type SessionStats = z.infer<typeof Stats>['data'];
+type SessionStats = { draft: number; scheduled: number; started: number; ended: number };
 
 const TTL_MS = 15_000;
 const STALE_MS = 10 * 60_000;
 
-/** نمای کلی: کاربران از DB خودمان؛ آمار جلسات از mid با internal REST (cache کوتاه + stale-if-error؛ بدون mid ⇒ 503) */
+/** نمای کلی: کاربران از DB خودمان؛ آمار جلسات از mid با MidAdminClient مشترک (نگاشت خطا/timeout یکسان؛ cache کوتاه + stale-if-error؛ بدون mid ⇒ 503) */
 @Injectable()
 export class OverviewService {
   private readonly log = new Logger('Overview');
@@ -23,21 +20,18 @@ export class OverviewService {
     private readonly users: UsersService,
     private readonly audit: AuditService,
     private readonly clock: Clock,
-    @Inject(ENV) private readonly env: Env
+    private readonly mid: MidAdminClient
   ) {}
 
   private async sessions(): Promise<SessionStats> {
-    if (!this.env.INTERNAL_URL_MID) return { draft: 0, scheduled: 0, started: 0, ended: 0 }; // فقط توسعه (production الزامی است)
     const now = this.clock.now().getTime();
     if (this.cache && this.cache.fresh > now) return this.cache.v;
     try {
-      const res = await fetch(`${this.env.INTERNAL_URL_MID}/internal/v1/stats/sessions`, { headers: internalHeaders(this.env, 'mid'), signal: AbortSignal.timeout(this.env.INTERNAL_TIMEOUT_MS) });
-      if (!res.ok) throw new Error(`mid http ${res.status}`);
-      const v = Stats.parse(await res.json()).data;
+      const v = await this.mid.sessionStats();
       this.cache = { v, fresh: now + TTL_MS, stale: now + STALE_MS };
       return v;
     } catch (e) {
-      this.log.warn({ err: e instanceof Error ? e.message : 'unknown' }, 'mid stats unavailable');
+      this.log.warn({ code: e instanceof AppError ? e.code : 'unknown' }, 'mid stats unavailable');
       if (this.cache && this.cache.stale > now) return this.cache.v;
       throw new AppError('SERVICE_UNAVAILABLE');
     }

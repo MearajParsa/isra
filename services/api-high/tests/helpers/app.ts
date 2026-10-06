@@ -9,7 +9,7 @@ import { createApp } from '../../src/bootstrap';
 import { Clock } from '../../src/common/clock';
 import { uuidv7 } from '../../src/common/ids';
 import { type Env, loadEnv } from '../../src/config/env';
-import { seedRbac } from '../../src/db/rbac-seed';
+import { SEED_MODULES, SEED_PERMISSIONS, seedRbac } from '../../src/db/rbac-seed';
 import { RbacService } from '../../src/domain/rbac.service';
 import { DEFAULT_FLAGS, DEFAULT_THRESHOLDS, DEFAULT_WEIGHTS } from '../../src/domain/rules';
 
@@ -23,7 +23,7 @@ export class TestClock extends Clock {
   }
 }
 
-const TABLES = ['user_directory', 'user_system_roles', 'user_grants', 'audit_logs', 'outbox_events', 'inbox_events', 'rate_limit_counters', 'idempotency_keys'];
+const TABLES = ['user_directory', 'user_system_roles', 'user_grants', 'audit_logs', 'outbox_events', 'inbox_events', 'rate_limit_counters', 'idempotency_keys', 'announcements'];
 
 /** low جعلی: JWKS + دریافت رویدادهای outbox (نقش api-low) */
 export interface FakeLow {
@@ -200,7 +200,11 @@ export async function resetDb(ds: DataSource, app?: NestExpressApplication) {
   await ds.query('DELETE FROM system_roles WHERE undeletable = 0');
   await ds.query('DELETE FROM permissions WHERE is_system = 0');
   await ds.query('DELETE FROM system_modules WHERE is_system = 0');
+  // seed ویرایش مالک را overwrite نمی‌کند (۱.۶.۰) ⇒ تست متادیتای سیستمی را صریحاً به پیش‌فرض برمی‌گرداند
+  for (const p of SEED_PERMISSIONS) await ds.query('UPDATE permissions SET title = ?, description = ?, module_key = ?, grantable = ?, step_up = ? WHERE permission_key = ?', [p.title, p.description, p.module, p.grantable ? 1 : 0, p.stepUp, p.key]);
+  for (const m of SEED_MODULES) await ds.query('UPDATE system_modules SET title = ?, description = ?, sort_order = ? WHERE module_key = ?', [m.title, m.description, m.sortOrder, m.key]);
   await seedRbac(ds, new Date());
+  await resetBadges(ds);
   await ds.query('UPDATE rbac_meta SET version = 1');
   // نقش‌های حذف‌شدهٔ پویا ردی در user_system_roles ندارند (جدول بالا truncate شده)
   app?.get(RbacService).invalidate();
@@ -261,4 +265,18 @@ export async function mkRoleDb(t: TestApp, key: string, perms: string[]): Promis
   await t.ds.query("INSERT INTO system_roles (role_key, title, description, undeletable) VALUES (?, ?, '', 0)", [key, `نقش ${key}`]);
   for (const p of perms) await t.ds.query('INSERT INTO role_permissions (role_key, permission_key, locked) VALUES (?, ?, 0)', [key, p]);
   t.flush();
+}
+
+/** کاتالوگ نشان به وضعیت seed مهاجرت: ۴ نشان قدیمی بدون تصویر، نسخهٔ ۱ */
+export async function resetBadges(ds: DataSource) {
+  await ds.query('DELETE FROM badges');
+  const seed: [string, string, number, number][] = [
+    ['badge_50', 'قرآن‌آموز کوشا', 50, 10],
+    ['badge_150', 'همراه پیگیر', 150, 20],
+    ['badge_300', 'یار همیشگی جلسه', 300, 30],
+    ['badge_500', 'ستارهٔ قرآنی', 500, 40]
+  ];
+  for (const [key, title, th, so] of seed)
+    await ds.query('INSERT INTO badges (id, badge_key, title, description, threshold, active, sort_order, created_at, updated_at) VALUES (UNHEX(?), ?, ?, ?, ?, 1, ?, NOW(3), NOW(3))', [uuidv7().replace(/-/g, ''), key, title, `کسب دست‌کم ${th} امتیاز`, th, so]);
+  await ds.query('UPDATE badge_catalog_meta SET version = 1');
 }
