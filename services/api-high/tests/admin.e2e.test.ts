@@ -184,7 +184,7 @@ describe('ماتریس مجوز', () => {
     expect(roles.body.data[0].lockedPermissions).toHaveLength(19);
     expect(roles.body.data[1].lockedPermissions).toEqual(expect.arrayContaining(['system.users.view', 'system.role.assign', 'system.permission.edit', 'system.audit.view']));
     const perms = await a.get('/system/permissions?pageSize=50', dev);
-    expect(perms.body.meta.total).toBe(14);
+    expect(perms.body.meta.total).toBe(19);
     expect(perms.body.data.find((p: any) => p.key === 'session.create')).toMatchObject({ moduleKey: 'sessions', grantable: true });
   });
 

@@ -52,30 +52,24 @@ describe('رویدادهای ورودی از low', () => {
 });
 
 describe('outbox به low و mid', () => {
-  it('per مقصد: role.changed فقط low؛ settings.changed هر دو؛ شکست یک مقصد فقط همان مقصد را تکرار می‌کند', async () => {
+  it('per مقصد: مقصد موفق دوباره دریافت نمی‌کند؛ role.changed فقط low', async () => {
     const dev = await mkUser(t, 'توسعه', ['developer']);
     const svc = t.app.get(OutboxService);
     const s = await a.get('/system/settings', dev);
     await a.put('/system/settings', await dev.step(), { version: s.body.data.version, evalWeights: { voice: 34, tone: 33, tajweed: 33 }, flags: { maintenance_mode: false, registration_open: true } });
-    t.fake.events.length = 0;
-    // mid خراب، low سالم
+    // شبیه‌سازی: low قبلاً گرفته و فقط mid مانده
+    await t.ds.query("UPDATE outbox_events SET pending_peers = 'mid' WHERE type = 'system.settings.changed'");
     t.fake.status = 202;
-    const midFail = (u: string) => u.startsWith('/o/');
-    const orig = t.fake.status;
-    let calls: string[] = [];
-    const realPush = t.fake.events.push.bind(t.fake.events);
-    t.fake.events.push = (...e: any[]) => (calls.push(...e.map((x) => x.url)), realPush(...e));
-    await t.ds.query("UPDATE outbox_events SET pending_peers = 'mid' WHERE type = 'system.settings.changed'"); // شبیه‌سازی: low قبلاً گرفته
+    t.fake.events.length = 0;
     expect(await svc.tick()).toBe(1);
-    expect(calls).toEqual(['/o/internal/v1/events']); // فقط مقصد باقی‌مانده
-    void midFail;
-    void orig;
-    calls = [];
+    expect(t.fake.events.map((e) => e.url)).toEqual(['/o/internal/v1/events']);
     const u = await mkUser(t, 'هدف');
     await a.put(`/system/users/${u.id}/grants`, await dev.step(), { grants: ['session.create'] });
+    t.fake.events.length = 0;
     expect(await svc.tick()).toBe(1);
-    expect(calls).toEqual(['/c/internal/v1/events']); // role.changed فقط به low
-    t.fake.events.push = realPush;
+    expect(t.fake.events.map((e) => e.url)).toEqual(['/c/internal/v1/events']);
+    const [row] = (await t.ds.query("SELECT published_at, pending_peers FROM outbox_events WHERE type = 'system.role.changed'")) as { published_at: Date | null; pending_peers: string }[];
+    expect(row!.published_at).not.toBeNull();
   });
 
   it('رویدادها با secret به مقصدهای مصرف‌کننده می‌رسند؛ شکست ⇒ backoff؛ eventId پایدار', async () => {

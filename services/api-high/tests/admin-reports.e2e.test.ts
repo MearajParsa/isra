@@ -132,11 +132,24 @@ describe('H-80 گزارش جامع', () => {
     expect(lowCall.query).toMatchObject({ from: '2026-10-01', to: '2026-10-10' });
   });
 
+  it('memo ۳۰ ثانیه: تکرار در همان بازه ⇒ بدون فراخوانی دوبارهٔ مبدأ؛ پس از ۳۰ ثانیه تازه', async () => {
+    t.clock.advance(31_000);
+    const n = () => t.fake.admin.calls.filter((c) => c.path.endsWith('/reports/overview')).length;
+    const before = n();
+    await a.get('/system/reports/overview?from=2026-09-01&to=2026-09-10', dev);
+    await a.get('/system/reports/overview?from=2026-09-01&to=2026-09-10', dev);
+    expect(n() - before).toBe(1);
+    t.clock.advance(31_000);
+    await a.get('/system/reports/overview?from=2026-09-01&to=2026-09-10', dev);
+    expect(n() - before).toBe(2);
+  });
+
   it('degraded: low خراب ⇒ withPassword/messaging null و clients خالی؛ mid خراب ⇒ صفر؛ همه خراب هم 200', async () => {
     await mkUser(t, 'عادی');
     t.fake.admin.on('GET', '/c/internal/v1/admin/reports/users', () => rawReply(500));
     t.fake.admin.on('GET', '/c/internal/v1/admin/reports/otp', () => rawReply(200, {}, 900)); // timeout
     t.fake.admin.on('GET', '/c/internal/v1/admin/reports/clients', () => rawReply(401, { success: false, error: { code: 'AUTH_REQUIRED', message: 'x' } }));
+    t.clock.advance(31_000); // memo ۳۰ ثانیه‌ای H-80
     const r1 = await a.get('/system/reports/overview?from=2026-10-01&to=2026-10-10', dev);
     expect(r1.status).toBe(200);
     expect(r1.body.data.users.withPassword).toBeNull();
@@ -145,6 +158,7 @@ describe('H-80 گزارش جامع', () => {
     expect(r1.body.data.users.total).toBe(2);
     expect(r1.body.data.sessions.total).toBe(9); // mid سالم
     t.fake.admin.on('GET', '/o/internal/v1/admin/reports/overview', () => rawReply(500));
+    t.clock.advance(31_000);
     const r2 = await a.get('/system/reports/overview?from=2026-10-01&to=2026-10-10', dev);
     expect(r2.status).toBe(200);
     expect(r2.body.data.sessions).toEqual({ total: 0, created: 0, byStatus: { draft: 0, scheduled: 0, started: 0, ended: 0 } });
