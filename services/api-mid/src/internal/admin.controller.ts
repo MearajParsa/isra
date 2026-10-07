@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Headers, HttpCode, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { HEADERS, high, internal, pageQuery } from '@isra/api-types';
+import { HEADERS, high, internal, mid, pageQuery } from '@isra/api-types';
 import { Clock } from '../common/clock';
 import { AppError } from '../common/app-error';
 import { isUuid } from '../common/ids';
@@ -85,20 +85,20 @@ export class AdminController {
 
   @InternalCallers('high')
   @Get(R.attendance)
-  async attendance(@Param('id') sid: string) {
-    return ok(await this.admin.attendanceOf(id(sid)));
+  async attendance(@Param('id') sid: string, @Query() raw: unknown) {
+    return ok(await this.admin.attendanceOf(id(sid), high.AdminAttendanceQuery.parse(raw)));
   }
 
   @InternalCallers('high')
   @Get(R.queue)
-  async queue(@Param('id') sid: string) {
-    return ok(await this.admin.queueOf(id(sid)));
+  async queue(@Param('id') sid: string, @Query() raw: unknown) {
+    return ok(await this.admin.queueOf(id(sid), mid.QueueQuery.parse(raw).occurrenceId));
   }
 
   @InternalCallers('high')
   @Get(R.evaluations)
-  async evaluations(@Param('id') sid: string) {
-    return ok(await this.admin.evaluationsOf(id(sid)));
+  async evaluations(@Param('id') sid: string, @Query() raw: unknown) {
+    return ok(await this.admin.evaluationsOf(id(sid), high.AdminEvaluationsQuery.parse(raw)));
   }
 
   @InternalCallers('high')

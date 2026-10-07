@@ -2,12 +2,14 @@ import type { Server as HttpServer } from 'node:http';
 import { Inject, Injectable, Logger, type OnApplicationShutdown } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { Server, type Socket } from 'socket.io';
+import type { z } from 'zod';
 import { mid } from '@isra/api-types';
 import { JwtVerifier } from '../auth/jwt-verifier';
 import { ENV, type Env } from '../config/env';
 import { MembersAccess } from '../domain/access.service';
 
-export type LiveType = 'attendance.updated' | 'queue.updated' | 'queue.turned' | 'eval.updated' | 'session.state' | 'members.updated' | 'session.updated' | 'occurrence.updated';
+/** همهٔ انواع رویداد قرارداد (mid.LiveEvent) */
+export type LiveType = z.infer<typeof mid.LiveEvent>['type'];
 
 const room = (sessionId: string) => `s:${sessionId}`;
 /** اتاق شخصی هر کاربر (همهٔ socketهای او) برای اخراج هدفمند از اتاق جلسه */

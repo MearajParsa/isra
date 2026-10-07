@@ -136,8 +136,8 @@ export class MidController {
   }
 
   @Route('M-21')
-  attendanceList(@Req() r: IsraRequest, @In() { params }: Id) {
-    return this.attendance.list(uid(r), params.id);
+  attendanceList(@Req() r: IsraRequest, @In() { params, query }: Id & { query: Page & { occurrenceId?: string } }) {
+    return this.attendance.list(uid(r), params.id, query);
   }
 
   @Route('M-30')
@@ -151,8 +151,8 @@ export class MidController {
   }
 
   @Route('M-32')
-  queueState(@Req() r: IsraRequest, @In() { params }: Id) {
-    return this.queue.view(uid(r), params.id);
+  queueState(@Req() r: IsraRequest, @In() { params, query }: Id & { query: { occurrenceId?: string } }) {
+    return this.queue.view(uid(r), params.id, query.occurrenceId);
   }
 
   @Route('M-33')
@@ -171,8 +171,8 @@ export class MidController {
   }
 
   @Route('M-41')
-  listEvals(@Req() r: IsraRequest, @In() { params, query }: Id & { query: Page }) {
-    return this.evals.list(uid(r), params.id, query.page, query.pageSize);
+  listEvals(@Req() r: IsraRequest, @In() { params, query }: Id & { query: z.infer<typeof mid.EvaluationsQuery> }) {
+    return this.evals.list(uid(r), params.id, query);
   }
 
   @Route('M-42')

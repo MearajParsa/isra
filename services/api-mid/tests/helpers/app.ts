@@ -21,7 +21,7 @@ export class TestClock extends Clock {
   }
 }
 
-const TABLES = ['sessions', 'session_members', 'session_member_roles', 'attendance_entries', 'queue_items', 'evaluations', 'point_ledger', 'user_points', 'badge_awards', 'settings_cache', 'user_directory', 'idempotency_keys', 'rate_limit_counters', 'outbox_events', 'inbox_events', 'session_invites'];
+const TABLES = ['sessions', 'session_members', 'session_member_roles', 'attendance_entries', 'queue_items', 'evaluations', 'point_ledger', 'user_points', 'badge_awards', 'settings_cache', 'user_directory', 'idempotency_keys', 'rate_limit_counters', 'outbox_events', 'inbox_events', 'session_invites', 'session_occurrences', 'badges_catalog'];
 
 /** سرور JWKS جعلی (نقش api-low) + امضای توکن */
 export interface FakeLow {

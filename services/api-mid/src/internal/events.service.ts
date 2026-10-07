@@ -6,6 +6,7 @@ import { RevocationService } from '../auth/revocation.service';
 import { Clock } from '../common/clock';
 import { bufToUuid, uuidToBuf } from '../common/ids';
 import { LiveService } from '../live/live.service';
+import { BadgesService } from '../domain/badges.service';
 import { SettingsChanged, SettingsService } from '../domain/settings.service';
 
 export interface InboundEvent {
@@ -33,7 +34,8 @@ export class EventsService {
     private readonly clock: Clock,
     private readonly settings: SettingsService,
     private readonly revocation: RevocationService,
-    private readonly live: LiveService
+    private readonly live: LiveService,
+    private readonly badges: BadgesService
   ) {}
 
   async handle(e: InboundEvent): Promise<void> {
@@ -89,6 +91,9 @@ export class EventsService {
         await this.revocation.add(m, p.sessionIds, new Date(p.expiresAt));
       } else if (e.type === 'system.settings.changed') {
         await this.settings.apply(SettingsChanged.parse(e.payload));
+      } else if (e.type === 'badge.catalog.changed') {
+        // ۱.۶.۰: جایگزینی کامل کاتالوگ اگر version بزرگ‌تر؛ job بازمحاسبه پس از commit (BadgesService)
+        await this.badges.applyCatalog(m, internal.BadgeCatalogChanged.parse(e.payload));
       } else {
         this.log.debug({ type: e.type }, 'نوع رویداد ناشناخته؛ نادیده');
       }

@@ -198,9 +198,13 @@ describe('Socket.IO realtime (قفل: روی api-mid)', () => {
       const leaked: unknown[] = [];
       sOut.on('live', (e) => leaked.push(e));
 
-      let p = next(sStu);
+      // once ⇒ started نوبت #۱ را خودکار باز می‌کند (occurrence.updated) و سپس session.state
+      const got: any[] = [];
+      const state = new Promise<any>((r) => sStu.on('live', (e) => (got.push(e), e.type === 'session.state' && r(e))));
       await a.post(`/sessions/${id}/transition`, m, { to: 'started' });
-      expect(await p).toEqual({ type: 'session.state', sessionId: id, payload: { status: 'started' } });
+      expect(await state).toEqual({ type: 'session.state', sessionId: id, payload: { status: 'started' } });
+      expect(got.map((e) => e.type)).toContain('occurrence.updated');
+      let p = next(sStu);
 
       p = next(sTeacher);
       await a.post(`/sessions/${id}/attendance`, stu);
@@ -221,7 +225,7 @@ describe('Socket.IO realtime (قفل: روی api-mid)', () => {
     }
   });
 
-  it('queue.turned حاوی userId نفر نوبت‌رسیده و eval.updated پس از ارزیابی', async () => {
+  it('queue.turned: userId فقط برای خود نفر (حریم D4، docs-v2/30 §۱.۵) و eval.updated پس از ارزیابی', async () => {
     const m = await creator(t);
     const id = await mkSession(t, m, 'started');
     const teacher = await mkUser(t, 'معلم دو');
@@ -238,7 +242,7 @@ describe('Socket.IO realtime (قفل: روی api-mid)', () => {
       const q = await a.post(`/sessions/${id}/queue/next`, teacher);
       await a.post(`/sessions/${id}/evaluations`, teacher, { queueItemId: q.body.data.current.id, voice: 5, tone: 5, tajweed: 5 });
       await new Promise((r) => setTimeout(r, 200));
-      expect(events.find((e) => e.type === 'queue.turned')).toMatchObject({ sessionId: id, payload: { userId: stu.id } });
+      expect(events.find((e) => e.type === 'queue.turned')).toEqual({ type: 'queue.turned', sessionId: id, payload: { userId: stu.id } });
       expect(events.some((e) => e.type === 'eval.updated')).toBe(true);
     } finally {
       s.disconnect();
@@ -258,16 +262,13 @@ describe('migration', () => {
       };
       await ds.runMigrations();
       const full = await tables();
-      expect(full).toBeGreaterThanOrEqual(17);
-      for (const [tb, ix] of [['attendance_entries', 'uq_attendance_session_user'], ['evaluations', 'uq_eval_queue_item'], ['point_ledger', 'uq_ledger_reason_ref'], ['badge_awards', 'uq_badge_user_key'], ['session_members', 'uq_member_session_user'], ['queue_items', 'uq_queue_active'], ['session_invites', 'uq_invite_code']] as const) {
-        const ok = await unique(tb, ix);
-        if (ix !== 'uq_attendance_session_user') expect(ok, ix).toBe(true); // یکتایی حضور در ۱.۶.۰ per نوبت (مهاجرت نیمهٔ دیگر)
-      }
+      expect(full).toBeGreaterThanOrEqual(19);
+      for (const [tb, ix] of [['attendance_entries', 'uq_attendance_occ_user'], ['evaluations', 'uq_eval_queue_item'], ['point_ledger', 'uq_ledger_user_reason_ref'], ['badge_awards', 'PRIMARY'], ['session_members', 'uq_member_session_user'], ['queue_items', 'uq_queue_active_occ'], ['session_occurrences', 'uq_occ_live'], ['session_occurrences', 'uq_occ_session_seq'], ['session_invites', 'uq_invite_code']] as const) expect(await unique(tb, ix), ix).toBe(true);
       const hasCol = async (table: string, col: string) => ((await ds.query('SELECT 1 AS x FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?', [table, col])) as unknown[]).length > 0;
-      for (const [tb, c] of [['sessions', 'deleted_at'], ['user_directory', 'deleted'], ['sessions', 'join_policy'], ['sessions', 'sort_rank'], ['session_members', 'source'], ['user_directory', 'status']] as const) expect(await hasCol(tb, c), `${tb}.${c}`).toBe(true);
+      for (const [tb, c] of [['sessions', 'deleted_at'], ['user_directory', 'deleted'], ['sessions', 'join_policy'], ['sessions', 'sort_rank'], ['session_members', 'source'], ['user_directory', 'status'], ['attendance_entries', 'occurrence_id']] as const) expect(await hasCol(tb, c), `${tb}.${c}`).toBe(true);
       // همهٔ مهاجرت‌ها برگشت‌پذیرند (ترتیب معکوس)؛ پس از MembershipV16 ستون‌ها/جدول دعوت برداشته شده‌اند
       for (;;) {
-        const last = ((await ds.query('SELECT name FROM migrations ORDER BY timestamp DESC LIMIT 1')) as { name: string }[])[0];
+        const last = ((await ds.query('SELECT name FROM migrations ORDER BY id DESC LIMIT 1')) as { name: string }[])[0];
         if (!last) break;
         await ds.undoLastMigration();
         if (last.name === 'MembershipV161728600000000') {
@@ -276,6 +277,7 @@ describe('migration', () => {
           expect(await hasCol('user_directory', 'status')).toBe(false);
           expect(await hasCol('sessions', 'deleted_at')).toBe(true);
         }
+        if (last.name === 'OccurrencesPointsV161728600000001') expect(await hasCol('attendance_entries', 'occurrence_id')).toBe(false);
         if (last.name === 'AdminExpansion1728300000000') expect(await hasCol('sessions', 'deleted_at')).toBe(false);
       }
       expect(await tables()).toBe(0);
