@@ -96,8 +96,9 @@ export class MidController {
   }
 
   @Route('M-15')
-  removeMember(@Req() r: IsraRequest, @In() { params }: Mem) {
-    return this.members.remove(uid(r), params.id, params.memberId);
+  async removeMember(@Req() r: IsraRequest, @In() { params }: Mem) {
+    await this.members.remove(uid(r), params.id, params.memberId);
+    return {};
   }
 
   @Route('M-16')

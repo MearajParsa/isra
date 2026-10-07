@@ -66,8 +66,8 @@ export class AdminMembersController {
   @Delete(R.member)
   @HttpCode(200)
   async removeMember(@Param('id') sid: string, @Param('memberId') mid: string) {
-    await this.svc.removeMember(id(sid), mid);
-    return ok({});
+    // ۱.۶.۰: شناسهٔ کاربرِ حذف‌شده برای audit high (`session.member_remove`)
+    return ok(await this.svc.removeMember(id(sid), mid));
   }
 
   @InternalCallers('high')

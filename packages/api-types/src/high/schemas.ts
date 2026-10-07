@@ -607,7 +607,9 @@ export const AuditEntry = named(
     at: IsoDateTime,
     actor: z.object({ id: Id, name: z.string().max(80) }),
     action: z.string().regex(/^[a-z_]+(\.[a-z_]+)+$/).max(64),
-    target: z.object({ type: AuditTargetType, id: Id, label: z.string().max(120) }).optional(),
+    target: z
+      .object({ type: AuditTargetType, id: z.string().regex(/^[A-Za-z0-9_.-]{1,64}$/).meta({ description: 'شناسه یا کلید (کلید مجوز نقطه‌دار مجاز)' }), label: z.string().max(120) })
+      .optional(),
     summary: z.string().max(300),
     meta: z.record(z.string(), z.unknown()).meta({ description: 'جزئیات فنی بدون PII حساس (OTP/توکن/رمز هرگز)' })
   })
@@ -617,7 +619,7 @@ export const AuditQuery = z.object({
   q: z.string().trim().max(60).optional(),
   actorId: Id.optional(),
   targetType: AuditTargetType.optional(),
-  targetId: Id.optional(),
+  targetId: z.string().regex(/^[A-Za-z0-9_.-]{1,64}$/).optional(),
   from: IsoDate.optional(),
   to: IsoDate.optional()
 });

@@ -165,7 +165,8 @@ export const MidAdminTransition = TransitionBody;
 export const MidAdminMember = AdminMember;
 /** PATCH MID_ADMIN.member — { action: approve|reject } */
 export const MidAdminDecide = z.object({ action: z.enum(['approve', 'reject']) }).strict();
-/** DELETE MID_ADMIN.member — حذف عضو؛ مدیر جلسه قابل‌حذف نیست (409 CONFLICT) */
+/** DELETE MID_ADMIN.member — حذف عضو؛ مدیر جلسه قابل‌حذف نیست (409 CONFLICT). ۱.۶.۰: پاسخ = MidAdminRemoveMemberResult */
+export const MidAdminRemoveMemberResult = z.object({ userId: Uuid });
 export const MidAdminAttendance = z.object({ items: z.array(AttendanceEntry), total: Count });
 /** صف با نمای کامل (userId/name همهٔ ردیف‌ها پر است؛ ادمین استثنای حریم خصوصی D4 است) */
 export const MidAdminQueue = QueueState;

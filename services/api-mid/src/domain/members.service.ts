@@ -378,7 +378,7 @@ export class MembersService {
    * M-15: مدیر ⇒ SESSION_MANAGER_PROTECTED؛ دارندهٔ membership.roles هر عضو غیرمدیر؛ پشتیبان فقط قرآن‌آموز یا درخواست pending/rejected.
    * actorId=null ⇒ ادمین (MID_ADMIN.member DELETE).
    */
-  async remove(actorId: string | null, sessionId: string, memberId: string): Promise<Record<string, never>> {
+  async remove(actorId: string | null, sessionId: string, memberId: string): Promise<{ userId: string }> {
     let removed = { userId: '', queue: false };
     await this.ds.transaction(async (m) => {
       let session: SessionRow;
@@ -397,7 +397,7 @@ export class MembersService {
       removed = { userId: cur.userId, queue };
     });
     this.afterRemoval(sessionId, removed.userId, removed.queue);
-    return {};
+    return { userId: removed.userId };
   }
 
   /** M-17: ترک جلسه / لغو درخواست؛ آخرین مدیر ⇒ LAST_HOLDER؛ ردشده دست نمی‌خورد (cooldown حفظ) */

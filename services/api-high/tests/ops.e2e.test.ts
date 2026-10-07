@@ -563,12 +563,12 @@ describe('اصلاحات امنیتی', () => {
     expect((await a.put(`/system/users/${target.id}/roles`, await dev.step(), { roles: [] })).status).toBe(200);
   });
 
-  it('audit target برای permission/module (شناسهٔ سازگار با Id)', async () => {
+  it('audit target برای permission/module (کلید نقطه‌دار دقیق)', async () => {
     const dev = await mkUser(t, 'توسعه', ['developer']);
     await a.post('/system/modules', dev.h, { key: 'content', title: 'محتوا' });
     await a.post('/system/permissions', dev.h, { key: 'content.edit', title: 'ویرایش محتوا', moduleKey: 'content' });
     const p = (await audits('permission.create'))[0];
-    expect(p).toMatchObject({ target_type: 'permission', target_id: 'content-edit', target_label: 'ویرایش محتوا' });
+    expect(p).toMatchObject({ target_type: 'permission', target_id: 'content.edit', target_label: 'ویرایش محتوا' });
     expect(p.meta.key).toBe('content.edit');
     expect((await audits('module.create'))[0]).toMatchObject({ target_type: 'module', target_id: 'content' });
     check('H-40', (await a.get('/system/audit?targetType=permission', dev)).body);

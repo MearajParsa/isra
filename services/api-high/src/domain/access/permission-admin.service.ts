@@ -17,7 +17,7 @@ import { forbidden, invalid, isDupKey, keyTaken, ph, systemProtected } from './w
  * شناسهٔ target در audit باید با `Id` قرارداد (`[A-Za-z0-9_-]`) بخواند اما کلید مجوز نقطه دارد ⇒ «.» ⇒ «-» (برگشت‌پذیر:
  * کلید مجوز «-» ندارد). کلید دقیق در `meta.key` هم هست. (نقص قرارداد گزارش شد.)
  */
-export const permTargetId = (key: string): string => key.replace(/\./g, '-');
+export const permTargetId = (key: string): string => key;
 
 type Body<K extends keyof typeof high> = (typeof high)[K] extends z.ZodType ? z.infer<(typeof high)[K]> : never;
 

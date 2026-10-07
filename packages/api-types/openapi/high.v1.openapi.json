@@ -1193,9 +1193,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "pattern": "^[A-Za-z0-9_-]{1,64}$",
-              "description": "شناسهٔ موجودیت (در تولید UUID)",
-              "example": "6f3c2a10-0000-4000-8000-000000000001"
+              "pattern": "^[A-Za-z0-9_.-]{1,64}$"
             }
           },
           {
@@ -1527,9 +1525,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "pattern": "^[A-Za-z0-9_-]{1,64}$",
-              "description": "شناسهٔ موجودیت (در تولید UUID)",
-              "example": "6f3c2a10-0000-4000-8000-000000000001"
+              "pattern": "^[A-Za-z0-9_.-]{1,64}$"
             }
           },
           {
@@ -29526,9 +29522,8 @@
               },
               "id": {
                 "type": "string",
-                "pattern": "^[A-Za-z0-9_-]{1,64}$",
-                "description": "شناسهٔ موجودیت (در تولید UUID)",
-                "example": "6f3c2a10-0000-4000-8000-000000000001"
+                "pattern": "^[A-Za-z0-9_.-]{1,64}$",
+                "description": "شناسه یا کلید (کلید مجوز نقطه‌دار مجاز)"
               },
               "label": {
                 "type": "string",
