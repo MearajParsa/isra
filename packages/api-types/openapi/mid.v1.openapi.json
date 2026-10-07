@@ -3780,6 +3780,35 @@
               }
             }
           },
+          "409": {
+            "description": "CONFLICT",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "CONFLICT": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "CONFLICT",
+                        "message": "درخواست با وضعیت فعلی منابع سازگار نیست."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
           "413": {
             "description": "PAYLOAD_TOO_LARGE",
             "headers": {
@@ -4604,7 +4633,7 @@
     "/o/v1/sessions/{id}/evaluations/{evalId}": {
       "patch": {
         "operationId": "M_43",
-        "summary": "ویرایش ارزیابی (ارزیاب اصلی، تا ۲۴ ساعت)",
+        "summary": "ویرایش ارزیابی (ارزیاب اصلی، تا ۲۴ ساعت؛ پس از آن AUTH_FORBIDDEN)",
         "tags": [
           "ارزیابی"
         ],

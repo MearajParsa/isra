@@ -262,7 +262,8 @@ export const MidAdminQueueNext = z.object({ ...Actor, expectCurrentItemId: Uuid.
 export const MidAdminQueueAct = QueueActBody.extend({ ...Actor, expectPosition: z.number().int().min(1).optional() }).strict();
 export const MidAdminEvaluationPatch = z
   .object({ ...Actor, reason: Reason, voice: z.number().int().min(0).max(10).optional(), tone: z.number().int().min(0).max(10).optional(), tajweed: z.number().int().min(0).max(10).optional(), note: z.string().trim().max(300).optional() })
-  .strict();
+  .strict()
+  .refine((v) => v.voice !== undefined || v.tone !== undefined || v.tajweed !== undefined || v.note !== undefined, { message: 'دست‌کم یک فیلد ارزیابی لازم است.' });
 export const MidAdminEvaluationVoid = z.object({ ...Actor, reason: Reason }).strict();
 export const MidAdminEvaluation = Evaluation;
 /** mid: POST MID_ADMIN.notify — پیام به اعضای جلسه (mid رویداد دسته‌ای inbox.messages.created می‌سازد) */
@@ -277,7 +278,9 @@ export const MidAdminUserPoints = z.object({
   summary: PointsSummary,
   ledger: z.object({ items: z.array(PointsLedgerItem), page: z.number().int().min(1), pageSize: z.number().int().min(1), total: Count })
 });
-export const MidAdminPointsAdjust = z.object({ ...Actor, delta: z.number().int().min(-10000).max(10000), reason: Reason }).strict();
+export const MidAdminPointsAdjust = z
+  .object({ ...Actor, delta: z.number().int().min(-10000).max(10000).refine((d) => d !== 0, { message: 'مقدار نباید صفر باشد.' }), reason: Reason })
+  .strict();
 export const MidAdminPointsAdjustResult = z.object({ summary: PointsSummary, entry: PointsLedgerItem });
 /** mid برای low: GET MID_FOR_LOW.pointsLedger?page&pageSize ⇒ لیست PointsLedgerItem با meta */
 export const MidLowPointsLedgerQuery = MidAdminUserPointsQuery;
