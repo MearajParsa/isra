@@ -4,7 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ENDPOINTS, type EndpointDef, mid as midTypes } from '@isra/api-types';
 import { seedRbac } from '../src/db/rbac-seed';
 import { csvCell } from '../src/domain/export.service';
-import { type TestApp, type User, api, failReply, mkRoleDb, mkUser, outboxTypes, rawReply, resetDb, startApp } from './helpers/app';
+import { type TestApp, api, failReply, mkRoleDb, mkUser, outboxTypes, rawReply, resetDb, startApp } from './helpers/app';
 import { installFakeLow, installFakeMid } from './helpers/fakes';
 
 let t: TestApp;
@@ -590,4 +590,3 @@ describe('اصلاحات امنیتی', () => {
   });
 });
 
-void ({} as User);
