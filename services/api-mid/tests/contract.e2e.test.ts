@@ -76,7 +76,13 @@ describe('انطباق پاسخ‌ها با schemaهای قرارداد', () => 
     check(def('M-01'), (await a.get('/me/sessions', m)).body);
     check(def('M-02'), (await a.get(`/sessions/${id}/me`, stu)).body);
 
+    // ۱.۶.۰: جلسهٔ تکرارشونده ⇒ نوبت را کادر باز می‌کند
+    const occ = await a.post(`/sessions/${id}/occurrences`, teacher);
+    check(def('M-09'), occ.body);
+    check(def('M-08'), (await a.get(`/sessions/${id}/occurrences`, teacher)).body);
+    check(def('M-02'), (await a.get(`/sessions/${id}/me`, stu)).body);
     check(def('M-20'), (await a.post(`/sessions/${id}/attendance`, stu)).body);
+    check(def('M-18'), (await a.get(`/sessions/${id}/roster`, teacher)).body);
     check(def('M-21'), (await a.get(`/sessions/${id}/attendance`, teacher)).body);
     const stu2 = await mkUser(t, 'قرآن‌آموز دوم');
     await join(t, id, m, stu2);
@@ -88,12 +94,22 @@ describe('انطباق پاسخ‌ها با schemaهای قرارداد', () => 
     const q = await a.post(`/sessions/${id}/queue/next`, teacher);
     check(def('M-33'), q.body);
     check(def('M-34'), (await a.patch(`/sessions/${id}/queue/${q.body.data.waiting[0].id}`, teacher, { action: 'skip' })).body);
-    check(def('M-40'), (await a.post(`/sessions/${id}/evaluations`, teacher, { queueItemId: q.body.data.current.id, voice: 9, tone: 8, tajweed: 7, note: 'خوب' })).body);
+    const ev = await a.post(`/sessions/${id}/evaluations`, teacher, { queueItemId: q.body.data.current.id, voice: 9, tone: 8, tajweed: 7, note: 'خوب' });
+    check(def('M-40'), ev.body);
+    check(def('M-43'), (await a.patch(`/sessions/${id}/evaluations/${ev.body.data.id}`, teacher, { voice: 10 })).body);
     check(def('M-41'), (await a.get(`/sessions/${id}/evaluations`, teacher)).body);
     check(def('M-42'), (await a.get('/me/points', stu)).body);
+    check(def('M-46'), (await a.get('/me/points/history', stu)).body);
+    const stu3 = await mkUser(t, 'قرآن‌آموز سوم');
+    await join(t, id, m, stu3);
+    check(def('M-22'), (await a.post(`/sessions/${id}/attendance/mark`, teacher, { userIds: [stu3.id] })).body);
+    check(def('M-23'), (await a.post(`/sessions/${id}/attendance/${stu3.id}/revoke`, m, { reason: 'ثبت اشتباه' })).body);
+    check(def('M-35'), (await a.post(`/sessions/${id}/queue/enqueue`, teacher, { userId: stu3.id, markPresent: true })).body);
+    check(def('M-44'), (await a.post(`/sessions/${id}/evaluations/${ev.body.data.id}/void`, m, { reason: 'اشتباه' })).body);
     const q2 = await a.get(`/sessions/${id}/queue`, stu);
     expect(q2.status).toBe(200);
     check(def('M-31'), (await a.del(`/sessions/${id}/queue/me`, stu2)).body);
+    check(def('M-19'), (await a.post(`/sessions/${id}/occurrences/${occ.body.data.id}/close`, teacher)).body);
   });
 
   it('خطاها از ERROR_CATALOG و status منطبق؛ meta.requestId همان هدر', async () => {
@@ -112,7 +128,8 @@ describe('انطباق پاسخ‌ها با schemaهای قرارداد', () => 
     const id = await mkSession(t, m, 'started');
     const r = await a.get(`/sessions/${id}/attendance`, m);
     expect(Array.isArray(r.body.data)).toBe(false);
-    expect(r.body.data).toEqual({ items: [], total: 0 });
+    expect(r.body.data).toMatchObject({ items: [], total: 0 });
+    expect(typeof r.body.data.occurrenceId).toBe('string'); // once+started ⇒ نوبت #۱ خودکار
     const list = await a.get('/me/sessions?page=1&pageSize=5', m);
     expect(list.body.meta).toMatchObject({ page: 1, pageSize: 5, total: 1 });
   });

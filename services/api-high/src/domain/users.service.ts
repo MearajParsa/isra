@@ -72,14 +72,15 @@ export class UsersService {
     return this.dto(r, await this.rbac.access(id));
   }
 
-  /** جست‌وجو روی نام یا شماره (ارقام فارسی هم)؛ فیلتر نقش یا `none`؛ بدون N+1 (نقش/grant دسته‌ای) */
-  async list(q: UsersQuery & { page: number; pageSize: number }) {
+  /** WHERE پارامتری فیلترهای H-20 (مشترک با خروجی H-43) */
+  filterWhere(q: UsersQuery): { clauses: string[]; args: unknown[] } {
     const where: string[] = [];
     const args: unknown[] = [];
     if (q.q) {
       const t = escapeLike(toLatinDigits(q.q));
-      where.push("(CONCAT(d.first_name, ' ', d.last_name) LIKE ? OR d.phone LIKE ?)");
-      args.push(`%${t}%`, `%${t}%`);
+      // q عددی ⇒ جست‌وجوی پیشوندی روی شماره (ایندکس یکتای phone؛ بدون full scan). «9…» ⇒ «09…»
+      if (/^\d{2,11}$/.test(t)) (where.push('d.phone LIKE ?'), args.push(`${t.startsWith('9') ? `0${t}` : t}%`));
+      else (where.push("CONCAT(d.first_name, ' ', d.last_name) LIKE ?"), args.push(`%${t}%`));
     }
     if (q.status) (where.push('d.status = ?'), args.push(q.status));
     if (q.grant === 'none') where.push('NOT EXISTS (SELECT 1 FROM user_grants g WHERE g.user_id = d.user_id)');
@@ -90,29 +91,36 @@ export class UsersService {
     if (to !== null) (where.push('d.created_at < ?'), args.push(startOfDayUtc(to + 86_400_000)));
     if (q.role === 'none') where.push('NOT EXISTS (SELECT 1 FROM user_system_roles x WHERE x.user_id = d.user_id)');
     else if (q.role) (where.push('EXISTS (SELECT 1 FROM user_system_roles x WHERE x.user_id = d.user_id AND x.role_key = ?)'), args.push(q.role));
+    return { clauses: where, args };
+  }
+
+  /** نقش‌ها/grantهای چند کاربر با دو query (بدون N+1) */
+  async rolesAndGrants(ids: Buffer[]): Promise<{ roles: Map<string, SystemRoleKey[]>; grants: Map<string, Grant[]> }> {
+    const roles = new Map<string, SystemRoleKey[]>();
+    const grants = new Map<string, Grant[]>();
+    if (!ids.length) return { roles, grants };
+    const ph = ids.map(() => '?').join(',');
+    const [r, g] = await Promise.all([
+      this.ds.query(`SELECT user_id, role_key FROM user_system_roles WHERE user_id IN (${ph}) ORDER BY role_key`, ids) as Promise<{ user_id: Buffer; role_key: SystemRoleKey }[]>,
+      this.ds.query(`SELECT user_id, grant_key FROM user_grants WHERE user_id IN (${ph}) ORDER BY grant_key`, ids) as Promise<{ user_id: Buffer; grant_key: Grant }[]>
+    ]);
+    for (const x of r) roles.set(x.user_id.toString('hex'), [...(roles.get(x.user_id.toString('hex')) ?? []), x.role_key]);
+    for (const x of g) grants.set(x.user_id.toString('hex'), [...(grants.get(x.user_id.toString('hex')) ?? []), x.grant_key]);
+    return { roles, grants };
+  }
+
+  /** جست‌وجو روی نام یا شماره (ارقام فارسی هم)؛ فیلتر نقش یا `none`؛ بدون N+1 (نقش/grant دسته‌ای) */
+  async list(q: UsersQuery & { page: number; pageSize: number }) {
+    const { clauses: where, args } = this.filterWhere(q);
     const w = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
     const [rows, cnt] = await Promise.all([
       this.ds.query(`SELECT d.user_id, d.phone, d.first_name, d.last_name, d.status, d.created_at FROM user_directory d ${w} ORDER BY ${ORDER[q.sort ?? 'newest']} LIMIT ? OFFSET ?`, [...args, q.pageSize, (q.page - 1) * q.pageSize]) as Promise<Row[]>,
       this.ds.query(`SELECT COUNT(*) AS n FROM user_directory d ${w}`, args) as Promise<{ n: string | number }[]>
     ]);
-    const ids = rows.map((r) => r.user_id);
-    const ph = ids.map(() => '?').join(',');
-    const [roles, grants] = ids.length
-      ? await Promise.all([
-          this.ds.query(`SELECT user_id, role_key FROM user_system_roles WHERE user_id IN (${ph}) ORDER BY role_key`, ids) as Promise<{ user_id: Buffer; role_key: SystemRoleKey }[]>,
-          this.ds.query(`SELECT user_id, grant_key FROM user_grants WHERE user_id IN (${ph})`, ids) as Promise<{ user_id: Buffer; grant_key: Grant }[]>
-        ])
-      : [[], []];
-    const by = <T extends { user_id: Buffer }>(xs: T[]) => {
-      const m = new Map<string, T[]>();
-      for (const x of xs) m.set(x.user_id.toString('hex'), [...(m.get(x.user_id.toString('hex')) ?? []), x]);
-      return m;
-    };
-    const rm = by(roles);
-    const gm = by(grants);
+    const { roles: rm, grants: gm } = await this.rolesAndGrants(rows.map((r) => r.user_id));
     return {
-      items: rows.map((r) => this.dto(r, { roles: (rm.get(r.user_id.toString('hex')) ?? []).map((x) => x.role_key), grants: (gm.get(r.user_id.toString('hex')) ?? []).map((x) => x.grant_key) })),
+      items: rows.map((r) => this.dto(r, { roles: rm.get(r.user_id.toString('hex')) ?? [], grants: gm.get(r.user_id.toString('hex')) ?? [] })),
       page: q.page,
       pageSize: q.pageSize,
       total: Number(cnt[0]?.n ?? 0)
@@ -162,6 +170,8 @@ export class UsersService {
       const added = next.filter((x) => !before.includes(x));
       const removed = before.filter((x) => !next.includes(x));
       requireHeld(actor, await effectiveOfRoles(m, added), 'تخصیص این نقش');
+      // E2 روی برداشتن هم (docs-v2/30 §۳ امنیت ۲): نقشی را که همهٔ مجوزهایش را ندارید نمی‌توانید بردارید
+      requireHeld(actor, await effectiveOfRoles(m, removed), 'برداشتن این نقش');
       for (const r of removed) {
         const def = defs.find((d) => d.role_key === r);
         if (!def?.undeletable) continue;

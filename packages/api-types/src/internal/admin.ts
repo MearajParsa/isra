@@ -1,9 +1,20 @@
 import { z } from 'zod';
 import { IranMobile, IsoDateTime, PersonName, Uuid } from '../core/primitives';
 import { SessionInput } from '../domain/session';
-import { AttendanceEntry, Evaluation, QueueState } from '../mid/schemas';
-import { AdminMember, AdminSession, AnonPhone, IsoDate, UserStatus } from '../high/schemas';
-import { SetRolesBody, TransitionBody } from '../mid/schemas';
+import { AttendanceEntry, Evaluation, QueueState, AddMemberOutcome, StaffAssignableRole, SessionRole, MarkAttendanceResult, RevokeAttendanceResult, QueueActBody } from '../mid/schemas';
+import {
+  AdminMember,
+  AdminSession,
+  AdminSetMemberRolesBody,
+  AnonPhone,
+  IsoDate,
+  UserStatus,
+  UserMembership,
+  UserMembershipsQuery
+} from '../high/schemas';
+import { TransitionBody } from '../mid/schemas';
+import { Occurrence } from '../domain/session';
+import { PointsLedgerItem, PointsSummary } from '../domain/points';
 
 const Count = z.number().int().min(0);
 const Interval = z.enum(['day', 'week', 'month']);
@@ -20,7 +31,30 @@ export const LOW_ADMIN = {
   logoutAll: '/admin/users/:id/logout-all',
   reportOtp: '/admin/reports/otp',
   reportClients: '/admin/reports/clients',
-  reportUsers: '/admin/reports/users'
+  reportUsers: '/admin/reports/users',
+  /** ۱.۶.۰ */
+  usersBulk: '/admin/users/bulk',
+  broadcast: '/admin/broadcasts/:id'
+} as const;
+
+/**
+ * ۱.۶.۰: مسیرهای internal عمومی low (نه فقط high). پیشوند `/c/internal/v1`.
+ * resolve: فراخوان‌ها mid و high (ACL `@InternalCallers('mid','high')`)؛ فقط POST تا شماره در URL/لاگ دسترسی نیاید.
+ */
+export const LOW_INTERNAL = {
+  resolveUsers: '/users/resolve'
+} as const;
+
+/**
+ * ۱.۶.۰: مسیرهای internal high برای low (پیشوند `/s/internal/v1`) — تصویر نشان (باینری؛ ACL فقط low).
+ */
+export const HIGH_INTERNAL = {
+  badgeImage: '/badges/:id/image'
+} as const;
+
+/** ۱.۶.۰: مسیرهای internal mid برای low (پیشوند `/o/internal/v1`؛ ACL فقط low) */
+export const MID_FOR_LOW = {
+  pointsLedger: '/users/:id/points/ledger'
 } as const;
 
 export const MID_ADMIN = {
@@ -36,7 +70,23 @@ export const MID_ADMIN = {
   userSummary: '/admin/users/:id/summary',
   reportOverview: '/admin/reports/overview',
   reportSessions: '/admin/reports/sessions',
-  reportLeaderboard: '/admin/reports/leaderboard'
+  reportLeaderboard: '/admin/reports/leaderboard',
+  /** ۱.۶.۰ (docs-v2/30) */
+  membersAdd: '/admin/sessions/:id/members/add',
+  membersDecide: '/admin/sessions/:id/members/decide',
+  manager: '/admin/sessions/:id/manager',
+  occurrences: '/admin/sessions/:id/occurrences',
+  attendanceMark: '/admin/sessions/:id/attendance/mark',
+  attendanceRevoke: '/admin/sessions/:id/attendance/:userId/revoke',
+  queueNext: '/admin/sessions/:id/queue/next',
+  queueItem: '/admin/sessions/:id/queue/:itemId',
+  evaluation: '/admin/sessions/:id/evaluations/:evalId',
+  evaluationVoid: '/admin/sessions/:id/evaluations/:evalId/void',
+  notify: '/admin/sessions/:id/notify',
+  userMemberships: '/admin/users/:id/memberships',
+  userPoints: '/admin/users/:id/points',
+  pointsAdjust: '/admin/users/:id/points/adjust',
+  badgeHolders: '/admin/badges/holders'
 } as const;
 
 // ───────────────────────── low (مالک حساب) ─────────────────────────
@@ -89,7 +139,7 @@ export const LowAdminSession = z.object({
 });
 export const LowAdminSessionsQuery = z.object({ page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().int().min(1).max(50).default(20), activeOnly: z.enum(['true', 'false']).default('false') });
 export const LowAdminRangeQuery = z.object({ from: IsoDate, to: IsoDate, interval: Interval.default('day') });
-export const LowAdminOtpSeries = z.object({ interval: Interval, items: z.array(z.object({ bucket: IsoDate, requested: Count, verified: Count })) });
+export const LowAdminOtpSeries = z.object({ interval: Interval, items: z.array(z.object({ bucket: IsoDate, requested: Count, verified: Count, failed: Count.optional().meta({ description: '۱.۶.۰: ارسال پیامک ناموفق' }) })) });
 export const LowAdminClients = z.object({ items: z.array(z.object({ client: z.string().max(24), activeSessions: Count })) });
 /** GET LOW_ADMIN.reportUsers?from&to — شمارش‌های حساب (منبع حقیقت low) */
 export const LowAdminUsersReport = z.object({
@@ -115,9 +165,8 @@ export const MidAdminTransition = TransitionBody;
 export const MidAdminMember = AdminMember;
 /** PATCH MID_ADMIN.member — { action: approve|reject } */
 export const MidAdminDecide = z.object({ action: z.enum(['approve', 'reject']) }).strict();
-/** PUT MID_ADMIN.memberRoles — بدنه = SetRolesBody */
-export const MidAdminSetRoles = SetRolesBody;
-/** DELETE MID_ADMIN.member — حذف عضو؛ مدیر جلسه قابل‌حذف نیست (409 CONFLICT) */
+/** DELETE MID_ADMIN.member — حذف عضو؛ مدیر جلسه قابل‌حذف نیست (409 CONFLICT). ۱.۶.۰: پاسخ = MidAdminRemoveMemberResult */
+export const MidAdminRemoveMemberResult = z.object({ userId: Uuid });
 export const MidAdminAttendance = z.object({ items: z.array(AttendanceEntry), total: Count });
 /** صف با نمای کامل (userId/name همهٔ ردیف‌ها پر است؛ ادمین استثنای حریم خصوصی D4 است) */
 export const MidAdminQueue = QueueState;
@@ -132,3 +181,110 @@ export const MidAdminOverview = z.object({
 export const MidAdminSessionsSeries = z.object({ interval: Interval, items: z.array(z.object({ bucket: IsoDate, created: Count, held: Count, attendance: Count })) });
 export const MidAdminLeaderboard = z.object({ items: z.array(z.object({ userId: Uuid, name: z.string().max(80), points: Count, badges: Count })) });
 export const MidAdminLeaderboardQuery = z.object({ limit: z.coerce.number().int().min(1).max(100).default(20) });
+
+// ───────────────────────── ۱.۶.۰ (docs-v2/30) ─────────────────────────
+const Reason = z.string().trim().min(3).max(300);
+/** همهٔ نوشتن‌های MID_ADMIN شناسهٔ ادمین را برای ثبت added_by/decided_by/marked_by می‌فرستند (audit اصلی در high است) */
+const Actor = { actorId: Uuid };
+
+/** low: POST LOW_INTERNAL.resolveUsers — فقط کاربران پیداشده برمی‌گردند (ترتیب ورودی حفظ نمی‌شود) */
+export const LowResolveUsersBody = z.object({ phones: z.array(IranMobile).min(1).max(50) }).strict();
+export const LowResolveUsersResult = z.object({
+  items: z.array(z.object({ phone: IranMobile, userId: Uuid, firstName: z.string().max(40), lastName: z.string().max(40), status: UserStatus }))
+});
+/** low: POST LOW_ADMIN.usersBulk — ساخت گروهی (موجود ⇒ exists بدون تغییر)؛ هر ساخت ⇒ user.registered */
+export const LowAdminUsersBulkBody = z
+  .object({ items: z.array(z.object({ phone: IranMobile, firstName: PersonName, lastName: PersonName }).strict()).min(1).max(200) })
+  .strict();
+export const LowAdminUsersBulkResult = z.object({
+  items: z.array(z.object({ phone: IranMobile, userId: Uuid.nullable(), outcome: z.enum(['created', 'exists', 'failed']), code: z.string().max(40).nullable() }))
+});
+/** low: GET LOW_ADMIN.broadcast — آمار تحویل پیام همگانی */
+export const LowAdminBroadcastStats = z.object({
+  status: z.enum(['queued', 'sending', 'done', 'failed']),
+  targeted: Count.nullable(),
+  delivered: Count,
+  read: Count
+});
+/** low: POST LOW_ADMIN.logoutAll — بدنهٔ اختیاری (۱.۶.۰): نگه‌داشتن نشست جاری (H-07 در یک فراخوانی) */
+export const LowAdminLogoutAllBody = z.object({ exceptSessionId: Uuid.optional() }).strict();
+
+/** mid: POST MID_ADMIN.membersAdd */
+export const MidAdminAddMembers = z
+  .object({
+    ...Actor,
+    items: z
+      .array(
+        z
+          .object({
+            userId: Uuid,
+            roles: z.array(StaffAssignableRole).min(1).max(3),
+            firstName: z.string().max(40).optional().meta({ description: 'برای ساخت ردیف دایرکتوری اگر رویداد user.registered هنوز نرسیده' }),
+            lastName: z.string().max(40).optional()
+          })
+          .strict()
+      )
+      .min(1)
+      .max(200),
+    onExisting: z.enum(['skip', 'merge', 'replace']).default('skip'),
+    notify: z.boolean().default(true)
+  })
+  .strict();
+export const MidAdminAddMembersResult = z.object({
+  items: z.array(z.object({ userId: Uuid, outcome: AddMemberOutcome, member: AdminMember.nullable() }))
+});
+export const MidAdminDecideBulk = z.object({ ...Actor, memberIds: z.array(Uuid).min(1).max(200), action: z.enum(['approve', 'reject']) }).strict();
+export const MidAdminDecideBulkResult = z.object({
+  items: z.array(z.object({ memberId: Uuid, outcome: z.enum(['approved', 'rejected', 'skipped', 'full', 'not_found']) }))
+});
+/** mid: PUT MID_ADMIN.memberRoles — ۱.۶.۰ بدنه = AdminSetMemberRolesBody + actorId اختیاری */
+export const MidAdminSetRoles = AdminSetMemberRolesBody.extend({ actorId: Uuid.optional() }).strict();
+/** mid: PUT MID_ADMIN.manager */
+export const MidAdminManager = z
+  .object({
+    ...Actor,
+    userId: Uuid,
+    previous: z.enum(['demote', 'remove', 'keep']).default('demote'),
+    previousRoles: z.array(StaffAssignableRole).min(1).max(3).default(['quran_student']),
+    transferCreator: z.boolean().default(false),
+    notify: z.boolean().default(true),
+    firstName: z.string().max(40).optional(),
+    lastName: z.string().max(40).optional()
+  })
+  .strict();
+/** پاسخ PUT MID_ADMIN.manager */
+export const MidAdminManagerResult = AdminSession;
+export const MidAdminOccurrence = Occurrence;
+export const MidAdminMarkAttendance = z.object({ ...Actor, userIds: z.array(Uuid).min(1).max(100), occurrenceId: Uuid.optional(), reason: Reason }).strict();
+export const MidAdminMarkAttendanceResult = MarkAttendanceResult;
+export const MidAdminRevokeAttendance = z.object({ ...Actor, occurrenceId: Uuid.optional(), reason: Reason }).strict();
+export const MidAdminRevokeAttendanceResult = RevokeAttendanceResult;
+export const MidAdminQueueNext = z.object({ ...Actor, expectCurrentItemId: Uuid.nullable().optional() }).strict();
+export const MidAdminQueueAct = QueueActBody.extend({ ...Actor, expectPosition: z.number().int().min(1).optional() }).strict();
+export const MidAdminEvaluationPatch = z
+  .object({ ...Actor, reason: Reason, voice: z.number().int().min(0).max(10).optional(), tone: z.number().int().min(0).max(10).optional(), tajweed: z.number().int().min(0).max(10).optional(), note: z.string().trim().max(300).optional() })
+  .strict()
+  .refine((v) => v.voice !== undefined || v.tone !== undefined || v.tajweed !== undefined || v.note !== undefined, { message: 'دست‌کم یک فیلد ارزیابی لازم است.' });
+export const MidAdminEvaluationVoid = z.object({ ...Actor, reason: Reason }).strict();
+export const MidAdminEvaluation = Evaluation;
+/** mid: POST MID_ADMIN.notify — پیام به اعضای جلسه (mid رویداد دسته‌ای inbox.messages.created می‌سازد) */
+export const MidAdminNotify = z
+  .object({ ...Actor, broadcastId: Uuid, roles: z.array(SessionRole).min(1).max(4).optional(), title: z.string().min(2).max(120), body: z.string().min(2).max(500), ref: z.string().regex(/^(session:[A-Za-z0-9_-]{1,64}|points|badge:[A-Za-z0-9_-]{1,64}|announcement:[A-Za-z0-9_-]{1,64})$/).max(200).nullable() })
+  .strict();
+export const MidAdminNotifyResult = z.object({ recipients: Count });
+export const MidAdminUserMembershipsQuery = UserMembershipsQuery;
+export const MidAdminUserMembership = UserMembership;
+export const MidAdminUserPointsQuery = z.object({ page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().int().min(1).max(50).default(20) });
+export const MidAdminUserPoints = z.object({
+  summary: PointsSummary,
+  ledger: z.object({ items: z.array(PointsLedgerItem), page: z.number().int().min(1), pageSize: z.number().int().min(1), total: Count })
+});
+export const MidAdminPointsAdjust = z
+  .object({ ...Actor, delta: z.number().int().min(-10000).max(10000).refine((d) => d !== 0, { message: 'مقدار نباید صفر باشد.' }), reason: Reason })
+  .strict();
+export const MidAdminPointsAdjustResult = z.object({ summary: PointsSummary, entry: PointsLedgerItem });
+/** mid برای low: GET MID_FOR_LOW.pointsLedger?page&pageSize ⇒ لیست PointsLedgerItem با meta */
+export const MidLowPointsLedgerQuery = MidAdminUserPointsQuery;
+
+/** mid: GET MID_ADMIN.badgeHolders ⇒ تعداد دارندگان هر نشان */
+export const MidAdminBadgeHolders = z.object({ items: z.array(z.object({ badgeId: Uuid, holders: Count })) });

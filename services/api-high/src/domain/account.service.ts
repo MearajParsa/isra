@@ -11,7 +11,6 @@ import { AuditService } from './audit.service';
 import { displayName } from './db';
 import { deviceSession } from './users-admin.service';
 
-const MAX_REVOKE_PASSES = 20;
 
 /** «حساب من» (H-02..H-07): همیشه روی کاربر توکن؛ شناسهٔ دیگری از کلاینت پذیرفته نمی‌شود. دادهٔ حساب مال low است. */
 @Injectable()
@@ -62,20 +61,10 @@ export class AccountService {
     await this.audit.write(this.ds, await this.entry(user, 'account.session_revoke', 'یک نشست خود را باطل کرد.', { sessionId }));
   }
 
-  /** خروج از همهٔ نشست‌های دیگر: نشست‌های فعال را فهرست و جز نشست جاری revoke می‌کند (قرارداد internal «keep current» برای logout-all ندارد) */
+  /** خروج از همهٔ نشست‌های دیگر: یک فراخوانی low با `exceptSessionId` (۱.۶.۰؛ docs-v2/30 §۳ کارایی) */
   async revokeOthers(user: AuthedUser): Promise<void> {
-    let revoked = 0;
-    for (let pass = 0; pass < MAX_REVOKE_PASSES; pass++) {
-      const r = await this.low.listSessions(user.userId, { page: 1, pageSize: 50, activeOnly: true });
-      const others = r.items.filter((s) => s.id !== user.sessionId && !s.revokedAt);
-      for (const s of others) {
-        await this.low.revokeSession(user.userId, s.id);
-        revoked++;
-      }
-      // همهٔ نشست‌های فعال در همین صفحه بود ⇒ تمام؛ وگرنه صفحهٔ بعدیِ باقی‌مانده را دوباره از ابتدا بخوان
-      if (!others.length || r.total <= r.items.length) break;
-    }
-    await this.audit.write(this.ds, await this.entry(user, 'account.session_revoke', 'از همهٔ نشست‌های دیگر خود خارج شد.', { others: true, count: revoked }));
+    await this.low.logoutAll(user.userId, { exceptSessionId: user.sessionId });
+    await this.audit.write(this.ds, await this.entry(user, 'account.session_revoke', 'از همهٔ نشست‌های دیگر خود خارج شد.', { others: true }));
   }
 
   private async entry(user: AuthedUser, action: string, summary: string, meta: Record<string, unknown>) {

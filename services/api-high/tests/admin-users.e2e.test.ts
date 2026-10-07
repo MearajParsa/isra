@@ -312,20 +312,21 @@ describe('H-26 وضعیت و حفاظت‌ها', () => {
     expect(self.status).toBe(409);
     expect(self.body.error.details.reason).toBe('SELF_PROTECTED');
     expect((await a.del(`/system/users/${dev.id}`, await dev.step())).body.error.details.reason).toBe('SELF_PROTECTED');
-    // مدیر با manage، آخرین developer را نمی‌تواند غیرفعال/حذف کند
+    // ۱.۶.۰ ضد تصاحب: حساب developer را فقط developer مدیریت می‌کند (مدیر با manage ⇒ 403، پیش از LAST_HOLDER)
     const admin = await mkUser(t, 'مدیر', ['super_admin']);
     await grantManageToSuperAdmin(dev);
     const off = await a.post(`/system/users/${dev.id}/status`, await admin.step(), { status: 'disabled' });
-    expect(off.status).toBe(409);
-    expect(off.body.error.details.reason).toBe('LAST_HOLDER');
-    expect((await a.del(`/system/users/${dev.id}`, await admin.step())).body.error.details.reason).toBe('LAST_HOLDER');
+    expect([off.status, off.body.error.code]).toEqual([403, 'AUTH_FORBIDDEN']);
+    expect((await a.del(`/system/users/${dev.id}`, await admin.step())).body.error.code).toBe('AUTH_FORBIDDEN');
     expect(low.users.get(dev.id)!.status).toBe('active');
-    // developer دوم فعال ⇒ مجاز؛ سپس دومی آخرین فعال است
+    // developer دوم فعال ⇒ مجاز
     const dev2 = await mkUser(t, 'توسعه دو', ['developer']);
     low.addUser(dev2);
-    expect((await a.post(`/system/users/${dev.id}/status`, await admin.step(), { status: 'disabled' })).status).toBe(200);
-    expect((await a.post(`/system/users/${dev2.id}/status`, await admin.step(), { status: 'disabled' })).body.error.details.reason).toBe('LAST_HOLDER');
+    expect((await a.post(`/system/users/${dev.id}/status`, await dev2.step(), { status: 'disabled' })).status).toBe(200);
     expect((await audits('user.status_change')).length).toBe(1);
+    // LAST_HOLDER هنوز روی حذف آخرین دارندهٔ نقش (مثلاً حذف تنها مدیر کل توسط developer)
+    const del = await a.del(`/system/users/${admin.id}`, await dev2.step());
+    expect([del.status, del.body.error.details.reason]).toEqual([409, 'LAST_HOLDER']);
   });
 });
 

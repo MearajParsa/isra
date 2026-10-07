@@ -2,14 +2,18 @@ import type { Server as HttpServer } from 'node:http';
 import { Inject, Injectable, Logger, type OnApplicationShutdown } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { Server, type Socket } from 'socket.io';
+import type { z } from 'zod';
 import { mid } from '@isra/api-types';
 import { JwtVerifier } from '../auth/jwt-verifier';
 import { ENV, type Env } from '../config/env';
 import { MembersAccess } from '../domain/access.service';
 
-export type LiveType = 'attendance.updated' | 'queue.updated' | 'queue.turned' | 'eval.updated' | 'session.state';
+/** همهٔ انواع رویداد قرارداد (mid.LiveEvent) */
+export type LiveType = z.infer<typeof mid.LiveEvent>['type'];
 
 const room = (sessionId: string) => `s:${sessionId}`;
+/** اتاق شخصی هر کاربر (همهٔ socketهای او) برای اخراج هدفمند از اتاق جلسه */
+const userRoom = (userId: string) => `u:${userId}`;
 
 /**
  * Socket.IO روی api-mid (قفل): توکن در handshake با JWKS اعتبارسنجی می‌شود؛ `session.join` فقط برای عضو تأییدشده.
@@ -63,6 +67,7 @@ export class LiveService implements OnApplicationShutdown {
   }
 
   private onConnection(socket: Socket) {
+    void socket.join(userRoom(socket.data.userId as string));
     let joins = 0;
     const windowTimer = setInterval(() => (joins = 0), 60_000);
     windowTimer.unref();
@@ -87,9 +92,40 @@ export class LiveService implements OnApplicationShutdown {
     });
   }
 
-  /** پس از commit فراخوانی شود. بدون socket (تست/غیرفعال) بی‌اثر است */
+  /**
+   * پس از commit فراخوانی شود. بدون socket (تست/غیرفعال) بی‌اثر است.
+   * `queue.turned` (حریم D4): userId فقط به کادر (queue.manage) و خودِ نفر نوبت‌رسیده؛ بقیه بدون userId.
+   */
   emit(sessionId: string, type: LiveType, payload?: Record<string, unknown>): void {
-    this.io?.to(room(sessionId)).emit('live', { type, sessionId, ...(payload ? { payload } : {}) });
+    if (!this.io) return;
+    if (type === 'queue.turned' && payload && typeof payload.userId === 'string') {
+      void this.emitTurned(sessionId, payload.userId, payload).catch((e: unknown) => this.log.warn({ err: e instanceof Error ? e.message : 'unknown' }, 'queue.turned emit failed'));
+      return;
+    }
+    this.io.to(room(sessionId)).emit('live', { type, sessionId, ...(payload ? { payload } : {}) });
+  }
+
+  private async emitTurned(sessionId: string, turnedUserId: string, payload: Record<string, unknown>): Promise<void> {
+    const sockets = await this.io!.in(room(sessionId)).fetchSockets();
+    if (!sockets.length) return;
+    const staff = await this.access.userIdsWithPermission(sessionId, 'queue.manage');
+    const { userId: _omit, ...rest } = payload;
+    for (const s of sockets) {
+      const uid = s.data.userId as string;
+      const full = uid === turnedUserId || staff.has(uid);
+      s.emit('live', { type: 'queue.turned', sessionId, payload: full ? payload : rest });
+    }
+  }
+
+  /** اخراج همهٔ socketهای این کاربران از اتاق جلسه (حذف/رد/ترک) */
+  evict(sessionId: string, userIds: readonly string[]): void {
+    if (!this.io || !userIds.length) return;
+    this.io.in(userIds.map(userRoom)).socketsLeave(room(sessionId));
+  }
+
+  /** بستن اتاق جلسه (حذف جلسه) */
+  closeRoom(sessionId: string): void {
+    this.io?.in(room(sessionId)).socketsLeave(room(sessionId));
   }
 
   async onApplicationShutdown() {

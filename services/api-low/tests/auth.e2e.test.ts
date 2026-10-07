@@ -94,7 +94,7 @@ describe('OTP verify (L-02)', () => {
     expect(v.status).toBe(200);
     expect(v.body.data.user).toMatchObject({ phone, isNewUser: true, profileComplete: false, hasPassword: false });
     expect(v.body.data.tokenType).toBe('Bearer');
-    expect(v.body.data.accessExpiresIn).toBe(900);
+    expect(v.body.data.accessExpiresIn).toBe(1200); // قفل #9: ۲۰ دقیقه
     expect(v.body.data.refreshToken).toBeTruthy(); // غیر وب: در body
 
     t.clock.advance(61_000);
@@ -327,9 +327,9 @@ describe('refresh / logout (L-04, L-05)', () => {
     expect(r.status).toBe(401);
   });
 
-  it('refresh منقضی (۱۴ روز) رد می‌شود', async () => {
+  it('refresh منقضی (۳۰ روز؛ قفل #9) رد می‌شود', async () => {
     const l = await loginOtp(t);
-    t.clock.advance(15 * 86_400_000);
+    t.clock.advance(31 * 86_400_000);
     const r = await post('/auth/refresh', ANDROID).send({ refreshToken: l.refreshToken });
     expect(r.status).toBe(401);
   });

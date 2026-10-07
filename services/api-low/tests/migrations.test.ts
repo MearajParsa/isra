@@ -18,14 +18,16 @@ const tables = async () => ((await ds.query('SELECT table_name AS t FROM informa
 describe('migration', () => {
   it('down همهٔ جدول‌ها را برمی‌دارد و up دوباره می‌سازد (قابل تکرار)', async () => {
     await ds.runMigrations();
-    expect((await tables()).length).toBe(12);
+    expect((await tables()).length).toBe(16);
+    await ds.undoLastMigration();
+    expect((await tables()).length).toBe(12); // v4 down برگشت‌پذیر
     await ds.undoLastMigration();
     await ds.undoLastMigration();
     await ds.undoLastMigration();
     expect(await tables()).toEqual([]);
     await ds.runMigrations();
     expect(await tables()).toEqual(
-      ['auth_sessions', 'inbox_events', 'inbox_messages', 'otp_challenges', 'outbox_events', 'profiles', 'rate_limit_counters', 'refresh_tokens', 'settings_cache', 'user_claims', 'user_credentials', 'users'].sort()
+      ['auth_sessions', 'badge_catalog', 'dead_letter_events', 'inbox_broadcasts', 'inbox_events', 'inbox_messages', 'otp_challenges', 'otp_cooldowns', 'outbox_events', 'profiles', 'rate_limit_counters', 'refresh_tokens', 'settings_cache', 'user_claims', 'user_credentials', 'users'].sort()
     );
   });
 
@@ -44,5 +46,6 @@ describe('migration', () => {
     expect(await unique('users', 'uq_users_phone')).toBe(true);
     expect(await unique('refresh_tokens', 'uq_refresh_hash')).toBe(true);
     expect(await unique('inbox_messages', 'uq_inbox_source_event')).toBe(true);
+    expect(await unique('inbox_messages', 'uq_inbox_broadcast_user')).toBe(true);
   });
 });

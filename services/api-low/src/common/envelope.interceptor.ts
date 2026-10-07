@@ -2,8 +2,10 @@ import { createHash } from 'node:crypto';
 import { type CallHandler, type ExecutionContext, Injectable, type NestInterceptor } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Response } from 'express';
+import { StreamableFile } from '@nestjs/common';
 import { type Observable, map } from 'rxjs';
 import { HEADERS } from '@isra/api-types';
+import { BinaryResponse } from './binary';
 import { EP_KEY, endpoint } from './ep';
 import type { IsraRequest } from './request-context';
 
@@ -31,6 +33,7 @@ export class EnvelopeInterceptor implements NestInterceptor {
 
     return next.handle().pipe(
       map((value: unknown) => {
+        if (value instanceof BinaryResponse) return this.binary(req, res, value);
         const cache = def.cache ?? 'no-store';
         if (cache === 'no-store') res.setHeader('Cache-Control', 'no-store');
         else {
@@ -58,5 +61,20 @@ export class EnvelopeInterceptor implements NestInterceptor {
         return body;
       })
     );
+  }
+
+  /** پاسخ باینری (L-34): Content-Type دقیق، nosniff، Cache-Control از سرویس (immutable فقط وقتی v=hash)، ETag قوی و 304 */
+  private binary(req: IsraRequest, res: Response, v: BinaryResponse): StreamableFile | undefined {
+    const etag = `"${v.etag}"`;
+    res.setHeader('Cache-Control', v.cacheControl);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+    res.setHeader(HEADERS.etag, etag);
+    if (req.header(HEADERS.ifNoneMatch) === etag) {
+      res.status(304);
+      return undefined;
+    }
+    res.setHeader('Content-Type', v.contentType);
+    return new StreamableFile(v.data, { type: v.contentType, length: v.data.length });
   }
 }

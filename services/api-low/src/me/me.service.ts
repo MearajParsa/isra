@@ -7,6 +7,7 @@ import { PasswordService } from '../auth/password.service';
 import { SessionStatusCache } from '../auth/session-status.cache';
 import { SessionService } from '../auth/session.service';
 import { RateLimitService } from '../common/rate-limit/rate-limit.service';
+import { AccountDeletionService } from '../users/account-deletion.service';
 
 interface ProfileRow {
   first_name: string;
@@ -22,7 +23,8 @@ export class MeService {
     private readonly passwords: PasswordService,
     private readonly sessions: SessionService,
     private readonly cache: SessionStatusCache,
-    private readonly limiter: RateLimitService
+    private readonly limiter: RateLimitService,
+    private readonly deletion: AccountDeletionService
   ) {}
 
   private profileOut(r?: ProfileRow) {
@@ -139,6 +141,20 @@ export class MeService {
     const exists = (await this.ds.query('SELECT 1 AS x FROM inbox_messages WHERE id = ? AND user_id = ?', [uuidToBuf(id), uuidToBuf(userId)])) as unknown[];
     if (!exists.length) throw new AppError('NOT_FOUND');
     await this.ds.query('UPDATE inbox_messages SET read_at = ? WHERE id = ? AND user_id = ? AND read_at IS NULL', [this.clock.now(), uuidToBuf(id), uuidToBuf(userId)]);
+    return {};
+  }
+
+  /** L-22: هستهٔ مشترک با حذف ادمین؛ نقش سیستمی ⇒ CONFLICT/SYSTEM_PROTECTED؛ رویداد با source=self */
+  async deleteMe(userId: string) {
+    await this.deletion.softDelete(userId, 'self', true);
+    return {};
+  }
+
+  /** L-28: پیام دیگران/ناموجود ⇒ NOT_FOUND */
+  async deleteMessage(userId: string, id: string) {
+    if (!isUuid(id)) throw new AppError('NOT_FOUND');
+    const r = (await this.ds.query('DELETE FROM inbox_messages WHERE id = ? AND user_id = ?', [uuidToBuf(id), uuidToBuf(userId)])) as { affectedRows?: number };
+    if (!r.affectedRows) throw new AppError('NOT_FOUND');
     return {};
   }
 

@@ -85,13 +85,20 @@ describe('env (fail-fast)', () => {
   });
   it('پیش‌فرض‌های امن', () => {
     const e = testEnv();
-    expect(e.ACCESS_TTL_SEC).toBe(900);
-    expect(e.REFRESH_TTL_SEC).toBe(1_209_600);
+    expect(e.ACCESS_TTL_SEC).toBe(1200);
+    expect(e.REFRESH_TTL_SEC).toBe(2_592_000);
+    // env override همچنان مجاز
+    expect(testEnv({ ACCESS_TTL_SEC: '900', REFRESH_TTL_SEC: '1209600' }).ACCESS_TTL_SEC).toBe(900);
     expect(e.OTP_TTL_SEC).toBe(120);
     expect(e.OTP_MAX_ATTEMPTS).toBe(3);
     expect(e.SWAGGER_ENABLED).toBe(false);
     expect(e.COOKIE_SECURE).toBe(false);
     expect(loadEnv({ ...testEnvRaw(), NODE_ENV: 'development' }).COOKIE_SECURE).toBe(false);
+  });
+  it('SMS کنسول فقط development؛ capture فقط test', () => {
+    expect(() => loadEnv({ ...testEnvRaw(), SMS_PROVIDER: 'console', NODE_ENV: 'test' })).toThrow(/SMS_PROVIDER/);
+    expect(() => loadEnv({ ...testEnvRaw(), SMS_PROVIDER: 'capture', NODE_ENV: 'development' })).toThrow(/SMS_PROVIDER/);
+    expect(loadEnv({ ...testEnvRaw(), SMS_PROVIDER: 'console', NODE_ENV: 'development' }).SMS_PROVIDER).toBe('console');
   });
 });
 

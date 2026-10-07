@@ -65,8 +65,21 @@ describe('رویدادهای داخلی', () => {
     expect((await request(t.http).get('/c/v1/me/inbox?unreadOnly=true').set(u.headers)).body.data).toHaveLength(0);
   });
 
-  it('payload نامعتبر ⇒ 400؛ نوع خارج از allow-list فرستنده ⇒ 403', async () => {
-    expect((await send(event('inbox.message.created', { userId: 'x' }))).status).toBe(400);
+  it('envelope نامعتبر ⇒ 400؛ payload نامعتبر ⇒ dead-letter + 202؛ نوع خارج از allow-list فرستنده ⇒ 403', async () => {
+    expect((await send({ eventId: 'x', type: 'inbox.message.created', payload: {} })).status).toBe(400);
+    const bad = event('inbox.message.created', { userId: 'x' });
+    expect((await send(bad)).status).toBe(202);
+    expect((await send(bad)).status).toBe(202); // تکراری ⇒ یک ردیف dead-letter
+    const dl = (await t.ds.query('SELECT type, caller, error FROM dead_letter_events WHERE event_id = ?', [bad.eventId])) as { type: string; caller: string; error: string }[];
+    expect(dl).toHaveLength(1);
+    expect(dl[0]).toMatchObject({ type: 'inbox.message.created', caller: 'mid' });
+    expect(dl[0]!.error).toContain('userId');
+    // ref خارج از الگوی قرارداد ⇒ dead-letter
+    const u = await loginOtp(t);
+    const badRef = event('inbox.message.created', { userId: u.userId, kind: 'system', title: 't', body: 'b', ref: 'javascript:alert(1)' });
+    expect((await send(badRef)).status).toBe(202);
+    expect(await t.ds.query('SELECT 1 FROM dead_letter_events WHERE event_id = ?', [badRef.eventId])).toHaveLength(1);
+    expect(await t.ds.query('SELECT 1 FROM inbox_messages WHERE user_id = UNHEX(REPLACE(?, "-", ""))', [u.userId])).toHaveLength(0);
     expect((await send(event('future.event.v9', { a: 1 }))).status).toBe(403);
     // mid اجازهٔ ارسال system.* را ندارد (حتی با secret درست جفت خودش)
     expect((await send(event('system.role.changed', { userId: randomUUID(), systemRoles: ['super_admin'], grants: [], permVer: 9 }), SECRET, 'mid')).status).toBe(403);
@@ -180,7 +193,7 @@ describe('outbox', () => {
     const svc = t.app.get(OutboxService);
     await svc.tick();
     const first = (mid.hits[0]!.body as { eventId: string }).eventId;
-    await t.ds.query('UPDATE outbox_events SET published_at = NULL');
+    await t.ds.query('UPDATE outbox_events SET published_at = NULL, pending_targets = NULL, next_attempt_at = ?', [t.clock.now()]);
     await svc.tick();
     expect((mid.hits[1]!.body as { eventId: string }).eventId).toBe(first);
   });

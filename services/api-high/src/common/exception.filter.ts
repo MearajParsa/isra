@@ -82,6 +82,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
       this.log.warn({ event: 'security', code, requestId, method: req.method, path: (req.route as { path?: string } | undefined)?.path ?? 'unmatched', ip: req.ctx?.ip, userId: req.user?.userId }, 'security event');
     }
     const status = ERROR_CATALOG[code].status;
+    if (res.headersSent) {
+      // خطا وسط stream (خروجی CSV): پاسخ نیمه‌کاره را قطع کن تا کلاینت فایل ناقص را کامل نپندارد
+      res.destroy();
+      return;
+    }
     const retry = typeof details?.retryAfterSec === 'number' ? (details.retryAfterSec as number) : undefined;
     if (retry !== undefined) res.setHeader(HEADERS.retryAfter, String(Math.max(1, Math.ceil(retry))));
     res.setHeader('Cache-Control', 'no-store');

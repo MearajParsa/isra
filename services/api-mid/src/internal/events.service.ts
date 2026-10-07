@@ -4,7 +4,9 @@ import { z } from 'zod';
 import { internal } from '@isra/api-types';
 import { RevocationService } from '../auth/revocation.service';
 import { Clock } from '../common/clock';
-import { uuidToBuf } from '../common/ids';
+import { bufToUuid, uuidToBuf } from '../common/ids';
+import { LiveService } from '../live/live.service';
+import { BadgesService } from '../domain/badges.service';
 import { SettingsChanged, SettingsService } from '../domain/settings.service';
 
 export interface InboundEvent {
@@ -15,7 +17,8 @@ export interface InboundEvent {
 }
 
 const SessionRevoked = z.object({ sessionIds: z.array(z.uuid()).min(1).max(50), expiresAt: z.iso.datetime({ offset: true }) });
-const UserRegistered = z.object({ userId: z.uuid() });
+/** low نام را هم می‌فرستد (۱.۶.۰: ذخیره در دایرکتوری)؛ شماره در mid نگه‌داری نمی‌شود */
+const UserRegistered = z.object({ userId: z.uuid(), firstName: z.string().max(40).optional(), lastName: z.string().max(40).optional() });
 const ProfileUpdated = z.object({ userId: z.uuid(), firstName: z.string().max(40).optional(), lastName: z.string().max(40).optional() });
 
 /**
@@ -30,18 +33,25 @@ export class EventsService {
     private readonly ds: DataSource,
     private readonly clock: Clock,
     private readonly settings: SettingsService,
-    private readonly revocation: RevocationService
+    private readonly revocation: RevocationService,
+    private readonly live: LiveService,
+    private readonly badges: BadgesService
   ) {}
 
   async handle(e: InboundEvent): Promise<void> {
     const now = this.clock.now();
+    const queueSessions: string[] = [];
     await this.ds.transaction(async (m) => {
       const ins = (await m.query('INSERT IGNORE INTO inbox_events (event_id, type, received_at) VALUES (?, ?, ?)', [e.eventId, e.type, now])) as { affectedRows?: number };
       if (!ins.affectedRows) return;
 
       if (e.type === 'user.registered') {
         const p = UserRegistered.parse(e.payload);
-        await m.query('INSERT IGNORE INTO user_directory (user_id, first_name, last_name, updated_at) VALUES (?, ?, ?, ?)', [uuidToBuf(p.userId), '', '', now]);
+        await m.query(
+          `INSERT INTO user_directory (user_id, first_name, last_name, updated_at) VALUES (?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE first_name = IF(deleted = 1 OR VALUES(first_name) = '', first_name, VALUES(first_name)), last_name = IF(deleted = 1 OR VALUES(last_name) = '', last_name, VALUES(last_name)), updated_at = VALUES(updated_at)`,
+          [uuidToBuf(p.userId), (p.firstName ?? '').slice(0, 40), (p.lastName ?? '').slice(0, 40), now]
+        );
       } else if (e.type === 'user.profile.updated') {
         const p = ProfileUpdated.parse(e.payload);
         await m.query(
@@ -50,13 +60,27 @@ export class EventsService {
           [uuidToBuf(p.userId), p.firstName ?? '', p.lastName ?? '', now, p.firstName ?? null, p.lastName ?? null]
         );
       } else if (e.type === 'user.status.changed') {
-        // حذف کاربر (برگشت‌ناپذیر): نام پاک و ردیف علامت «حذف‌شده» ⇒ همه‌جا «کاربر حذف‌شده». active/disabled فقط مربوط به high است.
+        // همهٔ وضعیت‌ها در user_directory.status (افزودن عضو: not_active). حذف (برگشت‌ناپذیر): نام پاک + علامت «حذف‌شده»
+        // ⇒ همه‌جا «کاربر حذف‌شده» و آیتم‌های فعال صفش حذف (حضور/ارزیابی/امتیاز برای تاریخچه می‌ماند).
         const p = internal.UserStatusChanged.parse(e.payload);
+        const uid = uuidToBuf(p.userId);
         if (p.status === 'deleted') {
           await m.query(
-            `INSERT INTO user_directory (user_id, first_name, last_name, deleted, updated_at) VALUES (?, '', '', 1, ?)
-             ON DUPLICATE KEY UPDATE first_name = '', last_name = '', deleted = 1, updated_at = VALUES(updated_at)`,
-            [uuidToBuf(p.userId), now]
+            `INSERT INTO user_directory (user_id, first_name, last_name, deleted, status, updated_at) VALUES (?, '', '', 1, 'deleted', ?)
+             ON DUPLICATE KEY UPDATE first_name = '', last_name = '', deleted = 1, status = 'deleted', updated_at = VALUES(updated_at)`,
+            [uid, now]
+          );
+          const q = (await m.query("SELECT DISTINCT session_id FROM queue_items WHERE user_id = ? AND status IN ('waiting','current')", [uid])) as { session_id: Buffer }[];
+          if (q.length) {
+            await m.query("DELETE FROM queue_items WHERE user_id = ? AND status IN ('waiting','current')", [uid]);
+            queueSessions.push(...q.map((r) => bufToUuid(r.session_id)));
+          }
+        } else {
+          // حذف برگشت‌ناپذیر است: active/disabled دیرهنگام کاربر حذف‌شده را زنده نمی‌کند
+          await m.query(
+            `INSERT INTO user_directory (user_id, first_name, last_name, status, updated_at) VALUES (?, '', '', ?, ?)
+             ON DUPLICATE KEY UPDATE status = IF(deleted = 1, 'deleted', VALUES(status)), updated_at = VALUES(updated_at)`,
+            [uid, p.status, now]
           );
         }
       } else if (e.type === 'user.phone.changed') {
@@ -67,9 +91,13 @@ export class EventsService {
         await this.revocation.add(m, p.sessionIds, new Date(p.expiresAt));
       } else if (e.type === 'system.settings.changed') {
         await this.settings.apply(SettingsChanged.parse(e.payload));
+      } else if (e.type === 'badge.catalog.changed') {
+        // ۱.۶.۰: جایگزینی کامل کاتالوگ اگر version بزرگ‌تر؛ job بازمحاسبه پس از commit (BadgesService)
+        await this.badges.applyCatalog(m, internal.BadgeCatalogChanged.parse(e.payload));
       } else {
         this.log.debug({ type: e.type }, 'نوع رویداد ناشناخته؛ نادیده');
       }
     });
+    for (const sid of queueSessions) this.live.emit(sid, 'queue.updated');
   }
 }

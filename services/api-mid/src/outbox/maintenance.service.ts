@@ -4,6 +4,7 @@ import { RevocationService } from '../auth/revocation.service';
 import { Clock } from '../common/clock';
 import { RateLimitService } from '../common/rate-limit/rate-limit.service';
 import { ENV, type Env } from '../config/env';
+import { BadgesService } from '../domain/badges.service';
 import { SessionsService } from '../domain/sessions.service';
 
 const DAY = 86_400_000;
@@ -20,6 +21,7 @@ export class MaintenanceService implements OnApplicationBootstrap, OnApplication
     private readonly limiter: RateLimitService,
     private readonly revocation: RevocationService,
     private readonly sessions: SessionsService,
+    private readonly badges: BadgesService,
     @Inject(ENV) private readonly env: Env
   ) {}
 
@@ -45,6 +47,7 @@ export class MaintenanceService implements OnApplicationBootstrap, OnApplication
       out.inboxEvents = await del('DELETE FROM inbox_events WHERE received_at < ? LIMIT 5000', ago(30 * DAY));
       out.counters = await this.limiter.purgeOlderThan(ago(2 * DAY));
       if (this.env.SCHEDULER_ENABLED) out.snapshots = await this.sessions.refreshSnapshots();
+      out.badgeRecompute = await this.badges.runRecompute(); // ادامهٔ job ناتمام تغییر کاتالوگ (idempotent)
     } catch (e) {
       this.log.error({ err: e instanceof Error ? e.message : 'unknown' }, 'maintenance failed');
     }

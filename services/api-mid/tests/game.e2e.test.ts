@@ -88,7 +88,7 @@ describe('حضور و امتیاز (+۵ فقط یک‌بار)', () => {
     expect(pts.badges.map((b: any) => b.threshold)).toEqual([5, 10, 20, 30]);
     expect(pts.badges[0].awardedAt).toBeTruthy();
     expect(pts.badges[1].awardedAt).toBeNull();
-    const ev = (await t.ds.query("SELECT payload FROM outbox_events WHERE type = 'inbox.message.created'")) as { payload: any }[];
+    const ev = (await t.ds.query("SELECT payload FROM outbox_events WHERE type = 'inbox.messages.created'")) as { payload: any }[];
     expect(ev.some((e) => String(typeof e.payload === 'string' ? e.payload : JSON.stringify(e.payload)).includes('نشان'))).toBe(true);
     await t.ds.query('DELETE FROM settings_cache');
     (t.app.get(SettingsService) as unknown as { cached?: unknown }).cached = undefined;

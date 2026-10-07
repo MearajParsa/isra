@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AppError } from '../src/common/app-error';
 import { maskIp } from '../src/common/phone';
 import { bucketStart, fillSeries, parseDay, resolveRange } from '../src/common/tehran';
-import { ALL_PERMISSIONS, DEFAULT_ROLE_PERMS, LOCKED } from '../src/db/rbac-seed';
+import { ALL_PERMISSIONS, DEFAULT_ROLE_PERMS, LOCKED, NEW_V16 } from '../src/db/rbac-seed';
 
 const day = (s: string) => parseDay(s)!;
 
@@ -80,7 +80,8 @@ describe('tehran: بازه و سطل‌ها', () => {
 
 describe('ماتریس مجوز پیش‌فرض ۱.۴', () => {
   it('developer همه قفل؛ super_admin: sessions.view/reports.view بدون قفل و بدون manage', () => {
-    expect(ALL_PERMISSIONS).toHaveLength(14);
+    expect(ALL_PERMISSIONS).toHaveLength(19);
+    for (const p of NEW_V16) expect(DEFAULT_ROLE_PERMS.super_admin!).not.toContain(p);
     expect([...LOCKED.developer!].sort()).toEqual([...ALL_PERMISSIONS].sort());
     expect(DEFAULT_ROLE_PERMS.super_admin!).toEqual(expect.arrayContaining(['system.sessions.view', 'system.reports.view']));
     expect(DEFAULT_ROLE_PERMS.super_admin!).not.toContain('system.users.manage');

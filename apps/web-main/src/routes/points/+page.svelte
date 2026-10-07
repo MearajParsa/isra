@@ -42,11 +42,11 @@
 
       <h2 class="h">نشان‌ها</h2>
       <ul class="badges">
-        {#each points.data.badges as b (b.key)}
+        {#each points.data.badges as b (b.id)}
           <li><BadgeTile badge={b} /></li>
         {/each}
       </ul>
-      <p class="muted rule">هر ورود به جلسه فقط یک‌بار ۵ امتیاز دارد. نشان‌های کسب‌شده با کم‌شدن امتیاز باطل نمی‌شوند.</p>
+      <p class="muted rule">هر ورود به جلسه فقط یک‌بار ۵ امتیاز دارد. اگر امتیاز (با اصلاح یا لغو) زیر آستانهٔ یک نشان برود، آن نشان پس گرفته می‌شود.</p>
     {:else if points.status === 'error'}
       <EmptyState icon={points.offline ? 'wifi-off' : 'alert'} tone="error" title="امتیازها بارگذاری نشد" message={points.error ?? ''}>
         {#snippet action()}<Button variant="secondary" onclick={load}><Icon name="refresh" size={18} />تلاش دوباره</Button>{/snippet}

@@ -94,7 +94,7 @@ describe('جلسه: فهرست/جزئیات/ساخت/ویرایش/transition', (
     const s = high.AdminSession.parse(r.body.data);
     expect(s.status).toBe('draft');
     expect(s.createdBy).toEqual({ id: creatorUser.id, name: 'سازندهٔ ویژه' });
-    expect(s.counts).toEqual({ members: 1, pending: 0, attendance: 0, evaluations: 0 });
+    expect(s.counts).toEqual({ members: 1, pending: 0, attendance: 0, evaluations: 0, managers: 1, occurrences: 0 });
     expect(s.deletedAt).toBeNull();
     const me = await a.get(`/sessions/${s.id}/me`, creatorUser);
     expect(me.status).toBe(200);
@@ -326,7 +326,7 @@ describe('اعضا (ادمین)', () => {
     const u2 = await mkUser(t, 'ردشده');
     const m1 = (await a.post(`/sessions/${r.id}/members`, u1)).body.data.id as string;
     const m2 = (await a.post(`/sessions/${r.id}/members`, u2)).body.data.id as string;
-    const inbox = async (uid: string) => (await t.ds.query("SELECT payload FROM outbox_events WHERE type = 'inbox.message.created' AND JSON_VALUE(payload, '$.userId') = ?", [uid])) as { payload: unknown }[];
+    const inbox = async (uid: string) => (await t.ds.query("SELECT payload FROM outbox_events WHERE type = 'inbox.messages.created' AND JSON_VALUE(payload, '$.items[0].userId') = ? AND JSON_VALUE(payload, '$.items[0].kind') = 'membership'", [uid])) as { payload: unknown }[];
     const ok = await ad.patch(`/admin/sessions/${r.id}/members/${m1}`, { action: 'approve' });
     expect(ok.status).toBe(200);
     expect(ok.body.data.status).toBe('approved');
@@ -350,27 +350,29 @@ describe('اعضا (ادمین)', () => {
     expect((await ad.patch(`/admin/sessions/${r.id}/members/${other.studentMembers[0]}`, { action: 'approve' })).status).toBe(404);
   });
 
-  it('نقش‌ها: SetRolesBody؛ خالی = قرآن‌آموز؛ غیرتأییدشده 409؛ نقش مدیر دست‌نخورده؛ ورودی نامعتبر 400', async () => {
+  it('نقش‌ها (H-68، ۱.۶.۰): دقیقاً همین نقش‌ها (مدیر هم)؛ غیرتأییدشده 409؛ آخرین مدیر LAST_HOLDER؛ ورودی نامعتبر 400', async () => {
     const r = await room(1);
     const mid = r.studentMembers[0]!;
-    const set = await ad.put(`/admin/sessions/${r.id}/members/${mid}/roles`, { roles: ['teacher', 'session_supporter'] });
+    const set = await ad.put(`/admin/sessions/${r.id}/members/${mid}/roles`, { roles: ['teacher', 'session_supporter'], actorId: randomUUID() });
     expect(set.status).toBe(200);
     expect(set.body.data.roles).toEqual(['session_supporter', 'teacher']);
-    expect((await ad.put(`/admin/sessions/${r.id}/members/${mid}/roles`, { roles: [] })).body.data.roles).toEqual(['quran_student']);
-    expect((await ad.put(`/admin/sessions/${r.id}/members/${mid}/roles`, { roles: ['session_manager'] })).status).toBe(400);
+    expect((await ad.put(`/admin/sessions/${r.id}/members/${mid}/roles`, { roles: ['quran_student'] })).body.data.roles).toEqual(['quran_student']);
+    expect((await ad.put(`/admin/sessions/${r.id}/members/${mid}/roles`, { roles: [] })).status).toBe(400);
     expect((await ad.put(`/admin/sessions/${r.id}/members/${mid}/roles`, {})).status).toBe(400);
-    expect((await ad.put(`/admin/sessions/${r.id}/members/${randomUUID()}/roles`, { roles: [] })).status).toBe(404);
+    expect((await ad.put(`/admin/sessions/${r.id}/members/${randomUUID()}/roles`, { roles: ['teacher'] })).status).toBe(404);
     const pend = await mkUser(t, 'در انتظار');
     const pm = (await a.post(`/sessions/${r.id}/members`, pend)).body.data.id as string;
     const na = await ad.put(`/admin/sessions/${r.id}/members/${pm}/roles`, { roles: ['teacher'] });
     expect(na.status).toBe(409);
     expect(na.body.error.details.reason).toBe('NOT_APPROVED');
-    // مدیر: نقش مدیر می‌ماند
+    // مدیر: برداشتن آخرین مدیر ⇒ LAST_HOLDER؛ هم‌مدیر ⇒ سپس مجاز
     const mgr = ((await ad.get(`/admin/sessions/${r.id}/members`)).body.data as { id: string; roles: string[] }[]).find((m) => m.roles.includes('session_manager'))!;
-    const keep = await ad.put(`/admin/sessions/${r.id}/members/${mgr.id}/roles`, { roles: ['teacher'] });
-    expect(keep.body.data.roles).toEqual(['session_manager', 'teacher']);
-    const keep2 = await ad.put(`/admin/sessions/${r.id}/members/${mgr.id}/roles`, { roles: [] });
-    expect(keep2.body.data.roles).toEqual(['session_manager']);
+    const last = await ad.put(`/admin/sessions/${r.id}/members/${mgr.id}/roles`, { roles: ['teacher'] });
+    expect(last.status).toBe(409);
+    expect(last.body.error.details.reason).toBe('LAST_HOLDER');
+    expect((await ad.put(`/admin/sessions/${r.id}/members/${mgr.id}/roles`, { roles: ['session_manager', 'teacher'] })).body.data.roles).toEqual(['session_manager', 'teacher']);
+    expect((await ad.put(`/admin/sessions/${r.id}/members/${mid}/roles`, { roles: ['session_manager'] })).body.data.roles).toEqual(['session_manager']);
+    expect((await ad.put(`/admin/sessions/${r.id}/members/${mgr.id}/roles`, { roles: ['teacher'] })).body.data.roles).toEqual(['teacher']);
   });
 
   it('حذف عضو: مدیر ⇒ 409 CONFLICT؛ عضو عادی حذف با نقش‌ها و صف؛ درخواست دوباره ممکن؛ ناشناس 404', async () => {
@@ -456,7 +458,8 @@ describe('حضور/صف/ارزیابی (نمای کامل فقط‌خواندن�
     expect((await a.post(`/sessions/${r.id}/evaluations`, r.manager, { queueItemId: item, voice: 5, tone: 5, tajweed: 5 })).status).toBe(403);
     const empty = await room(0);
     expect((await ad.get(`/admin/sessions/${empty.id}/evaluations`)).body.data).toEqual({ items: [], total: 0 });
-    expect((await ad.get(`/admin/sessions/${empty.id}/attendance`)).body.data).toEqual({ items: [], total: 0 });
+    // once+started ⇒ نوبت #۱ باز است (بدون حضور)
+    expect((await ad.get(`/admin/sessions/${empty.id}/attendance`)).body.data).toMatchObject({ items: [], total: 0 });
     const q = (await ad.get(`/admin/sessions/${empty.id}/queue`)).body.data;
     expect(q).toMatchObject({ current: null, waiting: [], done: [], waitingCount: 0 });
   });
@@ -471,7 +474,7 @@ describe('خلاصهٔ کاربر', () => {
     expect(sum).toEqual({ points: { total: 5, badges: 0 }, sessions: { created: 0, memberships: 1, attended: 1 } });
     const mgr = internal.MidAdminUserSummary.parse((await ad.get(`/admin/users/${r.manager.id}/summary`)).body.data);
     expect(mgr.sessions).toEqual({ created: 1, memberships: 1, attended: 0 });
-    await t.ds.query("INSERT INTO badge_awards (id, user_id, badge_key, threshold, awarded_at) VALUES (?, ?, 'badge_50', 50, NOW(3))", [bin(uuidv7()), bin(s.id)]);
+    await t.ds.query('INSERT INTO badge_awards (user_id, badge_id, awarded_at) VALUES (?, ?, NOW(3))', [bin(s.id), bin(uuidv7())]);
     expect((await ad.get(`/admin/users/${s.id}/summary`)).body.data.points.badges).toBe(1);
     await ad.del(`/admin/sessions/${r.id}`);
     expect((await ad.get(`/admin/users/${s.id}/summary`)).body.data.sessions).toEqual({ created: 0, memberships: 0, attended: 0 });
@@ -553,7 +556,7 @@ describe('گزارش‌ها', () => {
     await rawSession({ createdAt: '2027-01-10T00:00:00Z', status: 'scheduled', updatedAt: '2027-03-05T10:00:00Z' }); // held نیست
     await rawSession({ createdAt: '2027-01-10T00:00:00Z', status: 'ended', updatedAt: '2027-03-06T10:00:00Z', deletedAt: '2027-03-07T00:00:00Z' }); // حذف‌شده
     const deletedS = await rawSession({ createdAt: '2027-01-10T00:00:00Z', status: 'started', updatedAt: '2027-03-05T10:00:00Z', deletedAt: '2027-03-07T00:00:00Z' });
-    const att = (sid: string, u: string, at: string) => t.ds.query('INSERT INTO attendance_entries (id, session_id, user_id, entered_at) VALUES (?, ?, ?, ?)', [bin(uuidv7()), bin(sid), bin(u), new Date(at)]);
+    const att = (sid: string, u: string, at: string) => t.ds.query('INSERT INTO attendance_entries (id, session_id, occurrence_id, user_id, entered_at) VALUES (?, ?, ?, ?, ?)', [bin(uuidv7()), bin(sid), bin(uuidv7()), bin(u), new Date(at)]);
     await att(startedS, uuidv7(), '2027-03-05T10:00:00Z');
     await att(startedS, uuidv7(), '2027-03-05T11:00:00Z');
     await att(endedS, uuidv7(), '2027-02-10T10:00:00Z');
@@ -607,7 +610,7 @@ describe('گزارش‌ها', () => {
     const [s1, s2, s3] = r.students as [User, User, User];
     const put = async (u: User, total: number, badges: number) => {
       await t.ds.query('INSERT INTO user_points (user_id, total, updated_at) VALUES (?, ?, NOW(3)) ON DUPLICATE KEY UPDATE total = VALUES(total)', [bin(u.id), total]);
-      for (let i = 0; i < badges; i++) await t.ds.query('INSERT INTO badge_awards (id, user_id, badge_key, threshold, awarded_at) VALUES (?, ?, ?, ?, NOW(3))', [bin(uuidv7()), bin(u.id), `badge_${i}`, 50 * (i + 1)]);
+      for (let i = 0; i < badges; i++) await t.ds.query('INSERT INTO badge_awards (user_id, badge_id, awarded_at) VALUES (?, ?, NOW(3))', [bin(u.id), bin(uuidv7())]);
     };
     await put(s1, 120, 2);
     await put(s2, 400, 3);
@@ -652,7 +655,8 @@ describe('رویداد user.status.changed / user.phone.changed', () => {
     expect(members.find((m) => m.userId === s.id)!.name).toBe(DELETED);
     expect(members.filter((m) => m.name === DELETED)).toHaveLength(1);
     expect((await ad.get(`/admin/sessions/${r.id}/attendance`)).body.data.items[0].name).toBe(DELETED);
-    expect((await ad.get(`/admin/sessions/${r.id}/queue`)).body.data.current.name).toBe(DELETED);
+    // ۱.۶.۰: آیتم فعال صف کاربر حذف‌شده برداشته می‌شود
+    expect((await ad.get(`/admin/sessions/${r.id}/queue`)).body.data.current).toBeNull();
     expect((await ad.get(`/admin/sessions/${r.id}/evaluations`)).body.data.items[0].userName).toBe(DELETED);
     // مسیر عادی هم (فهرست حضور برای معلم)
     expect((await a.get(`/sessions/${r.id}/attendance`, r.teacher)).body.data.items[0].name).toBe(DELETED);

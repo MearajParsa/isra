@@ -86,7 +86,7 @@ export class DynamicRbac1728500000000 implements MigrationInterface {
     ) ${T}`);
 
     const [{ now }] = (await q.query('SELECT UTC_TIMESTAMP(3) AS now')) as { now: Date | string }[];
-    await seedRbac(q, now instanceof Date ? now : new Date(`${now}Z`));
+    await seedRbac(q, now instanceof Date ? now : new Date(`${now}Z`), { v16: false, initialize: true });
     await q.query('ALTER TABLE permissions MODIFY module_key VARCHAR(32) NOT NULL');
   }
 

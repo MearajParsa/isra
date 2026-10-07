@@ -18,6 +18,8 @@ export class OtpChallengeEntity {
   @Column({ type: 'tinyint', unsigned: true, default: 0 }) attempts!: number;
   @Column({ ...dt }) expiresAt!: Date;
   @Column({ ...dt, nullable: true }) consumedAt!: Date | null;
+  /** ارسال پیامک شکست خورد (گزارش failed؛ هرگز verified شمرده نمی‌شود) */
+  @Column({ ...dt, nullable: true }) sendFailedAt!: Date | null;
   @Column({ type: 'varchar', length: 45 }) ip!: string;
   @Column({ ...dt }) createdAt!: Date;
 }
@@ -43,6 +45,8 @@ export class AuthSessionEntity {
 @Entity('refresh_tokens')
 @Index('uq_refresh_hash', ['tokenHash'], { unique: true })
 @Index('idx_refresh_session', ['sessionId'])
+@Index('idx_refresh_expires', ['expiresAt'])
+@Index('idx_refresh_rotated', ['rotatedAt'])
 export class RefreshTokenEntity {
   @PrimaryColumn(id) id!: string;
   @Column({ ...id, name: 'session_id' }) sessionId!: string;
@@ -54,8 +58,17 @@ export class RefreshTokenEntity {
 }
 
 @Entity('rate_limit_counters')
+@Index('idx_rl_window', ['windowStart'])
 export class RateLimitCounterEntity {
   @PrimaryColumn({ type: 'varchar', length: 120, name: 'counter_key' }) counterKey!: string;
   @PrimaryColumn({ ...dt, name: 'window_start' }) windowStart!: Date;
   @Column({ type: 'int', unsigned: true }) hits!: number;
+}
+
+/** cooldown اتمیک ارسال مجدد OTP per (هدف، شماره)؛ کلید = HMAC شماره (شمارهٔ خام ذخیره نمی‌شود) */
+@Entity('otp_cooldowns')
+@Index('idx_otp_cooldown_sent', ['lastSentAt'])
+export class OtpCooldownEntity {
+  @PrimaryColumn({ type: 'varchar', length: 64, name: 'cooldown_key' }) cooldownKey!: string;
+  @Column({ ...dt }) lastSentAt!: Date;
 }

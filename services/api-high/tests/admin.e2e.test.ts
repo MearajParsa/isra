@@ -181,10 +181,10 @@ describe('ماتریس مجوز', () => {
     const roles = await a.get('/system/roles', dev);
     expect(roles.body.data.map((r: any) => r.key)).toEqual(['developer', 'super_admin']);
     expect(roles.body.data[0]).toMatchObject({ undeletable: true, holders: 1, title: 'توسعه‌دهنده' });
-    expect(roles.body.data[0].lockedPermissions).toHaveLength(14);
+    expect(roles.body.data[0].lockedPermissions).toHaveLength(19);
     expect(roles.body.data[1].lockedPermissions).toEqual(expect.arrayContaining(['system.users.view', 'system.role.assign', 'system.permission.edit', 'system.audit.view']));
     const perms = await a.get('/system/permissions?pageSize=50', dev);
-    expect(perms.body.meta.total).toBe(14);
+    expect(perms.body.meta.total).toBe(19);
     expect(perms.body.data.find((p: any) => p.key === 'session.create')).toMatchObject({ moduleKey: 'sessions', grantable: true });
   });
 
@@ -338,7 +338,7 @@ describe('اولین developer (bootstrap)', () => {
       await t2.close();
     }
   });
-  it('چند شمارهٔ bootstrap (با کاما): هر شمارهٔ فهرست هنگام ثبت‌نام developer می‌شود؛ شمارهٔ بیرون فهرست نه', async () => {
+  it('چند شمارهٔ bootstrap (با کاما): فقط وقتی developer فعالی نیست (۱.۶.۰)؛ شمارهٔ بیرون فهرست نه', async () => {
     const t2 = await startApp({ BOOTSTRAP_DEVELOPER_PHONE: '09125550000, 09125550001' });
     try {
       const send = (uid: string, phone: string) =>
@@ -347,7 +347,13 @@ describe('اولین developer (bootstrap)', () => {
       await send(randomUUID(), '09125559999').expect(202);
       await send(randomUUID(), '09125550001').expect(202);
       const roles = (await t2.ds.query("SELECT d.phone FROM user_system_roles r JOIN user_directory d ON d.user_id = r.user_id WHERE r.role_key = 'developer' ORDER BY d.phone")) as { phone: string }[];
-      expect(roles.map((r) => r.phone)).toEqual(['09125550000', '09125550001']);
+      // اولی developer شد ⇒ دومی (با وجود developer فعال) دیگر خودکار ارتقا نمی‌یابد (docs-v2/30 §۳ امنیت ۷)
+      expect(roles.map((r) => r.phone)).toEqual(['09125550000']);
+      // developer غیرفعال شد ⇒ شمارهٔ بعدی فهرست هنگام ثبت‌نام developer می‌شود
+      await t2.ds.query("UPDATE user_directory SET status = 'disabled' WHERE phone = '09125550000'");
+      await send(randomUUID(), '09125550001').expect(202);
+      const after = (await t2.ds.query("SELECT d.phone FROM user_system_roles r JOIN user_directory d ON d.user_id = r.user_id WHERE r.role_key = 'developer' ORDER BY d.phone")) as { phone: string }[];
+      expect(after.map((r) => r.phone)).toEqual(['09125550000', '09125550001']);
     } finally {
       await t2.close();
     }

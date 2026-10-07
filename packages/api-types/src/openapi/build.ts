@@ -146,7 +146,11 @@ function operation(e: EndpointDef, refsOut: Set<string>): Json {
     okHeaders[HEADERS.rateLimitRemaining] = { schema: { type: 'integer' } };
   }
   const responses: Json = {
-    '200': { description: 'موفق', headers: okHeaders, content: { 'application/json': { schema: dataSchema } } }
+    '200': {
+      description: 'موفق',
+      headers: okHeaders,
+      content: { [e.contentType ?? 'application/json']: { schema: e.contentType?.startsWith('image/') ? { type: 'string', format: 'binary' } : dataSchema } }
+    }
   };
   if (typeof cache === 'object' && cache.etag) responses['304'] = { description: 'تغییری نکرده (If-None-Match)' };
 

@@ -257,7 +257,7 @@ describe('ماتریس و دسترسی مؤثر (۵)', () => {
     const r1 = await a.get('/system/rbac/matrix', dev);
     expect(r1.status).toBe(200);
     expect(r1.body.data.modules.length).toBeGreaterThanOrEqual(7);
-    expect(r1.body.data.permissions).toHaveLength(14);
+    expect(r1.body.data.permissions).toHaveLength(19);
     const etag = r1.headers.etag!;
     expect(etag).toBeTruthy();
     const r2 = await a.get('/system/rbac/matrix', { ...dev.h, 'If-None-Match': etag });
@@ -299,9 +299,9 @@ describe('ماتریس و دسترسی مؤثر (۵)', () => {
     expect(roles.body.data[0]).toMatchObject({ key: 'developer', undeletable: true });
     expect(roles.body.data.find((r: { key: string }) => r.key === 'viewer').holders).toBe(0);
     const perms = await a.get('/system/permissions?pageSize=50', dev);
-    expect(perms.body.meta.total).toBe(14);
+    expect(perms.body.meta.total).toBe(19);
     expect(perms.body.data.find((p: { key: string }) => p.key === 'session.create')).toMatchObject({ grantable: true, moduleKey: 'sessions', isSystem: true, stepUp: 'none' });
-    expect((await a.get('/system/modules', dev)).body.meta.total).toBe(7);
+    expect((await a.get('/system/modules', dev)).body.meta.total).toBe(10);
     // نقش بدون مجوز ⇒ H-14 ممنوع، H-88 مجاز
     await mkRole(dev, 'empty');
     const e = await mkUser(t, 'خالی', ['empty']);
@@ -432,11 +432,11 @@ describe('تست امنیت guard (۸) و مهاجرت (۷)', () => {
 
   it('seed مهاجرت: ۷ ماژول، ۱۴ مجوز، نقش‌های قبلی سالم، سه مجوز تازه فقط developer', async () => {
     const rows = (q: string) => t.ds.query(q) as Promise<Record<string, any>[]>;
-    expect((await rows('SELECT module_key FROM system_modules WHERE is_system = 1')).length).toBe(7);
-    expect((await rows('SELECT permission_key FROM permissions WHERE is_system = 1')).length).toBe(14);
+    expect((await rows('SELECT module_key FROM system_modules WHERE is_system = 1')).length).toBe(10);
+    expect((await rows('SELECT permission_key FROM permissions WHERE is_system = 1')).length).toBe(19);
     const sa = (await rows("SELECT permission_key FROM role_permissions WHERE role_key = 'super_admin'")).map((r) => r.permission_key);
     expect(sa).toHaveLength(9);
-    for (const p of ['system.role.manage', 'system.permission.manage', 'system.stepup.manage']) {
+    for (const p of ['system.role.manage', 'system.permission.manage', 'system.stepup.manage', 'system.sessions.moderate', 'system.points.manage', 'system.badges.manage', 'system.inbox.send', 'system.data.export']) {
       expect(sa).not.toContain(p);
       expect((await rows(`SELECT locked FROM role_permissions WHERE role_key = 'developer' AND permission_key = '${p}'`))[0]!.locked).toBe(1);
     }

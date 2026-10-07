@@ -14,7 +14,11 @@ export const HHmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'ساعت HH:m
 
 export const FaText = (min: number, max: number) => z.string().trim().min(min).max(max);
 
-export const PersonName = z.string().trim().min(2).max(40);
+/** نویسه‌های کنترلی/جهت‌دهی (جعل نمایش) ممنوع؛ نیم‌فاصله (U+200C) مجاز است */
+export const UNSAFE_TEXT = /[\u0000-\u001F\u007F-\u009F\u200B\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/;
+export const SafeText = (min: number, max: number) =>
+  z.string().trim().min(min).max(max).refine((s) => !UNSAFE_TEXT.test(s), { message: 'متن شامل نویسهٔ نامعتبر است.' });
+export const PersonName = SafeText(2, 40);
 
 /** روز هفته: ۰=شنبه … ۶=جمعه */
 export const Weekday = z.number().int().min(0).max(6);

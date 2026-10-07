@@ -5,7 +5,7 @@ import { bufToUuid, isUuid, uuidToBuf, uuidv7 } from '../common/ids';
 import { parseDay, startOfDayUtc } from '../common/tehran';
 import { type Q, displayName, parseJson } from './db';
 
-export type AuditTargetType = 'user' | 'role' | 'settings' | 'session';
+export type AuditTargetType = 'user' | 'role' | 'settings' | 'session' | 'permission' | 'module' | 'badge' | 'announcement';
 
 export interface AuditFilters {
   /** نوع دقیق اقدام؛ اگر به `.` ختم شود پیشوند است (مثلاً `user.`) */
@@ -40,7 +40,10 @@ interface Row {
   meta: unknown;
 }
 
-const dto = (r: Row) => ({
+export type AuditRow = Row;
+export const AUDIT_COLS = 'id, at, actor_id, actor_name, action, target_type, target_id, target_label, summary, meta';
+
+export const auditDto = (r: Row) => ({
   id: bufToUuid(r.id),
   at: r.at.toISOString(),
   actor: { id: r.actor_id ? bufToUuid(r.actor_id) : 'system', name: r.actor_name },
@@ -83,38 +86,43 @@ export class AuditService {
 
   /** همهٔ فیلترها پارامتری‌اند (هیچ مقدار کاربری در متن SQL نیست) */
   async list(page: number, pageSize: number, f: AuditFilters = {}) {
-    const where: string[] = [];
-    const args: unknown[] = [];
-    if (f.action) {
-      if (f.action.endsWith('.')) (where.push("action LIKE ?"), args.push(`${escapeLike(f.action)}%`));
-      else (where.push('action = ?'), args.push(f.action));
-    }
-    if (f.actorId) {
-      // actorId نامعتبر (غیر UUID) ⇒ هیچ نتیجه‌ای (نه خطا)
-      if (!isUuid(f.actorId)) where.push('1 = 0');
-      else (where.push('actor_id = ?'), args.push(uuidToBuf(f.actorId)));
-    }
-    if (f.targetType) (where.push('target_type = ?'), args.push(f.targetType));
-    if (f.targetId) (where.push('target_id = ?'), args.push(f.targetId));
-    const from = f.from ? parseDay(f.from) : null;
-    const to = f.to ? parseDay(f.to) : null;
-    if (from !== null) (where.push('at >= ?'), args.push(startOfDayUtc(from)));
-    if (to !== null) (where.push('at < ?'), args.push(startOfDayUtc(to + 86_400_000)));
-    if (f.q) {
-      where.push('(summary LIKE ? OR actor_name LIKE ? OR target_label LIKE ?)');
-      const like = `%${escapeLike(f.q)}%`;
-      args.push(like, like, like);
-    }
-    const w = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const { where: w, args } = auditWhere(f);
     const [rows, cnt] = await Promise.all([
-      this.ds.query(`SELECT id, at, actor_id, actor_name, action, target_type, target_id, target_label, summary, meta FROM audit_logs ${w} ORDER BY at DESC, id DESC LIMIT ? OFFSET ?`, [...args, pageSize, (page - 1) * pageSize]) as Promise<Row[]>,
+      this.ds.query(`SELECT ${AUDIT_COLS} FROM audit_logs ${w} ORDER BY at DESC, id DESC LIMIT ? OFFSET ?`, [...args, pageSize, (page - 1) * pageSize]) as Promise<Row[]>,
       this.ds.query(`SELECT COUNT(*) AS n FROM audit_logs ${w}`, args) as Promise<{ n: string | number }[]>
     ]);
-    return { items: rows.map(dto), page, pageSize, total: Number(cnt[0]?.n ?? 0) };
+    return { items: rows.map(auditDto), page, pageSize, total: Number(cnt[0]?.n ?? 0) };
   }
 
   async last(n: number) {
     const rows = (await this.ds.query('SELECT id, at, actor_id, actor_name, action, target_type, target_id, target_label, summary, meta FROM audit_logs ORDER BY at DESC, id DESC LIMIT ?', [n])) as Row[];
-    return rows.map(dto);
+    return rows.map(auditDto);
   }
+}
+
+/** WHERE پارامتری فیلترهای audit (مشترک H-40 و خروجی H-45) */
+export function auditWhere(f: AuditFilters): { where: string; args: unknown[]; clauses: string[] } {
+  const where: string[] = [];
+  const args: unknown[] = [];
+  if (f.action) {
+    if (f.action.endsWith('.')) (where.push('action LIKE ?'), args.push(`${escapeLike(f.action)}%`));
+    else (where.push('action = ?'), args.push(f.action));
+  }
+  if (f.actorId) {
+    // actorId نامعتبر (غیر UUID) ⇒ هیچ نتیجه‌ای (نه خطا)
+    if (!isUuid(f.actorId)) where.push('1 = 0');
+    else (where.push('actor_id = ?'), args.push(uuidToBuf(f.actorId)));
+  }
+  if (f.targetType) (where.push('target_type = ?'), args.push(f.targetType));
+  if (f.targetId) (where.push('target_id = ?'), args.push(f.targetId));
+  const from = f.from ? parseDay(f.from) : null;
+  const to = f.to ? parseDay(f.to) : null;
+  if (from !== null) (where.push('at >= ?'), args.push(startOfDayUtc(from)));
+  if (to !== null) (where.push('at < ?'), args.push(startOfDayUtc(to + 86_400_000)));
+  if (f.q) {
+    where.push('(summary LIKE ? OR actor_name LIKE ? OR target_label LIKE ?)');
+    const like = `%${escapeLike(f.q)}%`;
+    args.push(like, like, like);
+  }
+  return { where: where.length ? `WHERE ${where.join(' AND ')}` : '', args, clauses: where };
 }

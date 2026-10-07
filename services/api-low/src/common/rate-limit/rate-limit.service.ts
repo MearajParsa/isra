@@ -77,7 +77,7 @@ export class RateLimitService {
 
   /** پاکسازی پنجره‌های قدیمی (job نگهداشت) */
   async purgeOlderThan(date: Date): Promise<number> {
-    const r = (await this.ds.query('DELETE FROM rate_limit_counters WHERE window_start < ?', [date])) as { affectedRows?: number };
+    const r = (await this.ds.query('DELETE FROM rate_limit_counters WHERE window_start < ? LIMIT 5000', [date])) as { affectedRows?: number };
     return r.affectedRows ?? 0;
   }
 }

@@ -13,6 +13,11 @@ import type { IsraRequest } from '../request-context';
 
 const GLOBAL_IP_LIMIT: RateLimit = { limit: 600, windowSec: 60, key: 'ip' };
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH']);
+/**
+ * D1 (docs-v2/30 §۱.۶): android-low فقط برای کارهای قرآن‌آموز مستقیم به mid می‌آید؛ بقیهٔ مسیرهای bearer ⇒ AUTH_FORBIDDEN
+ * (ساخت/مدیریت جلسه فقط android-mid/web-main/high). Socket.IO جداگانه مجاز است.
+ */
+export const ANDROID_LOW_ENDPOINTS: ReadonlySet<string> = new Set(['M-00', 'M-01', 'M-02', 'M-06', 'M-10', 'M-17', 'M-20', 'M-30', 'M-31', 'M-32', 'M-41', 'M-42', 'M-46', 'M-53']);
 
 /**
  * guard سراسری: سقف IP → احراز JWT (JWKS محلی) → مجوز سطح کاربر (`session.create`) → rate-limit → اعتبارسنجی zod.
@@ -46,6 +51,7 @@ export class EndpointGuard implements CanActivate {
     if (!def.internalOnly && (await this.settings.get()).maintenance) throw new AppError('SERVICE_UNAVAILABLE', { message: 'سامانه برای نگهداری موقتاً در دسترس نیست. کمی بعد برگردید.', details: { reason: 'maintenance', retryAfterSec: 60 } });
     if (BODY_METHODS.has(req.method) && def.body && Number(req.header('content-length') ?? 0) > 0 && !req.is('application/json')) throw new AppError('UNSUPPORTED_MEDIA_TYPE');
 
+    if (req.ctx.client === 'android-low' && def.auth !== 'none' && !ANDROID_LOW_ENDPOINTS.has(def.id)) throw new AppError('AUTH_FORBIDDEN', { message: 'این عملیات از این اپ در دسترس نیست.' });
     await this.authenticate(def, req);
     await this.rateLimit(def, req, res);
     this.validate(def, req);

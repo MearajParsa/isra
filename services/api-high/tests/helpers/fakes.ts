@@ -95,9 +95,9 @@ export function installFakeLow(t: TestApp) {
     for (const s of sessions.get(p.id!) ?? []) if (s.id !== c.body.keepSessionId) s.revokedAt ??= iso();
     return okReply({});
   });
-  A.on('POST', `${LOW}/users/:id/logout-all`, (_c, p) => {
+  A.on('POST', `${LOW}/users/:id/logout-all`, (c, p) => {
     if (!find(p.id!)) return nf();
-    for (const s of sessions.get(p.id!) ?? []) s.revokedAt ??= iso();
+    for (const s of sessions.get(p.id!) ?? []) if (s.id !== c.body?.exceptSessionId) s.revokedAt ??= iso();
     return okReply({});
   });
   A.on('GET', `${LOW}/users/:id/sessions`, (c, p) => {
@@ -108,13 +108,32 @@ export function installFakeLow(t: TestApp) {
     if (c.query.activeOnly === 'true') all = all.filter((s) => !s.revokedAt);
     return okReply(all.slice((page - 1) * pageSize, page * pageSize), { page, pageSize, total: all.length });
   });
+  // ۱.۶.۰: ساخت گروهی (idempotent با Idempotency-Key مثل low واقعی) و آمار پیام همگانی
+  const bulkSeen = new Map<string, unknown>();
+  const broadcasts = new Map<string, { status: string; targeted: number | null; delivered: number; read: number }>();
+  A.on('POST', `${LOW}/users/bulk`, (c) => {
+    const key = c.headers['idempotency-key'] as string | undefined;
+    if (key && bulkSeen.has(key)) return bulkSeen.get(key);
+    const items = (c.body.items as { phone: string; firstName: string; lastName: string }[]).map((it) => {
+      const ex = [...users.values()].find((u) => u.phone === it.phone && u.status !== 'deleted');
+      if (ex) return { phone: it.phone, userId: ex.id, outcome: 'exists', code: null };
+      if (it.phone.endsWith('999')) return { phone: it.phone, userId: null, outcome: 'failed', code: 'PHONE_TAKEN' };
+      const id = uuidv7();
+      users.set(id, { id, phone: it.phone, firstName: it.firstName, lastName: it.lastName, status: 'active', hasPassword: false, mustChangePassword: false, createdAt: iso(), lastActiveAt: null, activeSessions: 0, sessionsByClient: {} });
+      return { phone: it.phone, userId: id, outcome: 'created', code: null };
+    });
+    const rep = okReply({ items });
+    if (key) bulkSeen.set(key, rep);
+    return rep;
+  });
+  A.on('GET', `${LOW}/broadcasts/:id`, (_c, p) => (broadcasts.has(p.id!) ? okReply(broadcasts.get(p.id!)) : failReply(404, 'NOT_FOUND', 'پیدا نشد.')));
   A.on('DELETE', `${LOW}/users/:id/sessions/:sessionId`, (_c, p) => {
     const s = (sessions.get(p.id!) ?? []).find((x) => x.id === p.sessionId);
     if (!s) return failReply(404, 'NOT_FOUND', 'نشست پیدا نشد.');
     s.revokedAt ??= iso();
     return okReply({});
   });
-  return { users, sessions, addUser, addSession, A };
+  return { users, sessions, addUser, addSession, A, broadcasts, bulkSeen };
 }
 
 /** mid جعلی: جلسه‌ها/اعضا + پاسخ‌های ثابت گزارش */
@@ -194,7 +213,7 @@ export function installFakeMid(t: TestApp) {
     if (!m) return nf();
     if (m.roles.includes('session_manager')) return failReply(409, 'CONFLICT', 'مدیر قابل‌حذف نیست.');
     members.set(p.id!, list.filter((x) => x !== m));
-    return okReply({});
+    return okReply(m);
   });
   A.on('GET', `${MID}/sessions/:id/attendance`, (_c, p) => (sessions.get(p.id!) ? okReply({ items: [], total: 0 }) : nf()));
   A.on('GET', `${MID}/sessions/:id/queue`, (_c, p) => (sessions.get(p.id!) ? okReply({ current: null, waiting: [], done: [], myItem: null, myPosition: null, waitingCount: 0 }) : nf()));
@@ -204,12 +223,84 @@ export function installFakeMid(t: TestApp) {
   A.on('GET', `${MID}/reports/sessions`, (c) => okReply({ interval: c.query.interval ?? 'day', items: [{ bucket: c.query.from, created: 1, held: 1, attendance: 5 }] }));
   A.on('GET', `${MID}/reports/leaderboard`, (c) => okReply({ items: [{ userId: uuidv7(), name: 'برتر', points: 500, badges: 4 }].slice(0, Number(c.query.limit ?? 20)) }));
 
+  // ───────── ۱.۶.۰ ─────────
+  const addSeen = new Map<string, unknown>();
+  A.on('POST', `${MID}/sessions/:id/members/add`, (c, p) => {
+    if (!sessions.get(p.id!)) return nf();
+    const key = c.headers['idempotency-key'] as string | undefined;
+    if (key && addSeen.has(key)) return addSeen.get(key);
+    const list = members.get(p.id!) ?? [];
+    const items = (c.body.items as { userId: string; roles: string[]; firstName?: string }[]).map((it) => {
+      const ex = list.find((m) => m.userId === it.userId);
+      if (ex && ex.status === 'approved') return { userId: it.userId, outcome: 'unchanged', member: ex };
+      const m = ex ?? { id: uuidv7(), userId: it.userId, name: `${it.firstName ?? 'عضو'}`, roles: it.roles, status: 'approved', requestedAt: iso(), phone: null, decidedAt: iso() };
+      Object.assign(m, { status: 'approved', roles: it.roles });
+      if (!ex) list.push(m);
+      return { userId: it.userId, outcome: ex ? 'approved' : 'added', member: m };
+    });
+    members.set(p.id!, list);
+    const rep = okReply({ items });
+    if (key) addSeen.set(key, rep);
+    return rep;
+  });
+  A.on('POST', `${MID}/sessions/:id/members/decide`, (c, p) => {
+    if (!sessions.get(p.id!)) return nf();
+    const list = members.get(p.id!) ?? [];
+    return okReply({ items: (c.body.memberIds as string[]).map((id) => ({ memberId: id, outcome: list.some((m) => m.id === id) ? (c.body.action === 'approve' ? 'approved' : 'rejected') : 'not_found' })) });
+  });
+  A.on('PUT', `${MID}/sessions/:id/manager`, (_c, p) => (sessions.get(p.id!) ? okReply(sessions.get(p.id!)) : nf()));
+  A.on('GET', `${MID}/sessions/:id/occurrences`, (c, p) =>
+    sessions.get(p.id!) ? okReply([{ id: uuidv7(), seq: 1, status: 'live', openedAt: iso(), closedAt: null, counts: { attendance: 2, evaluations: 1 } }], { page: Number(c.query.page ?? 1), pageSize: Number(c.query.pageSize ?? 20), total: 1 }) : nf()
+  );
+  const occ = uuidv7();
+  A.on('POST', `${MID}/sessions/:id/attendance/mark`, (c, p) => (sessions.get(p.id!) ? okReply({ occurrenceId: occ, items: (c.body.userIds as string[]).map((u) => ({ userId: u, outcome: 'marked', pointsAwarded: 5 })) }) : nf()));
+  A.on('POST', `${MID}/sessions/:id/attendance/:userId/revoke`, (_c, p) => (sessions.get(p.id!) ? okReply({ occurrenceId: occ, revoked: true, pointsReversed: 5 }) : nf()));
+  const queue = () => ({ occurrenceId: occ, current: null, waiting: [], done: [], myItem: null, myPosition: null, waitingCount: 0 });
+  A.on('POST', `${MID}/sessions/:id/queue/next`, (c, p) => (!sessions.get(p.id!) ? nf() : c.body.expectCurrentItemId === 'stale-00' ? failReply(409, 'CONFLICT', 'تغییر کرد', { reason: 'QUEUE_STATE_CHANGED' }) : okReply(queue())));
+  A.on('PATCH', `${MID}/sessions/:id/queue/:itemId`, (_c, p) => (sessions.get(p.id!) ? okReply(queue()) : nf()));
+  const evaluation = (sessionId: string, id: string, over: Record<string, unknown> = {}) => ({
+    id,
+    sessionId,
+    queueItemId: uuidv7(),
+    userId: uuidv7(),
+    userName: 'قرآن‌آموز',
+    evaluatorName: 'معلم',
+    voice: 8,
+    tone: 7,
+    tajweed: 9,
+    weights: { voice: 40, tone: 30, tajweed: 30 },
+    score: 81,
+    points: 8,
+    note: '',
+    createdAt: iso(),
+    occurrenceId: occ,
+    status: 'active',
+    updatedAt: null,
+    ...over
+  });
+  A.on('PATCH', `${MID}/sessions/:id/evaluations/:evalId`, (c, p) => (sessions.get(p.id!) ? okReply(evaluation(p.id!, p.evalId!, { voice: c.body.voice ?? 8, updatedAt: iso() })) : nf()));
+  A.on('POST', `${MID}/sessions/:id/evaluations/:evalId/void`, (_c, p) => (sessions.get(p.id!) ? okReply(evaluation(p.id!, p.evalId!, { status: 'void' })) : nf()));
+  A.on('POST', `${MID}/sessions/:id/notify`, (_c, p) => (sessions.get(p.id!) ? okReply({ recipients: (members.get(p.id!) ?? []).length }) : nf()));
+  A.on('GET', `${MID}/users/:id/memberships`, (c) => okReply([], { page: Number(c.query.page ?? 1), pageSize: Number(c.query.pageSize ?? 20), total: 0 }));
+  const summary = { total: 120, badges: [] };
+  A.on('GET', `${MID}/users/:id/points`, (c) => okReply({ summary, ledger: { items: [], page: Number(c.query.page ?? 1), pageSize: Number(c.query.pageSize ?? 20), total: 0 } }));
+  const adjustSeen = new Map<string, unknown>();
+  A.on('POST', `${MID}/users/:id/points/adjust`, (c) => {
+    const key = c.headers['idempotency-key'] as string | undefined;
+    if (key && adjustSeen.has(key)) return adjustSeen.get(key);
+    const rep = okReply({ summary: { total: Math.max(0, 120 + c.body.delta), badges: [] }, entry: { id: uuidv7(), points: c.body.delta, reason: 'admin_adjust', session: null, note: c.body.reason, createdAt: iso() } });
+    if (key) adjustSeen.set(key, rep);
+    return rep;
+  });
+  const holders = new Map<string, number>();
+  A.on('GET', `${MID}/badges/holders`, () => okReply({ items: [...holders].map(([badgeId, n]) => ({ badgeId, holders: n })) }));
+
   const addMember = (sessionId: string, over: Record<string, unknown> = {}) => {
     const m = { id: uuidv7(), userId: uuidv7(), name: 'عضو', roles: ['quran_student'], status: 'pending', requestedAt: iso(), phone: null, decidedAt: null, ...over };
     members.set(sessionId, [...(members.get(sessionId) ?? []), m]);
     return m;
   };
-  return { sessions, members, mk, addMember };
+  return { sessions, members, mk, addMember, holders, addSeen, adjustSeen };
 }
 
 export const lowReports = (t: TestApp) => {

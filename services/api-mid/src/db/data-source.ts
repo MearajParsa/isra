@@ -7,8 +7,10 @@ import { SafeTypeOrmLogger } from './typeorm.logger';
 import { SessionRouteUrl1728100000000 } from './migrations/1728100000000-SessionRouteUrl';
 import { RevokedSessions1728200000000 } from './migrations/1728200000000-RevokedSessions';
 import { AdminExpansion1728300000000 } from './migrations/1728300000000-AdminExpansion';
+import { MembershipV161728600000000 } from './migrations/1728600000000-MembershipV16';
+import { OccurrencesPointsV161728600000001 } from './migrations/1728600000001-OccurrencesPointsV16';
 
-export const MIGRATIONS = [InitSchema1727800000000, SessionRouteUrl1728100000000, RevokedSessions1728200000000, AdminExpansion1728300000000];
+export const MIGRATIONS = [InitSchema1727800000000, SessionRouteUrl1728100000000, RevokedSessions1728200000000, AdminExpansion1728300000000, MembershipV161728600000000, OccurrencesPointsV161728600000001];
 
 /** دسترسی به DB با SQL پارامتری (ds.query)؛ entity نداریم تا schema فقط در migration نسخه‌دار تعریف شود */
 export function dataSourceOptions(env: Env): DataSourceOptions {

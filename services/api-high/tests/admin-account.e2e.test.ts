@@ -203,10 +203,12 @@ describe('H-05..H-07 نشست‌های من', () => {
     expect(cur.revokedAt).toBeNull();
     expect(others.every((s) => s.revokedAt !== null)).toBe(true);
     const au = await audits('account.session_revoke');
-    expect(au[0]!.meta).toEqual({ others: true, count: 3 });
-    // دوباره: چیزی برای revoke نیست و حلقه تمام می‌شود
-    expect((await a.post('/system/me/sessions/revoke-others', admin.h)).status).toBe(200);
-    t.fake.admin.on('GET', '/c/internal/v1/admin/users/:id/sessions', () => rawReply(500));
+    expect(au[0]!.meta).toEqual({ others: true });
+    // ۱.۶.۰: یک فراخوانی logout-all با exceptSessionId (نه فهرست + revoke تک‌تک)
+    const calls = t.fake.admin.calls.filter((c) => c.path.startsWith('/c/'));
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([`POST /c/internal/v1/admin/users/${admin.id}/logout-all`]);
+    expect(calls[0]!.body).toEqual({ exceptSessionId: admin.sid });
+    t.fake.admin.on('POST', '/c/internal/v1/admin/users/:id/logout-all', () => rawReply(500));
     expect((await a.post('/system/me/sessions/revoke-others', admin.h)).status).toBe(503);
   });
 });

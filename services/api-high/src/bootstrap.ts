@@ -12,6 +12,9 @@ import type { Clock } from './common/clock';
 import { requestContext } from './common/request-id.middleware';
 import type { Env } from './config/env';
 
+/** مسیر express برای H-36 (body-parser دوم وقتی بدنه قبلاً پارس شده کاری نمی‌کند) */
+const BADGE_IMAGE_PATH = /^\/s\/v1\/system\/badges\/[^/]+\/image$/;
+
 /** ساخت app با همهٔ تنظیمات امنیتی/عملکردی؛ main.ts و تست‌های e2e از همین استفاده می‌کنند (یک مسیر، بدون انحراف) */
 export async function createApp(env: Env, opts: { clock?: Clock; silent?: boolean } = {}): Promise<NestExpressApplication> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule.forRoot(env, opts.clock), { bodyParser: false, bufferLogs: true, ...(opts.silent ? { logger: false as const } : {}) });
@@ -43,6 +46,9 @@ export function configureApp(app: NestExpressApplication, env: Env, useLogger = 
     exposedHeaders: [HEADERS.requestId, HEADERS.retryAfter, HEADERS.rateLimitLimit, HEADERS.rateLimitRemaining, HEADERS.rateLimitReset, HEADERS.etag],
     maxAge: 600
   });
+  // H-36 (تصویر نشان base64 ≤ ۲۰۰KB خام ≈ ۲۷۴KB متن): فقط همین مسیر سقف بزرگ‌تر دارد؛ بقیه ۱۶KB
+  const bigJson = json({ limit: '300kb' });
+  app.use((req: { method: string; path: string }, res: unknown, next: () => void) => (req.method === 'PUT' && BADGE_IMAGE_PATH.test(req.path) ? (bigJson as unknown as (a: unknown, b: unknown, c: () => void) => void)(req, res, next) : next()));
   app.use(json({ limit: '16kb' }));
 
   if (env.SWAGGER_ENABLED && env.NODE_ENV !== 'production') mountDocs(app);

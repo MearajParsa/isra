@@ -26,6 +26,8 @@ const audits = async (action?: string) => {
 };
 const lastMid = (method: string, suffix: string) => [...t.fake.admin.calls].reverse().find((c) => c.method === method && c.path.startsWith('/o/') && c.path.endsWith(suffix));
 const input = { title: 'جلسهٔ تازه قرآن', description: 'توضیح جلسهٔ تازه برای تست', schedule: { type: 'once', startsAt: '2026-11-10T10:00:00+03:30', endsAt: '2026-11-10T12:00:00+03:30' }, location: { label: 'مسجد جامع' } };
+/** بدنه پس از اعتبارسنجی قرارداد ۱.۶.۰ (defaultهای joinPolicy/visibility) */
+const sent = { ...input, joinPolicy: 'request', visibility: 'public' };
 const call = (m: string, p: string, h: Record<string, string>, b?: object) => (a as any)[m === 'delete' ? 'del' : m](p, h, b);
 
 describe('ماتریس مجوز', () => {
@@ -106,20 +108,27 @@ describe('H-62..H-65 نوشتن جلسه + audit', () => {
     const dev = await mkUser(t, 'توسعه', ['developer']);
     const r = await a.post('/system/sessions', await dev.step(), { session: input });
     expect(r.status).toBe(200);
-    expect(lastMid('POST', '/admin/sessions')!.body).toEqual({ creatorId: dev.id, session: input });
+    expect(lastMid('POST', '/admin/sessions')!.body).toEqual({ creatorId: dev.id, session: sent });
     const id = r.body.data.id as string;
     const au = await audits('session.create');
     expect(au).toHaveLength(1);
     expect(au[0]).toMatchObject({ target_type: 'session', target_id: id, target_label: 'جلسهٔ تازه قرآن', actor_name: 'توسعه' });
-    const who = randomUUID();
-    await a.post('/system/sessions', await dev.step(), { creatorId: who, session: input });
-    expect(lastMid('POST', '/admin/sessions')!.body.creatorId).toBe(who);
+    const who = await mkUser(t, 'سازنده دیگر');
+    await a.post('/system/sessions', await dev.step(), { creatorId: who.id, session: input });
+    expect(lastMid('POST', '/admin/sessions')!.body.creatorId).toBe(who.id);
     expect((await a.post('/system/sessions', await dev.step(), { session: { ...input, title: 'x' } })).status).toBe(400);
     expect((await a.post('/system/sessions', await dev.step(), { session: input, extra: 1 })).status).toBe(400);
-    // creatorId نامعتبر در mid ⇒ NOT_FOUND همان‌طور عبور می‌کند
-    t.fake.admin.on('POST', '/o/internal/v1/admin/sessions', () => failReply(404, 'NOT_FOUND', 'سازنده پیدا نشد.'));
+    // ۱.۶.۰ (امنیت ۳): creatorId ناموجود ⇒ NOT_FOUND و غیرفعال ⇒ USER_NOT_ACTIVE، هر دو بدون فراخوانی mid
+    const before = t.fake.admin.calls.length;
     const nf = await a.post('/system/sessions', await dev.step(), { creatorId: randomUUID(), session: input });
-    expect(nf.status).toBe(404);
+    expect([nf.status, nf.body.error.code]).toEqual([404, 'NOT_FOUND']);
+    const off = await mkUser(t, 'غیرفعال', [], [], { status: 'disabled' });
+    const na = await a.post('/system/sessions', await dev.step(), { creatorId: off.id, session: input });
+    expect([na.status, na.body.error.details.reason]).toEqual([409, 'USER_NOT_ACTIVE']);
+    expect(t.fake.admin.calls.length).toBe(before);
+    // خطای mid همان‌طور عبور می‌کند
+    t.fake.admin.on('POST', '/o/internal/v1/admin/sessions', () => failReply(404, 'NOT_FOUND', 'سازنده پیدا نشد.'));
+    expect((await a.post('/system/sessions', await dev.step(), { session: input })).status).toBe(404);
     expect(await audits('session.create')).toHaveLength(2); // فقط دو موفق
   });
 
@@ -128,11 +137,14 @@ describe('H-62..H-65 نوشتن جلسه + audit', () => {
     const s = mid.mk({ title: 'عنوان اولیه جلسه' });
     const up = await a.patch(`/system/sessions/${s.id}`, await dev.step(), input);
     expect(up.status).toBe(200);
-    expect(lastMid('PATCH', `/admin/sessions/${s.id}`)!.body).toEqual(input);
-    expect((await audits('session.update'))[0]).toMatchObject({ target_type: 'session', target_id: s.id, target_label: 'جلسهٔ تازه قرآن' });
+    expect(lastMid('PATCH', `/admin/sessions/${s.id}`)!.body).toEqual(sent);
+    const upd = (await audits('session.update'))[0];
+    expect(upd).toMatchObject({ target_type: 'session', target_id: s.id, target_label: 'جلسهٔ تازه قرآن' });
+    // ۱.۶.۰ (امنیت ۵): diff فیلدها
+    expect(upd.meta.changes).toMatchObject({ title: { from: 'عنوان اولیه جلسه', to: 'جلسهٔ تازه قرآن' }, schedule: 'changed', location: 'changed' });
     const tr = await a.post(`/system/sessions/${s.id}/transition`, await dev.step(), { to: 'started' });
     expect(tr.body.data.status).toBe('started');
-    expect((await audits('session.transition'))[0].meta).toEqual({ to: 'started' });
+    expect((await audits('session.transition'))[0].meta).toEqual({ from: 'draft', to: 'started' });
     expect((await a.post(`/system/sessions/${s.id}/transition`, await dev.step(), { to: 'draft' })).status).toBe(400);
     const locked = await a.patch(`/system/sessions/${s.id}`, await dev.step(), input);
     expect(locked.status).toBe(409);
@@ -182,20 +194,30 @@ describe('H-66..H-72 اعضا و نمای فقط‌خواندنی', () => {
     expect(d.status).toBe(200);
     expect(d.body.data).toMatchObject({ status: 'approved', phone: u.phone });
     const ad = (await audits('session.member_decide'))[0];
-    expect(ad).toMatchObject({ target_type: 'session', target_id: s.id, target_label: 'جلسهٔ عضویت' });
+    // ۱.۶.۰: بدون GET اضافهٔ جلسه پیش از نوشتن عضو ⇒ عنوان از کش (هنوز دیده نشده ⇒ برچسب عمومی)
+    expect(ad).toMatchObject({ target_type: 'session', target_id: s.id, target_label: 'جلسه' });
+    expect(t.fake.admin.calls.filter((c) => c.method === 'GET' && c.path.endsWith(`/admin/sessions/${s.id}`))).toHaveLength(0);
+    await a.get(`/system/sessions/${s.id}`, dev); // عنوان در کش
     expect(ad.meta).toMatchObject({ memberId: m.id, action: 'approve' });
     expect((await a.patch(`/system/sessions/${s.id}/members/${m.id}`, await dev.step(), { action: 'maybe' })).status).toBe(400);
     const ro = await a.put(`/system/sessions/${s.id}/members/${m.id}/roles`, await dev.step(), { roles: ['teacher', 'session_supporter'] });
     expect(ro.status).toBe(200);
     expect(ro.body.data.phone).toBe(u.phone);
-    expect((await audits('session.member_roles'))[0].meta).toMatchObject({ memberId: m.id, roles: ['teacher', 'session_supporter'] });
-    expect((await a.put(`/system/sessions/${s.id}/members/${m.id}/roles`, await dev.step(), { roles: ['session_manager'] })).status).toBe(400);
+    const ar = (await audits('session.member_roles'))[0];
+    expect(ar.meta).toMatchObject({ memberId: m.id, userId: u.id, roles: ['teacher', 'session_supporter'] });
+    expect(ar.target_label).toBe('جلسهٔ عضویت');
+    // ۱.۶.۰: session_manager هم مجاز (هم‌مدیر)؛ نقش ناشناخته ⇒ 400
+    expect((await a.put(`/system/sessions/${s.id}/members/${m.id}/roles`, await dev.step(), { roles: ['session_manager'] })).status).toBe(200);
+    await a.put(`/system/sessions/${s.id}/members/${m.id}/roles`, await dev.step(), { roles: ['teacher'] });
+    expect((await a.put(`/system/sessions/${s.id}/members/${m.id}/roles`, await dev.step(), { roles: ['boss'] })).status).toBe(400);
     const mgr = mid.addMember(s.id, { roles: ['session_manager'], status: 'approved' });
     const bad = await a.del(`/system/sessions/${s.id}/members/${mgr.id}`, await dev.step());
     expect(bad.status).toBe(409);
     expect(await audits('session.member_remove')).toHaveLength(0);
     expect((await a.del(`/system/sessions/${s.id}/members/${m.id}`, await dev.step())).status).toBe(200);
-    expect((await audits('session.member_remove'))[0]).toMatchObject({ target_type: 'session', target_id: s.id });
+    const rm = (await audits('session.member_remove'))[0];
+    expect(rm).toMatchObject({ target_type: 'session', target_id: s.id });
+    expect(rm.meta).toEqual({ memberId: m.id, userId: u.id }); // ۱.۶.۰: userId از پاسخ حذف mid
     expect((await a.del(`/system/sessions/${s.id}/members/${randomUUID()}`, await dev.step())).status).toBe(404);
     // جلسهٔ ناموجود ⇒ 404 و بدون audit
     expect((await a.patch(`/system/sessions/${randomUUID()}/members/${m.id}`, await dev.step(), { action: 'approve' })).status).toBe(404);
@@ -204,7 +226,7 @@ describe('H-66..H-72 اعضا و نمای فقط‌خواندنی', () => {
   it('attendance/queue/evaluations: عبور مستقیم؛ 404 و 503', async () => {
     const dev = await mkUser(t, 'توسعه', ['developer']);
     const s = mid.mk();
-    expect((await a.get(`/system/sessions/${s.id}/attendance`, dev)).body.data).toEqual({ items: [], total: 0 });
+    expect((await a.get(`/system/sessions/${s.id}/attendance`, dev)).body.data).toEqual({ items: [], total: 0, occurrenceId: null });
     expect((await a.get(`/system/sessions/${s.id}/queue`, dev)).body.data).toMatchObject({ waitingCount: 0, current: null });
     expect((await a.get(`/system/sessions/${s.id}/evaluations`, dev)).body.data).toEqual({ items: [], total: 0 });
     expect((await a.get(`/system/sessions/${randomUUID()}/queue`, dev)).status).toBe(404);
