@@ -134,9 +134,9 @@ export class ExportService {
       cursor = { at: last.created_at, id: last.user_id };
       if (rows.length < BATCH) break;
     }
-    out.end();
     const { q: search, ...rest } = q;
     await this.logExport(actor.id, 'export.users', `خروجی کاربران (${out.rows} ردیف) گرفته شد.`, { filters: { ...rest, ...(search ? { q: /^\d+$/.test(search) ? '[digits]' : search } : {}) }, rows: out.rows, capped: out.rows >= MAX_USERS_ROWS });
+    out.end(); // audit پیش از پایان پاسخ (کلاینتی که فایل را گرفته، audit آن ثبت‌شده است)
   }
 
   /** H-45 audit با فیلترهای H-40؛ keyset روی (at, id) نزولی */
@@ -160,8 +160,8 @@ export class ExportService {
       cursor = { at: last.at, id: last.id };
       if (rows.length < BATCH) break;
     }
-    out.end();
     await this.logExport(actor.id, 'export.audit', `خروجی گزارش اقدام‌ها (${out.rows} ردیف) گرفته شد.`, { filters: f, rows: out.rows, capped: out.rows >= MAX_AUDIT_ROWS });
+    out.end(); // audit پیش از پایان پاسخ (کلاینتی که فایل را گرفته، audit آن ثبت‌شده است)
   }
 
   /** H-44 اعضا/حضور/ارزیابی یک جلسه از mid (صفحه‌به‌صفحه؛ صفحهٔ اول پیش از شروع stream تا 404/503 به‌صورت JSON برسد) */
@@ -202,7 +202,7 @@ export class ExportService {
         throw e instanceof AppError ? e : new AppError('SERVICE_UNAVAILABLE');
       }
     }
-    out.end();
     await this.logExport(actor.id, 'export.session', `خروجی ${q.kind} جلسه (${out.rows} ردیف) گرفته شد:`, { kind: q.kind, occurrenceId: q.occurrenceId ?? null, rows: out.rows }, { type: 'session', id, label: s.title });
+    out.end(); // audit پیش از پایان پاسخ (کلاینتی که فایل را گرفته، audit آن ثبت‌شده است)
   }
 }

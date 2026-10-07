@@ -242,7 +242,7 @@ export class MidAdminClient extends OriginClient {
     return this.one(internal.MidAdminDecideBulkResult, 'POST', M.membersDecide, { params: { id }, body });
   }
   manager(id: string, body: z.input<typeof internal.MidAdminManager>) {
-    return this.one(internal.MidAdminSession, 'PUT', M.manager, { params: { id }, body });
+    return this.one(internal.MidAdminManagerResult, 'PUT', M.manager, { params: { id }, body });
   }
   occurrences(id: string, query: Query) {
     return this.page(internal.MidAdminOccurrence, M.occurrences, { params: { id }, query });

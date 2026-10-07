@@ -154,7 +154,7 @@ export class SessionsAdminService {
 
   /** H-68 (۱.۶.۰): session_manager هم مجاز (هم‌مدیر)؛ آخرین مدیر ⇒ LAST_HOLDER از mid */
   async setRoles(actorId: string, id: string, memberId: string, roles: z.infer<typeof internal.MidAdminSetRoles>['roles']) {
-    const m = await this.mid.setMemberRoles(id, memberId, { roles });
+    const m = await this.mid.setMemberRoles(id, memberId, { roles, actorId });
     await this.log(actorId, 'session.member_roles', this.ref(id), 'نقش‌های عضو تغییر کرد در', { memberId, userId: m.userId, roles });
     return this.one(m);
   }
