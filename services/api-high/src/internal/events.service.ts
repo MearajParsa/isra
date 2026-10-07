@@ -88,15 +88,17 @@ export class EventsService implements OnApplicationBootstrap {
 
   /**
    * `BOOTSTRAP_DEVELOPER_PHONE` یک یا چند شماره (با کاما). idempotent و با قفل ردیف نقش‌ها:
-   *  - هنگام راه‌اندازی (بدون phone): فقط وقتی هیچ developer نیست، همهٔ شماره‌های حاضر در دایرکتوری developer می‌شوند؛
-   *  - هنگام ثبت‌نام (با phone): اگر همان شماره در فهرست env باشد developer می‌شود (حتی اگر developer دیگری هست).
+   *  - هر دو مسیر (راه‌اندازی و ثبت‌نام) فقط وقتی هیچ developer فعالی نیست (۱.۶.۰)؛
+   *  - راه‌اندازی: همهٔ شماره‌های حاضر در دایرکتوری؛ ثبت‌نام: فقط همان شماره اگر در فهرست env باشد.
    */
   async bootstrapDeveloper(q: Q = this.ds, onlyPhone?: string): Promise<boolean> {
     const phones = (this.env.BOOTSTRAP_DEVELOPER_PHONE ?? '').split(',').map((x) => x.trim()).filter(Boolean);
     if (!phones.length) return false;
     const run = async (m: Q) => {
-      const has = (await m.query("SELECT user_id FROM user_system_roles WHERE role_key = 'developer' FOR UPDATE")) as unknown[];
-      const targets = onlyPhone ? phones.filter((p) => p === onlyPhone) : has.length ? [] : phones;
+      // docs-v2/30 §۳ امنیت ۷: فقط وقتی هیچ developer «فعال» نیست (شمارهٔ env دیگر راه دائمی ارتقا نیست)
+      const has = (await m.query("SELECT r.user_id FROM user_system_roles r JOIN user_directory d ON d.user_id = r.user_id WHERE r.role_key = 'developer' AND d.status = 'active' FOR UPDATE")) as unknown[];
+      if (has.length) return false;
+      const targets = onlyPhone ? phones.filter((p) => p === onlyPhone) : phones;
       let granted = false;
       for (const phone of targets) {
         const u = (await m.query('SELECT user_id, first_name, last_name FROM user_directory WHERE phone = ?', [phone])) as { user_id: Buffer; first_name: string; last_name: string }[];

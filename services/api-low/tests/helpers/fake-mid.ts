@@ -5,11 +5,11 @@ export interface FakeMid {
   url: string;
   hits: { method: string; url: string; headers: IncomingMessage['headers']; body: unknown }[];
   /** پاسخ سفارشی per مسیر؛ برگرداندن undefined ⇒ 500 */
-  handler: (req: IncomingMessage, body: unknown) => { status: number; json?: unknown } | undefined;
+  handler: (req: IncomingMessage, body: unknown) => { status: number; json?: unknown; raw?: Buffer; type?: string } | undefined;
   close: () => Promise<void>;
 }
 
-/** api-mid جعلی با قرارداد internal REST (فقط برای تست) */
+/** api-mid/api-high جعلی با قرارداد internal REST (فقط برای تست؛ پاسخ JSON یا باینری) */
 export async function startFakeMid(): Promise<FakeMid> {
   const hits: FakeMid['hits'] = [];
   const fake: FakeMid = {
@@ -27,6 +27,11 @@ export async function startFakeMid(): Promise<FakeMid> {
       hits.push({ method: req.method ?? '', url: req.url ?? '', headers: req.headers, body });
       const out = fake.handler(req, body);
       res.statusCode = out?.status ?? 500;
+      if (out?.raw) {
+        res.setHeader('Content-Type', out.type ?? 'application/octet-stream');
+        res.end(out.raw);
+        return;
+      }
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify(out?.json ?? {}));
     });

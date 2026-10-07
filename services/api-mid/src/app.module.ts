@@ -15,6 +15,7 @@ import { DatabaseModule } from './db/database.module';
 import { MembersAccess } from './domain/access.service';
 import { AttendanceService } from './domain/attendance.service';
 import { EvaluationsService } from './domain/evaluations.service';
+import { InvitesService } from './domain/invites.service';
 import { MembersService } from './domain/members.service';
 import { MidController } from './domain/mid.controller';
 import { PointsService } from './domain/points.service';
@@ -22,6 +23,8 @@ import { QueueService } from './domain/queue.service';
 import { SessionsService } from './domain/sessions.service';
 import { SettingsService } from './domain/settings.service';
 import { InfraController } from './infra/infra.controller';
+import { AdminMembersController } from './internal/admin-members.controller';
+import { AdminMembersService } from './internal/admin-members.service';
 import { AdminController } from './internal/admin.controller';
 import { AdminService } from './internal/admin.service';
 import { EventsService } from './internal/events.service';
@@ -37,7 +40,7 @@ import { AdminOpsService } from './internal/admin-ops.service';
 import { MaintenanceService } from './outbox/maintenance.service';
 import { OutboxService } from './outbox/outbox.service';
 
-const PROVIDERS = [RevocationService, JwtVerifier, RateLimitService, MembersAccess, SettingsService, PointsService, LiveService, SessionsService, MembersService, AttendanceService, QueueService, EvaluationsService, EventsService, AdminService, InternalGuard, OutboxService, MaintenanceService, EndpointGuard];
+const PROVIDERS = [RevocationService, JwtVerifier, RateLimitService, MembersAccess, SettingsService, PointsService, LiveService, SessionsService, MembersService, AttendanceService, QueueService, EvaluationsService, EventsService, AdminService, InvitesService, AdminMembersService, InternalGuard, OutboxService, MaintenanceService, EndpointGuard];
 
 /** ۱.۶.۰ نوبت/حضور/صف/ارزیابی/امتیاز/نشان (docs-v2/30) */
 const OPS_PROVIDERS = [PostCommit, BadgesService, OccurrencesService, AdminOpsService];
@@ -69,7 +72,7 @@ export class AppModule {
         DatabaseModule,
         CoreModule
       ],
-      controllers: [MidController, InfraController, InternalController, AdminController, ...OPS_CONTROLLERS],
+      controllers: [MidController, InfraController, InternalController, AdminController, AdminMembersController, ...OPS_CONTROLLERS],
       providers: [
         { provide: APP_FILTER, useClass: AllExceptionsFilter },
         // ترتیب مهم: Envelope بیرونی، Idempotency داخلی (پاسخ ذخیره‌شده هم envelope می‌شود)

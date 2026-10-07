@@ -21,7 +21,7 @@ export class TestClock extends Clock {
   }
 }
 
-const TABLES = ['sessions', 'session_members', 'session_member_roles', 'attendance_entries', 'queue_items', 'evaluations', 'point_ledger', 'user_points', 'badge_awards', 'settings_cache', 'user_directory', 'idempotency_keys', 'rate_limit_counters', 'outbox_events', 'inbox_events'];
+const TABLES = ['sessions', 'session_members', 'session_member_roles', 'attendance_entries', 'queue_items', 'evaluations', 'point_ledger', 'user_points', 'badge_awards', 'settings_cache', 'user_directory', 'idempotency_keys', 'rate_limit_counters', 'outbox_events', 'inbox_events', 'session_invites', 'session_occurrences', 'badges_catalog'];
 
 /** سرور JWKS جعلی (نقش api-low) + امضای توکن */
 export interface FakeLow {
@@ -33,6 +33,10 @@ export interface FakeLow {
   down: boolean;
   events: { url: string; headers: Record<string, unknown>; body: any }[];
   eventStatus: number;
+  /** کاربران شناخته‌شده برای LOW_INTERNAL.resolveUsers (شماره ⇒ کاربر)؛ resolveStatus≠200 ⇒ خطای low */
+  users: Map<string, { userId: string; firstName: string; lastName: string; status: 'active' | 'disabled' | 'deleted' }>;
+  resolveStatus: number;
+  resolveCalls: number;
   close: () => Promise<void>;
 }
 
@@ -47,6 +51,9 @@ export async function startFakeLow(clock: Clock): Promise<FakeLow> {
     down: false,
     events: [],
     eventStatus: 202,
+    users: new Map(),
+    resolveStatus: 200,
+    resolveCalls: 0,
     sign: (c, key) => {
       const iat = Math.floor(clock.now().getTime() / 1000);
       return new SignJWT({ sid: randomUUID(), lvl: c.lvl ?? 'low', roles: c.roles ?? [], perms: c.perms ?? [], pv: 1, ...(c.mcp === undefined ? {} : { mcp: c.mcp }) })
@@ -72,6 +79,17 @@ export async function startFakeLow(clock: Clock): Promise<FakeLow> {
     let raw = '';
     req.on('data', (c) => (raw += c));
     req.on('end', () => {
+      if (req.url === '/internal/v1/users/resolve') {
+        fake.resolveCalls++;
+        res.statusCode = fake.resolveStatus;
+        res.setHeader('Content-Type', 'application/json');
+        const phones = ((raw ? JSON.parse(raw) : {}) as { phones?: string[] }).phones ?? [];
+        const items = phones.flatMap((phone) => {
+          const u = fake.users.get(phone);
+          return u ? [{ phone, ...u }] : [];
+        });
+        return res.end(JSON.stringify({ success: true, data: { items } }));
+      }
       fake.events.push({ url: req.url ?? '', headers: req.headers, body: raw ? JSON.parse(raw) : undefined });
       res.statusCode = fake.eventStatus;
       res.end('{}');
@@ -142,13 +160,9 @@ export async function startApp(over: Record<string, string> = {}): Promise<TestA
   };
 }
 
-/** ۱.۶.۰ نوبت/نشان پویا (docs-v2/30) */
-const OPS_TABLES = ['session_occurrences', 'badges_catalog'];
-
 export async function resetDb(ds: DataSource) {
   await ds.query('SET FOREIGN_KEY_CHECKS = 0');
   for (const t of TABLES) await ds.query(`TRUNCATE TABLE ${t}`);
-  for (const t of OPS_TABLES) await ds.query(`TRUNCATE TABLE ${t}`);
   await ds.query('SET FOREIGN_KEY_CHECKS = 1');
 }
 

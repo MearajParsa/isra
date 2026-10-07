@@ -173,9 +173,10 @@ describe('عضویت', () => {
     const set = await a.put(`/sessions/${id}/members/${xm}/roles`, m, { roles: ['teacher', 'session_supporter'] });
     expect(set.body.data.roles).toEqual(['session_supporter', 'teacher']);
     expect((await a.put(`/sessions/${id}/members/${xm}/roles`, m, { roles: [] })).body.data.roles).toEqual(['quran_student']);
-    // مدیر تغییرناپذیر
+    // ۱.۶.۰: روی عضو مدیر مجاز است؛ مدیر حفظ و نقش‌های داده‌شده کنارش (مدیر+معلم؛ قفل #15)
     const mgrMember = (await a.get(`/sessions/${id}/members?pageSize=100`, m)).body.data.find((x: any) => x.roles.includes('session_manager')).id;
-    expect((await a.put(`/sessions/${id}/members/${mgrMember}/roles`, m, { roles: ['teacher'] })).status).toBe(403);
+    expect((await a.put(`/sessions/${id}/members/${mgrMember}/roles`, m, { roles: ['teacher'] })).body.data.roles).toEqual(['session_manager', 'teacher']);
+    expect((await a.put(`/sessions/${id}/members/${mgrMember}/roles`, m, { roles: [] })).body.data.roles).toEqual(['session_manager']);
   });
 
   it('عضو جلسهٔ دیگر مجوز ندارد (مرز جلسه‌ها)', async () => {

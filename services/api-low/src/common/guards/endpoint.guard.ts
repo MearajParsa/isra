@@ -18,7 +18,7 @@ import { type IsraRequest, isWebClient } from '../request-context';
 
 /** مسیرهای حساس به brute-force/هزینه: شمارندهٔ durable (دقیق بین instanceها)؛ بقیه in-memory */
 const DURABLE_TAG = 'احراز هویت';
-const DURABLE_IDS = new Set(['L-06', 'L-07', 'L-13']);
+const DURABLE_IDS = new Set(['L-06', 'L-07', 'L-13', 'L-22']);
 const GLOBAL_IP_LIMIT: RateLimit = { limit: 600, windowSec: 60, key: 'ip' };
 /** مسیرهای مجاز برای کاربر با رمز موقت (L-10 حساب من، L-13 تغییر رمز، L-05 خروج) */
 const MUST_CHANGE_ALLOWED = new Set(['L-10', 'L-13', 'L-05']);

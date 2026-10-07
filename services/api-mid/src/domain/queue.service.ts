@@ -185,11 +185,11 @@ export class QueueService {
       await m.query("UPDATE queue_items SET status = 'current', position = NULL WHERE id = ?", [first[0].id]);
       await emitInbox(m, now, bufToUuid(first[0].user_id), 'turn', 'نوبت شماست', `نوبت شما در «${session.title}» رسید.`, `session:${session.id}`);
     }
-    // queue.turned: userId فقط برای خود نفر نوبت‌رسیده (حریم D4، docs-v2/30 §۱.۵)
+    // queue.turned: LiveService userId را فقط به کادر و خود نفر می‌دهد (حریم D4، docs-v2/30 §۱.۵)
     const turned = first[0] ? bufToUuid(first[0].user_id) : null;
     this.post.after(m, () => {
       this.live.emit(session.id, 'queue.updated');
-      if (turned) this.live.emitPersonal(session.id, 'queue.turned', turned, { userId: turned });
+      if (turned) this.live.emit(session.id, 'queue.turned', { userId: turned });
     });
     return occ;
   }

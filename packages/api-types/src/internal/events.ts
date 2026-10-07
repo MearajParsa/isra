@@ -15,7 +15,7 @@ export const UserPhoneChanged = z.object({ userId: Uuid, phone: IranMobile, chan
  * `deleted`: high شمارهٔ ناشناس و status=deleted می‌گذارد؛ mid نام را در user_directory به «کاربر حذف‌شده» (رشتهٔ خالی + پرچم) تبدیل می‌کند.
  * `disabled/active`: فقط status در high (فهرست/فیلتر کاربران).
  */
-export const UserStatusChanged = z.object({ userId: Uuid, status: UserStatus, changedAt: IsoDateTime, anonymizedPhone: AnonPhone.optional() });
+export const UserStatusChanged = z.object({ userId: Uuid, status: UserStatus, changedAt: IsoDateTime, anonymizedPhone: AnonPhone.optional(), source: z.enum(['self', 'admin']).optional().meta({ description: '۱.۶.۰: حذف توسط خود کاربر یا ادمین' }) });
 
 // ───────────────────────── ۱.۶.۰ (docs-v2/30) ─────────────────────────
 export const EVENT_TYPES_V16 = ['inbox.messages.created', 'inbox.broadcast.created', 'badge.catalog.changed', 'points.changed'] as const;

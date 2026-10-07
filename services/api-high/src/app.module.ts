@@ -35,9 +35,16 @@ import { EventsController } from './internal/events.controller';
 import { EventsService } from './internal/events.service';
 import { InternalGuard } from './internal/internal.guard';
 import { MaintenanceService } from './outbox/maintenance.service';
+import { AnnouncementsService } from './domain/announcements.service';
+import { BadgesService } from './domain/badges/badges.service';
+import { ExportController } from './domain/export.controller';
+import { ExportService } from './domain/export.service';
+import { OpsController } from './domain/ops.controller';
+import { UserActivityService } from './domain/user-activity.service';
+import { BadgeImageController } from './internal/badge-image.controller';
 import { OutboxService } from './outbox/outbox.service';
 
-const PROVIDERS = [RevocationService, JwtVerifier, RateLimitService, RbacService, AuditService, ClaimsService, UsersService, UsersAdminService, AccountService, SessionsAdminService, ReportsService, LowAdminClient, MidAdminClient, RolesService, RegistryService, PermissionAdminService, AccessQueryService, SettingsService, OverviewService, EventsService, InternalGuard, OutboxService, MaintenanceService, EndpointGuard];
+const PROVIDERS = [RevocationService, JwtVerifier, RateLimitService, RbacService, AuditService, ClaimsService, UsersService, UsersAdminService, AccountService, SessionsAdminService, ReportsService, LowAdminClient, MidAdminClient, RolesService, RegistryService, PermissionAdminService, AccessQueryService, SettingsService, OverviewService, EventsService, InternalGuard, OutboxService, MaintenanceService, EndpointGuard, BadgesService, AnnouncementsService, ExportService, UserActivityService];
 
 @Global()
 @Module({ providers: PROVIDERS, exports: PROVIDERS })
@@ -65,7 +72,8 @@ export class AppModule {
         DatabaseModule,
         CoreModule
       ],
-      controllers: [HighController, AdminController, RbacController, InfraController, EventsController],
+      // ExportController اول: `/system/users/export` پیش از `/system/users/:id`
+      controllers: [ExportController, HighController, AdminController, RbacController, OpsController, InfraController, EventsController, BadgeImageController],
       providers: [
         { provide: APP_FILTER, useClass: AllExceptionsFilter },
         // ترتیب مهم: Envelope بیرونی، Idempotency داخلی (پاسخ ذخیره‌شده هم envelope می‌شود)

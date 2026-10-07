@@ -82,25 +82,8 @@ export class RbacService {
   }
 
   /** دسترسی مؤثر چند کاربر با یک query (بدون کش؛ برای انتشار claim دسته‌ای) */
-  async accessMany(userIds: readonly string[], q: Q = this.ds): Promise<Map<string, UserAccess>> {
-    if (userIds.length === 0) return new Map();
-    userIds = userIds.map((u) => u.toLowerCase());
-    const ids = userIds.map(uuidToBuf);
-    const ph = ids.map(() => '?').join(',');
-    const rows = (await q.query(
-      `SELECT ur.user_id AS uid, 'r' AS t, ur.role_key AS role, NULL AS ref, NULL AS perm FROM user_system_roles ur WHERE ur.user_id IN (${ph})
-       UNION ALL
-       SELECT ur.user_id, 'p', ur.role_key, rp.role_key, rp.permission_key FROM user_system_roles ur JOIN role_permissions rp ON rp.role_key = ur.role_key WHERE ur.user_id IN (${ph})
-       UNION ALL
-       SELECT ur.user_id, 'm', ur.role_key, p.module_key, p.permission_key FROM user_system_roles ur JOIN role_modules rm ON rm.role_key = ur.role_key JOIN permissions p ON p.module_key = rm.module_key WHERE ur.user_id IN (${ph})
-       UNION ALL
-       SELECT g.user_id, 'g', NULL, NULL, g.grant_key FROM user_grants g WHERE g.user_id IN (${ph})`,
-      [...ids, ...ids, ...ids, ...ids]
-    )) as (Omit<AccessRow, 'uid'> & { uid: Buffer })[];
-    return accessFromRows(
-      userIds,
-      rows.map((r) => ({ ...r, uid: bufToUuid(r.uid) }))
-    );
+  accessMany(userIds: readonly string[], q: Q = this.ds): Promise<Map<string, UserAccess>> {
+    return queryAccess(q, userIds);
   }
 
   /** سیاست step-up (پیش‌فرض مجوزها + overrideهای نقش): کش TTL ۵ ثانیه + باطل‌سازی محلی */
@@ -125,4 +108,28 @@ export class RbacService {
     const rows = (await q.query(`SELECT DISTINCT user_id FROM user_system_roles WHERE role_key IN (${keys.map(() => '?').join(',')})`, keys)) as { user_id: Buffer }[];
     return rows.map((r) => bufToUuid(r.user_id));
   }
+}
+
+/** دسترسی مؤثر چند کاربر با یک query تجمیعی (نقش + صریح + ماژول + grant + وضعیت دایرکتوری)؛ مستقل از DI (migration هم استفاده می‌کند) */
+export async function queryAccess(q: Q, userIds: readonly string[]): Promise<Map<string, UserAccess>> {
+  if (userIds.length === 0) return new Map();
+  userIds = userIds.map((u) => u.toLowerCase());
+  const ids = userIds.map(uuidToBuf);
+  const ph = ids.map(() => '?').join(',');
+  const rows = (await q.query(
+    `SELECT ur.user_id AS uid, 'r' AS t, ur.role_key AS role, NULL AS ref, NULL AS perm FROM user_system_roles ur WHERE ur.user_id IN (${ph})
+     UNION ALL
+     SELECT ur.user_id, 'p', ur.role_key, rp.role_key, rp.permission_key FROM user_system_roles ur JOIN role_permissions rp ON rp.role_key = ur.role_key WHERE ur.user_id IN (${ph})
+     UNION ALL
+     SELECT ur.user_id, 'm', ur.role_key, p.module_key, p.permission_key FROM user_system_roles ur JOIN role_modules rm ON rm.role_key = ur.role_key JOIN permissions p ON p.module_key = rm.module_key WHERE ur.user_id IN (${ph})
+     UNION ALL
+     SELECT g.user_id, 'g', NULL, NULL, g.grant_key FROM user_grants g WHERE g.user_id IN (${ph})
+     UNION ALL
+     SELECT d.user_id, 's', NULL, d.status, NULL FROM user_directory d WHERE d.user_id IN (${ph})`,
+    [...ids, ...ids, ...ids, ...ids, ...ids]
+  )) as (Omit<AccessRow, 'uid'> & { uid: Buffer })[];
+  return accessFromRows(
+    userIds,
+    rows.map((r) => ({ ...r, uid: bufToUuid(r.uid) }))
+  );
 }

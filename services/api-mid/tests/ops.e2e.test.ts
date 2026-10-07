@@ -367,13 +367,13 @@ describe('نشان پویا', () => {
     expect(p.badges[0]).toMatchObject({ id: bronze.id, image: { hash: 'a'.repeat(64) } });
     expect(p.badges[0].awardedAt).toBeTruthy();
     expect(p.badges[1].awardedAt).toBeNull();
-    const inbox = (await outbox('inbox.messages.created')).flatMap((x: any) => x.items).filter((i: any) => i.userId === s.id);
+    const inbox = (await outbox('inbox.messages.created')).flatMap((x: any) => x.items).filter((i: any) => i.userId === s.id && i.kind === 'system');
     expect(inbox).toEqual([expect.objectContaining({ kind: 'system', ref: `badge:${bronze.id}` })]);
 
     // لغو حضور ⇒ زیر آستانه ⇒ پس‌گیری + inbox
     await a.post(`/sessions/${r.id}/attendance/${s.id}/revoke`, r.manager, { reason: 'اشتباه' });
     expect((await a.get('/me/points', s)).body.data.badges[0].awardedAt).toBeNull();
-    const inbox2 = (await outbox('inbox.messages.created')).flatMap((x: any) => x.items).filter((i: any) => i.userId === s.id);
+    const inbox2 = (await outbox('inbox.messages.created')).flatMap((x: any) => x.items).filter((i: any) => i.userId === s.id && i.kind === 'system');
     expect(inbox2).toHaveLength(2);
     expect(inbox2.some((i: any) => i.body.includes('از دست رفت') && i.ref === `badge:${bronze.id}`)).toBe(true);
     const holders = await ad.get('/admin/badges/holders');

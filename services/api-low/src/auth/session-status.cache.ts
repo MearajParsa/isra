@@ -33,7 +33,12 @@ export class SessionStatusCache {
   async get(sessionId: string): Promise<SessionStatus | null> {
     const now = this.clock.now().getTime();
     const hit = this.m.get(sessionId);
-    if (hit && hit.exp > now) return hit.v;
+    if (hit && hit.exp > now) {
+      // LRU: دسترسی تازه ⇒ انتهای Map (قدیمی‌ترین‌ها از ابتدا حذف می‌شوند)
+      this.m.delete(sessionId);
+      this.m.set(sessionId, hit);
+      return hit.v;
+    }
     const rows = (await this.ds.query(
       `SELECT s.user_id, s.revoked_at, s.otp_at, s.perm_ver, u.status, u.must_change_password
          FROM auth_sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?`,
@@ -50,8 +55,14 @@ export class SessionStatusCache {
     const v: SessionStatus | null = r
       ? { userId: bufToUuid(r.user_id), revoked: r.revoked_at !== null, otpAt: r.otp_at, permVer: r.perm_ver, userStatus: r.status, mustChange: Number(r.must_change_password) > 0 }
       : null;
-    if (this.m.size >= MAX) this.m.clear();
+    this.m.delete(sessionId);
     this.m.set(sessionId, { v, exp: now + TTL_MS });
+    // LRU به‌جای پاک‌کردن کل cache (جلوگیری از هجوم هم‌زمان به DB)
+    while (this.m.size > MAX) {
+      const oldest = this.m.keys().next().value;
+      if (oldest === undefined) break;
+      this.m.delete(oldest);
+    }
     return v;
   }
 

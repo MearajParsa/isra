@@ -56,7 +56,7 @@ export class SettingsService {
         const now = this.clock.now();
         const upd = (await m.query("UPDATE system_settings SET version = version + 1, eval_weights = ?, badge_thresholds = ?, flags = ?, updated_by = ?, updated_at = ? WHERE setting_key = 'global' AND version = ?", [
           JSON.stringify(b.evalWeights),
-          JSON.stringify(b.badgeThresholds),
+          JSON.stringify(b.badgeThresholds ?? cur.badgeThresholds), // منسوخ (۱.۶.۰): نبود ⇒ مقدار فعلی (fallback mid تا رسیدن کاتالوگ)
           JSON.stringify(b.flags),
           actor.name,
           now,

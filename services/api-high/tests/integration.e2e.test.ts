@@ -52,7 +52,33 @@ describe('رویدادهای ورودی از low', () => {
 });
 
 describe('outbox به low و mid', () => {
-  it('رویدادها با secret به هر دو مقصد می‌رسند؛ شکست ⇒ backoff؛ eventId پایدار', async () => {
+  it('per مقصد: role.changed فقط low؛ settings.changed هر دو؛ شکست یک مقصد فقط همان مقصد را تکرار می‌کند', async () => {
+    const dev = await mkUser(t, 'توسعه', ['developer']);
+    const svc = t.app.get(OutboxService);
+    const s = await a.get('/system/settings', dev);
+    await a.put('/system/settings', await dev.step(), { version: s.body.data.version, evalWeights: { voice: 34, tone: 33, tajweed: 33 }, flags: { maintenance_mode: false, registration_open: true } });
+    t.fake.events.length = 0;
+    // mid خراب، low سالم
+    t.fake.status = 202;
+    const midFail = (u: string) => u.startsWith('/o/');
+    const orig = t.fake.status;
+    let calls: string[] = [];
+    const realPush = t.fake.events.push.bind(t.fake.events);
+    t.fake.events.push = (...e: any[]) => (calls.push(...e.map((x) => x.url)), realPush(...e));
+    await t.ds.query("UPDATE outbox_events SET pending_peers = 'mid' WHERE type = 'system.settings.changed'"); // شبیه‌سازی: low قبلاً گرفته
+    expect(await svc.tick()).toBe(1);
+    expect(calls).toEqual(['/o/internal/v1/events']); // فقط مقصد باقی‌مانده
+    void midFail;
+    void orig;
+    calls = [];
+    const u = await mkUser(t, 'هدف');
+    await a.put(`/system/users/${u.id}/grants`, await dev.step(), { grants: ['session.create'] });
+    expect(await svc.tick()).toBe(1);
+    expect(calls).toEqual(['/c/internal/v1/events']); // role.changed فقط به low
+    t.fake.events.push = realPush;
+  });
+
+  it('رویدادها با secret به مقصدهای مصرف‌کننده می‌رسند؛ شکست ⇒ backoff؛ eventId پایدار', async () => {
     const dev = await mkUser(t, 'توسعه', ['developer']);
     const u = await mkUser(t, 'هدف');
     await a.put(`/system/users/${u.id}/grants`, await dev.step(), { grants: ['session.create'] });
@@ -67,14 +93,21 @@ describe('outbox به low و mid', () => {
     t.fake.status = 202;
     t.fake.events.length = 0;
     expect(await svc.tick()).toBe(1);
-    // دو مقصد (در تست هر دو به همان سرور جعلی اشاره می‌کنند)
-    expect(t.fake.events).toHaveLength(2);
+    // system.role.changed فقط به low (mid مصرف‌کننده نیست؛ docs-v2/30 §۳)
+    expect(t.fake.events).toHaveLength(1);
     expect(t.fake.events[0]!.headers['x-internal-token']).toBe(SECRET); // → low
     expect(t.fake.events[0]!.headers['x-internal-caller']).toBe('high');
-    expect(t.fake.events[1]!.headers['x-internal-token']).toBe(MID_SECRET); // → mid (secret جدا)
     expect(t.fake.events[0]!.body).toMatchObject({ type: 'system.role.changed', payload: { userId: u.id, grants: ['session.create'] } });
-    expect(t.fake.events[0]!.body.eventId).toBe(t.fake.events[1]!.body.eventId);
     expect(await svc.tick()).toBe(0);
+    // settings.changed ⇒ هر دو مقصد با secret جدا و eventId یکسان
+    const s = await a.get('/system/settings', dev);
+    await a.put('/system/settings', await dev.step(), { version: s.body.data.version, evalWeights: { voice: 34, tone: 33, tajweed: 33 }, flags: { maintenance_mode: false, registration_open: true } });
+    t.fake.events.length = 0;
+    expect(await svc.tick()).toBe(1);
+    expect(t.fake.events.map((e) => e.url).sort()).toEqual(['/c/internal/v1/events', '/o/internal/v1/events']);
+    const toMid = t.fake.events.find((e) => e.url.startsWith('/o/'))!;
+    expect(toMid.headers['x-internal-token']).toBe(MID_SECRET);
+    expect(toMid.body.eventId).toBe(t.fake.events.find((e) => e.url.startsWith('/c/'))!.body.eventId);
   });
 });
 
@@ -99,8 +132,14 @@ describe('migration و seed', () => {
     try {
       const count = async (sql: string) => Number(((await ds.query(sql)) as { n: string }[])[0]!.n);
       expect(await count('SELECT COUNT(*) AS n FROM system_roles WHERE undeletable = 1')).toBe(2);
+      expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(19);
+      expect(await count("SELECT COUNT(*) AS n FROM role_permissions WHERE role_key = 'developer' AND locked = 1")).toBe(19);
+      expect(await count("SELECT COUNT(*) AS n FROM role_permissions WHERE role_key = 'super_admin' AND permission_key IN ('system.sessions.moderate','system.points.manage','system.badges.manage','system.inbox.send','system.data.export')")).toBe(0);
+      expect(await count('SELECT COUNT(*) AS n FROM badges')).toBe(4);
+      await ds.undoLastMigration(); // OpsExpansion (۱.۶.۰)
       expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(14);
-      expect(await count("SELECT COUNT(*) AS n FROM role_permissions WHERE role_key = 'developer' AND locked = 1")).toBe(14);
+      expect(await count('SELECT COUNT(*) AS n FROM system_modules')).toBe(7);
+      expect(await count("SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN ('badges','badge_catalog_meta','announcements')")).toBe(0);
       // قرارداد ۱.۴: super_admin فقط sessions.view/reports.view را (بدون قفل) می‌گیرد؛ users.manage/sessions.manage را نه
       expect(await count("SELECT COUNT(*) AS n FROM role_permissions WHERE role_key = 'super_admin' AND permission_key IN ('system.sessions.view','system.reports.view') AND locked = 0")).toBe(2);
       expect(await count("SELECT COUNT(*) AS n FROM role_permissions WHERE role_key = 'super_admin' AND permission_key IN ('system.users.manage','system.sessions.manage')")).toBe(0);
@@ -115,9 +154,10 @@ describe('migration و seed', () => {
       expect(await count("SELECT COUNT(*) AS n FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'permissions' AND column_name = 'perm_group'")).toBe(1);
       await expect(ds.query("INSERT INTO system_roles (role_key, title, description, undeletable) VALUES ('x', 't', 'd', 0)")).rejects.toThrow();
       await ds.query('DELETE FROM user_grants');
-      await ds.runMigrations(); // دوباره بالا (روی داده‌ی موجود)
-      expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(14);
+      await ds.runMigrations(); // دوباره بالا (روی داده‌ی موجود): DynamicRbac + OpsExpansion
+      expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(19);
       await ds.query("DELETE FROM system_roles WHERE role_key = 'dyn_role_x'");
+      await ds.undoLastMigration(); // OpsExpansion
       await ds.undoLastMigration(); // DynamicRbac
       await ds.undoLastMigration(); // AdminExpansion
       expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(7);
@@ -126,11 +166,20 @@ describe('migration و seed', () => {
       await ds.undoLastMigration(); // InitSchema
       expect(await count('SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name <> "migrations"')).toBe(0);
       await ds.runMigrations(); // دیتابیس تازه: InitSchema → RevokedSessions → AdminExpansion → DynamicRbac
-      expect(await count('SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name <> "migrations"')).toBe(17);
-      expect(await count('SELECT COUNT(*) AS n FROM system_modules')).toBe(7);
+      expect(await count('SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name <> "migrations"')).toBe(20);
+      expect(await count('SELECT COUNT(*) AS n FROM system_modules')).toBe(10);
       expect(await count('SELECT COUNT(*) AS n FROM rbac_meta')).toBe(1);
       expect(await count('SELECT COUNT(*) AS n FROM system_settings')).toBe(1);
-      expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(14);
+      expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(19);
+      // seed نشان‌های قدیمی + رویداد کاتالوگ (نسخهٔ ۱) فقط به mid و low
+      expect(await count('SELECT COUNT(*) AS n FROM badges')).toBe(4);
+      const cat = (await ds.query("SELECT payload, pending_peers FROM outbox_events WHERE type = 'badge.catalog.changed'")) as { payload: unknown; pending_peers: string }[];
+      expect(cat).toHaveLength(1);
+      expect(cat[0]!.pending_peers).toBe('mid,low');
+      const pl = (typeof cat[0]!.payload === 'string' ? JSON.parse(cat[0]!.payload) : cat[0]!.payload) as { version: number; badges: { key: string; threshold: number; imageHash: null }[] };
+      expect(pl.version).toBe(1);
+      expect(pl.badges.map((b) => [b.key, b.threshold])).toEqual([['badge_50', 50], ['badge_150', 150], ['badge_300', 300], ['badge_500', 500]]);
+      expect(await count("SELECT COUNT(*) AS n FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'audit_logs' AND index_name IN ('idx_audit_actor_at','idx_audit_target_at')")).toBeGreaterThanOrEqual(2);
       expect(await count("SELECT COUNT(*) AS n FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'user_directory' AND index_name = 'idx_directory_status'")).toBeGreaterThan(0);
       const uq = (await ds.query("SELECT non_unique AS nu FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'user_directory' AND index_name = 'uq_directory_phone'")) as { nu: string | number }[];
       expect(Number(uq[0]!.nu)).toBe(0);

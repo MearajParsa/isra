@@ -5,10 +5,11 @@ import { ENTITIES } from './entities';
 import { InitSchema1727700000000 } from './migrations/1727700000000-InitSchema';
 import { FlagsAndStepUpJwt1727900000000 } from './migrations/1727900000000-FlagsAndStepUpJwt';
 import { AdminExpansion1728400000000 } from './migrations/1728400000000-AdminExpansion';
+import { LowV161728600000010 } from './migrations/1728600000010-LowV16';
 import { SnakeNamingStrategy } from './naming';
 import { SafeTypeOrmLogger } from './typeorm.logger';
 
-export const MIGRATIONS = [InitSchema1727700000000, FlagsAndStepUpJwt1727900000000, AdminExpansion1728400000000];
+export const MIGRATIONS = [InitSchema1727700000000, FlagsAndStepUpJwt1727900000000, AdminExpansion1728400000000, LowV161728600000010];
 
 export function dataSourceOptions(env: Env): DataSourceOptions {
   return {

@@ -57,7 +57,7 @@ export class SessionService {
     const now = this.clock.now();
     const sessionId = uuidv7(now.getTime());
     const refreshToken = randomToken(32);
-    const claims = await this.claims(i.userId);
+    const claims = await this.accessState(i.userId);
     const revoked: string[] = [];
 
     await this.ds.transaction(async (m) => {
@@ -73,9 +73,9 @@ export class SessionService {
       await this.insertRefresh(m, sessionId, refreshToken, now);
 
       const extra = (await m.query('SELECT id FROM auth_sessions WHERE user_id = ? AND revoked_at IS NULL ORDER BY last_active_at DESC LIMIT 1000 OFFSET ?', [uuidToBuf(i.userId), MAX_ACTIVE_SESSIONS])) as { id: Buffer }[];
-      for (const r of extra) {
-        revoked.push(bufToUuid(r.id));
-        await m.query('UPDATE auth_sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL', [now, r.id]);
+      if (extra.length) {
+        for (const r of extra) revoked.push(bufToUuid(r.id));
+        await m.query(`UPDATE auth_sessions SET revoked_at = ? WHERE id IN (${extra.map(() => '?').join(',')}) AND revoked_at IS NULL`, [now, ...extra.map((r) => r.id)]);
       }
       await this.publishRevoked(m, revoked, now);
     });
@@ -164,20 +164,19 @@ export class SessionService {
   }
 
   async issueAccess(userId: string, sessionId: string, deviceId: string) {
-    const c = await this.claims(userId);
-    const u = (await this.ds.query('SELECT must_change_password AS mcp FROM users WHERE id = ?', [uuidToBuf(userId)])) as { mcp: number | string | boolean }[];
-    return this.tokens.signAccess({ userId, sessionId, deviceId, roles: c.roles, grants: c.grants, permVer: c.permVer, mustChangePassword: Number(u[0]?.mcp ?? 0) > 0 });
+    const c = await this.accessState(userId);
+    return this.tokens.signAccess({ userId, sessionId, deviceId, roles: c.roles, grants: c.grants, permVer: c.permVer, mustChangePassword: c.mustChange });
   }
 
-  private async claims(userId: string): Promise<{ roles: string[]; grants: string[]; permVer: number }> {
-    const rows = (await this.ds.query('SELECT system_roles, grants, perm_ver FROM user_claims WHERE user_id = ?', [uuidToBuf(userId)])) as {
-      system_roles: string[] | string;
-      grants: string[] | string;
-      perm_ver: number;
-    }[];
+  /** claimها و پرچم رمز موقت در یک کوئری (مسیر داغ refresh) */
+  private async accessState(userId: string): Promise<{ roles: string[]; grants: string[]; permVer: number; mustChange: boolean }> {
+    const rows = (await this.ds.query(
+      'SELECT u.must_change_password AS mcp, c.system_roles, c.grants, c.perm_ver FROM users u LEFT JOIN user_claims c ON c.user_id = u.id WHERE u.id = ?',
+      [uuidToBuf(userId)]
+    )) as { mcp: number | string | boolean; system_roles: string[] | string | null; grants: string[] | string | null; perm_ver: number | null }[];
     const r = rows[0];
-    const arr = (v: string[] | string | undefined): string[] => (Array.isArray(v) ? v : typeof v === 'string' ? (JSON.parse(v) as string[]) : []);
-    return { roles: arr(r?.system_roles), grants: arr(r?.grants), permVer: r?.perm_ver ?? 1 };
+    const arr = (v: string[] | string | null | undefined): string[] => (Array.isArray(v) ? v : typeof v === 'string' ? (JSON.parse(v) as string[]) : []);
+    return { roles: arr(r?.system_roles), grants: arr(r?.grants), permVer: r?.perm_ver ?? 1, mustChange: Number(r?.mcp ?? 0) > 0 };
   }
 
   async revoke(sessionId: string): Promise<boolean> {
@@ -192,11 +191,12 @@ export class SessionService {
     return changed;
   }
 
-  /** revoke نشست متعلق به کاربر؛ نشست دیگران ⇒ false (بدون نشت وجود) */
+  /** revoke نشست متعلق به کاربر (revoke‌شدهٔ قبلی ⇒ idempotent true)؛ نشست دیگران ⇒ false (بدون نشت وجود) */
   async revokeOwned(userId: string, sessionId: string): Promise<boolean> {
-    const own = (await this.ds.query('SELECT 1 AS x FROM auth_sessions WHERE id = ? AND user_id = ? AND revoked_at IS NULL', [uuidToBuf(sessionId), uuidToBuf(userId)])) as unknown[];
-    if (!own.length) return false;
-    return this.revoke(sessionId);
+    const own = (await this.ds.query('SELECT revoked_at FROM auth_sessions WHERE id = ? AND user_id = ?', [uuidToBuf(sessionId), uuidToBuf(userId)])) as { revoked_at: Date | null }[];
+    if (!own[0]) return false;
+    if (own[0].revoked_at === null) await this.revoke(sessionId);
+    return true;
   }
 
   async revokeOthers(userId: string, keepSessionId: string): Promise<void> {

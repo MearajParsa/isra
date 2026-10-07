@@ -19,8 +19,21 @@ export const ACCEPTED_CALLERS: readonly Peer[] = ['mid', 'high'];
 
 /** نوع رویدادهای مجاز هر فرستنده به `/internal/v1/events` این سرویس (allow-list) */
 export const EVENT_ACL: Readonly<Partial<Record<Peer, readonly string[]>>> = {
-  mid: ['inbox.message.created'],
-  high: ['system.role.changed', 'system.settings.changed']
+  mid: ['inbox.message.created', 'inbox.messages.created', 'points.changed'],
+  // system.permission.changed: high به همهٔ مصرف‌کننده‌ها می‌فرستد؛ low فقط می‌پذیرد (no-op) تا outbox high تا ابد retry نکند
+  high: ['system.role.changed', 'system.settings.changed', 'system.permission.changed', 'inbox.messages.created', 'inbox.broadcast.created', 'badge.catalog.changed']
+};
+
+/**
+ * مسیریابی outbox: هر نوع رویداد فقط به سرویس‌هایی که مصرفش می‌کنند (docs-v2/30 §۲).
+ * `strip`: فیلدهایی که برای آن مقصد حذف می‌شوند (شمارهٔ کامل هرگز به mid نمی‌رود).
+ */
+export const OUTBOX_ROUTES: Readonly<Record<string, Partial<Record<Peer, { strip?: readonly string[] }>>>> = {
+  'user.registered': { mid: { strip: ['phone'] }, high: {} },
+  'user.profile.updated': { mid: {}, high: {} },
+  'session.revoked': { mid: {}, high: {} },
+  'user.phone.changed': { high: {} },
+  'user.status.changed': { mid: { strip: ['anonymizedPhone'] }, high: {} }
 };
 
 export const INTERNAL_KEY = 'isra:internal';

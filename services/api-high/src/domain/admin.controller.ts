@@ -3,7 +3,9 @@ import type { z } from 'zod';
 import type { high } from '@isra/api-types';
 import { In, Route } from '../common/ep';
 import type { IsraRequest } from '../common/request-context';
+import { originIdempotencyKey as okey } from '../common/idempotency.interceptor';
 import { AccountService } from './account.service';
+import { UserActivityService } from './user-activity.service';
 import { ReportsService } from './reports.service';
 import { SessionsAdminService } from './sessions-admin.service';
 import { UsersAdminService } from './users-admin.service';
@@ -14,6 +16,7 @@ type Series = { from?: string; to?: string; interval: 'day' | 'week' | 'month' }
 type B<K extends keyof typeof high> = (typeof high)[K] extends z.ZodType ? z.infer<(typeof high)[K]> : never;
 const me = (r: IsraRequest) => r.user!;
 const actor = (r: IsraRequest) => ({ id: r.user!.userId, roles: r.user!.roles });
+type SessionParams = Id & { evalId: string; itemId: string; userId: string; memberId: string };
 
 /** endpointهای قرارداد ۱.۴: حساب من، مدیریت کاربر، جلسه‌ها، گزارش‌ها. مجوز/step-up/اعتبارسنجی در EndpointGuard. */
 @Controller()
@@ -22,7 +25,8 @@ export class AdminController {
     private readonly account: AccountService,
     private readonly users: UsersAdminService,
     private readonly sessions: SessionsAdminService,
-    private readonly reports: ReportsService
+    private readonly reports: ReportsService,
+    private readonly activity: UserActivityService
   ) {}
 
   // ───────── حساب من ─────────
@@ -103,7 +107,7 @@ export class AdminController {
   }
   @Route('H-62')
   createSession(@Req() r: IsraRequest, @In() { body }: { body: B<'AdminCreateSessionBody'> }) {
-    return this.sessions.create(me(r).userId, body);
+    return this.sessions.create(me(r).userId, body, okey(r, 'H-62', 'mid'));
   }
   @Route('H-63')
   updateSession(@Req() r: IsraRequest, @In() { params, body }: { params: Id; body: Parameters<SessionsAdminService['update']>[2] }) {
@@ -119,7 +123,7 @@ export class AdminController {
     return {};
   }
   @Route('H-66')
-  members(@In() { params, query }: { params: Id; query: Page & { status?: string } }) {
+  members(@In() { params, query }: { params: Id; query: z.infer<typeof high.AdminMembersQuery> }) {
     return this.sessions.members(params.id, query);
   }
   @Route('H-67')
@@ -127,7 +131,7 @@ export class AdminController {
     return this.sessions.decide(me(r).userId, params.id, params.memberId, body.action);
   }
   @Route('H-68')
-  memberRoles(@Req() r: IsraRequest, @In() { params, body }: { params: Id & { memberId: string }; body: { roles: Parameters<SessionsAdminService['setRoles']>[3] } }) {
+  memberRoles(@Req() r: IsraRequest, @In() { params, body }: { params: Id & { memberId: string }; body: B<'AdminSetMemberRolesBody'> }) {
     return this.sessions.setRoles(me(r).userId, params.id, params.memberId, body.roles);
   }
   @Route('H-69')
@@ -136,16 +140,72 @@ export class AdminController {
     return {};
   }
   @Route('H-70')
-  attendance(@In() { params }: { params: Id }) {
-    return this.sessions.attendance(params.id);
+  attendance(@In() { params, query }: { params: Id; query: Page & { occurrenceId?: string } }) {
+    return this.sessions.attendance(params.id, query);
   }
   @Route('H-71')
-  queue(@In() { params }: { params: Id }) {
-    return this.sessions.queue(params.id);
+  queue(@In() { params, query }: { params: Id; query: { occurrenceId?: string } }) {
+    return this.sessions.queue(params.id, query);
   }
   @Route('H-72')
-  evaluations(@In() { params }: { params: Id }) {
-    return this.sessions.evaluations(params.id);
+  evaluations(@In() { params, query }: { params: Id; query: Page & { occurrenceId?: string; includeVoid: string } }) {
+    return this.sessions.evaluations(params.id, query);
+  }
+
+  // ───────── ۱.۶.۰: عملیات کامل جلسه (docs-v2/30) ─────────
+  @Route('H-73')
+  addMembers(@Req() r: IsraRequest, @In() { params, body }: { params: Id; body: B<'AdminAddMembersBody'> }) {
+    return this.sessions.addMembers({ id: me(r).userId, perms: me(r).perms }, params.id, body, { low: okey(r, 'H-73', 'low'), mid: okey(r, 'H-73', 'mid') });
+  }
+  @Route('H-74')
+  transferManager(@Req() r: IsraRequest, @In() { params, body }: { params: Id; body: B<'TransferManagerBody'> }) {
+    return this.sessions.transferManager(me(r).userId, params.id, body);
+  }
+  @Route('H-53')
+  decideBulk(@Req() r: IsraRequest, @In() { params, body }: { params: Id; body: B<'AdminDecideBulkBody'> }) {
+    return this.sessions.decideBulk(me(r).userId, params.id, body);
+  }
+  @Route('H-75')
+  occurrences(@In() { params, query }: { params: Id; query: Page }) {
+    return this.sessions.occurrences(params.id, query);
+  }
+  @Route('H-76')
+  markAttendance(@Req() r: IsraRequest, @In() { params, body }: { params: Id; body: B<'AdminMarkAttendanceBody'> }) {
+    return this.sessions.markAttendance(me(r).userId, params.id, body);
+  }
+  @Route('H-77')
+  revokeAttendance(@Req() r: IsraRequest, @In() { params, body }: { params: SessionParams; body: B<'AdminRevokeAttendanceBody'> }) {
+    return this.sessions.revokeAttendance(me(r).userId, params.id, params.userId, body);
+  }
+  @Route('H-78')
+  queueNext(@Req() r: IsraRequest, @In() { params, body }: { params: Id; body: B<'AdminQueueNextBody'> }) {
+    return this.sessions.queueNext(me(r).userId, params.id, body);
+  }
+  @Route('H-79')
+  queueAct(@Req() r: IsraRequest, @In() { params, body }: { params: SessionParams; body: B<'AdminQueueActBody'> }) {
+    return this.sessions.queueAct(me(r).userId, params.id, params.itemId, body, okey(r, 'H-79', 'mid'));
+  }
+  @Route('H-95')
+  voidEvaluation(@Req() r: IsraRequest, @In() { params, body }: { params: SessionParams; body: B<'AdminVoidEvaluationBody'> }) {
+    return this.sessions.voidEvaluation(me(r).userId, params.id, params.evalId, body);
+  }
+  @Route('H-96')
+  patchEvaluation(@Req() r: IsraRequest, @In() { params, body }: { params: SessionParams; body: B<'AdminEvaluationPatchBody'> }) {
+    return this.sessions.patchEvaluation(me(r).userId, params.id, params.evalId, body);
+  }
+
+  // ───────── عضویت و امتیاز کاربر ─────────
+  @Route('H-52')
+  memberships(@In() { params, query }: { params: Id; query: B<'UserMembershipsQuery'> }) {
+    return this.activity.memberships(params.id, query);
+  }
+  @Route('H-97')
+  userPoints(@In() { params, query }: { params: Id; query: Page }) {
+    return this.activity.points(params.id, query);
+  }
+  @Route('H-98')
+  adjustPoints(@Req() r: IsraRequest, @In() { params, body }: { params: Id; body: B<'PointsAdjustBody'> }) {
+    return this.activity.adjust(me(r).userId, params.id, body, okey(r, 'H-98', 'mid'));
   }
 
   // ───────── گزارش‌ها ─────────

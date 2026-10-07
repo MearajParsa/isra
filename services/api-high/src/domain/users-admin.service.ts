@@ -13,6 +13,7 @@ import { conflict, displayName } from './db';
 import { RbacService } from './rbac.service';
 import type { SystemRoleKey } from './rules';
 import { type DirectoryRow, UsersService } from './users.service';
+import { forbidden, requireHeld } from './access/write-helpers';
 
 type Body<K extends keyof typeof high> = (typeof high)[K] extends z.ZodType ? z.infer<(typeof high)[K]> : never;
 export interface Actor {
@@ -90,6 +91,18 @@ export class UsersAdminService {
     return displayName(r.first_name, r.last_name);
   }
 
+  /**
+   * ضد تصاحب حساب (docs-v2/30 §۳ امنیت ۱): روی کاربری که نقش سیستمی دارد، actor باید همهٔ مجوزهای مؤثر هدف را داشته باشد
+   * (وگرنه با تغییر شماره/رمز/خروج می‌توانست حساب قوی‌تر را تصاحب کند)؛ حساب developer فقط توسط developer. خودِ actor معاف.
+   */
+  async guardTarget(actor: Actor, targetId: string): Promise<void> {
+    if (actor.id.toLowerCase() === targetId.toLowerCase()) return;
+    const [t, a] = await Promise.all([this.rbac.access(targetId), this.rbac.access(actor.id)]);
+    if (t.roles.length === 0) return;
+    if (t.roles.includes('developer') && !a.roles.includes('developer')) throw forbidden('حساب توسعه‌دهنده را فقط توسعه‌دهنده می‌تواند مدیریت کند.');
+    requireHeld(a, t.permissions, 'مدیریت این حساب');
+  }
+
   private async requireActive(r: DirectoryRow, mode: 'active-only' | 'not-deleted'): Promise<void> {
     if (r.status === 'deleted' || (mode === 'active-only' && r.status !== 'active')) throw conflict('USER_NOT_ACTIVE', 'کاربر فعال نیست.');
   }
@@ -127,6 +140,7 @@ export class UsersAdminService {
   async update(actor: Actor, id: string, body: Body<'UpdateUserBody'>) {
     const row = await this.users.mustRow(this.ds, id);
     await this.requireActive(row, 'active-only');
+    await this.guardTarget(actor, id);
     await this.low.updateUser(id, body);
     const lu = await this.soft(this.low.getUser(id), 'low.getUser');
     await this.ds.transaction(async (m) => {
@@ -172,6 +186,7 @@ export class UsersAdminService {
   async setStatus(actor: Actor, id: string, status: 'active' | 'disabled') {
     const row = await this.users.mustRow(this.ds, id);
     await this.requireActive(row, 'not-deleted');
+    await this.guardTarget(actor, id);
     if (status === 'disabled') await this.protect(actor, id, 'disable');
     await this.low.setStatus(id, { status });
     await this.ds.transaction(async (m) => {
@@ -191,6 +206,7 @@ export class UsersAdminService {
   async remove(actor: Actor, id: string): Promise<void> {
     const row = await this.users.mustRow(this.ds, id);
     if (row.status === 'deleted') return; // idempotent
+    await this.guardTarget(actor, id);
     await this.protect(actor, id, 'delete');
     await this.low.deleteUser(id);
     // شمارهٔ ناشناس را low تعیین کرده است؛ خواندنش ناموفق بود ⇒ جایگزین محلی (رویداد user.status.changed بعداً هم‌ترازش می‌کند)
@@ -227,6 +243,7 @@ export class UsersAdminService {
   async setPassword(actor: Actor, id: string, body: Body<'UserPasswordBody'>): Promise<void> {
     const row = await this.users.mustRow(this.ds, id);
     await this.requireActive(row, 'not-deleted');
+    await this.guardTarget(actor, id);
     await this.low.setPassword(id, body.action === 'set' ? { action: 'set', password: body.password } : { action: 'clear' });
     await this.audit.write(this.ds, {
       actor: await this.audit.actorOf(actor.id),
@@ -240,6 +257,7 @@ export class UsersAdminService {
   async logoutAll(actor: Actor, id: string): Promise<void> {
     const row = await this.users.mustRow(this.ds, id);
     await this.requireActive(row, 'not-deleted');
+    await this.guardTarget(actor, id);
     await this.low.logoutAll(id);
     await this.audit.write(this.ds, {
       actor: await this.audit.actorOf(actor.id),
@@ -258,6 +276,7 @@ export class UsersAdminService {
 
   async revokeSession(actor: Actor, id: string, sessionId: string): Promise<void> {
     const row = await this.users.mustRow(this.ds, id);
+    await this.guardTarget(actor, id);
     await this.low.revokeSession(id, sessionId);
     await this.audit.write(this.ds, {
       actor: await this.audit.actorOf(actor.id),

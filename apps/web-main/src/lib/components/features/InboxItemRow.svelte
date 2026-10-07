@@ -14,27 +14,33 @@
     membership: 'users',
     turn: 'mic',
     evaluation: 'check',
-    system: 'info'
+    system: 'info',
+    announcement: 'bell',
+    session: 'calendar'
   };
   const kindLabel: Record<InboxKind, string> = {
     membership: 'عضویت',
     turn: 'نوبت',
     evaluation: 'ارزیابی',
-    system: 'سیستم'
+    system: 'سیستم',
+    announcement: 'اطلاعیه',
+    session: 'جلسه'
   };
+  // نوع ناشناخته (نسخهٔ آیندهٔ سرور) مثل system نمایش داده می‌شود
+  const kind = $derived<InboxKind>(item.kind in icons ? item.kind : 'system');
   const unread = $derived(!item.readAt);
 </script>
 
 <li>
   <button type="button" class="row" class:unread aria-expanded={expanded} onclick={() => onopen?.(item)}>
-    <span class="ico {item.kind}"><Icon name={icons[item.kind]} size={22} /></span>
+    <span class="ico {kind}"><Icon name={icons[kind]} size={22} /></span>
     <span class="txt">
       <span class="head">
         <span class="title">{item.title}</span>
         <span class="time muted">{formatRelative(item.createdAt)}</span>
       </span>
       <span class="body" class:open={expanded}>{item.body}</span>
-      <span class="kind muted">{kindLabel[item.kind]}</span>
+      <span class="kind muted">{kindLabel[kind]}</span>
     </span>
     {#if unread}<span class="dot" aria-label="خوانده‌نشده"></span>{/if}
   </button>

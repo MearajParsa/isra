@@ -13,6 +13,12 @@ import { isDeveloper, isReservedPermissionKey } from './policy';
 import { RegistryService } from './registry.service';
 import { forbidden, invalid, isDupKey, keyTaken, ph, systemProtected } from './write-helpers';
 
+/**
+ * شناسهٔ target در audit باید با `Id` قرارداد (`[A-Za-z0-9_-]`) بخواند اما کلید مجوز نقطه دارد ⇒ «.» ⇒ «-» (برگشت‌پذیر:
+ * کلید مجوز «-» ندارد). کلید دقیق در `meta.key` هم هست. (نقص قرارداد گزارش شد.)
+ */
+export const permTargetId = (key: string): string => key.replace(/\./g, '-');
+
 type Body<K extends keyof typeof high> = (typeof high)[K] extends z.ZodType ? z.infer<(typeof high)[K]> : never;
 
 /** مدیریت رجیستری: مجوزهای پویا (H-85..H-87) و ماژول‌ها (H-89..H-91). قواعد E4–E7 در docs-v2/27 §3. */
@@ -26,8 +32,9 @@ export class PermissionAdminService {
     private readonly claims: ClaimsService
   ) {}
 
-  private async log(m: Q, actorId: string, action: string, summary: string, meta: Record<string, unknown>) {
-    await this.audit.write(m, { actor: await this.audit.actorOf(actorId, m), action, summary, meta });
+  /** audit با target (docs-v2/30 §۳ امنیت ۵): permission/module با کلید و عنوان */
+  private async log(m: Q, actorId: string, action: string, summary: string, meta: Record<string, unknown>, target: { type: 'permission' | 'module'; id: string; label: string }) {
+    await this.audit.write(m, { actor: await this.audit.actorOf(actorId, m), action, target, summary, meta });
   }
 
   /** کاربران اثرپذیر از تغییر مجوزهای ماژول‌ها (نقش‌های دارای آن ماژول) ∪ نقش‌های داده‌شده */
@@ -64,7 +71,7 @@ export class PermissionAdminService {
       await m.query('INSERT INTO role_permissions (role_key, permission_key, locked) VALUES (?, ?, 1)', [DEVELOPER, body.key]);
       await this.claims.publishMany(m, await this.holdersViaModules(m, [body.moduleKey], [DEVELOPER]));
       await this.rbac.bump(m);
-      await this.log(m, actorId, 'permission.create', `مجوز «${body.title}» ساخته شد.`, { key: body.key, moduleKey: body.moduleKey, grantable: body.grantable, stepUp: body.stepUp });
+      await this.log(m, actorId, 'permission.create', `مجوز «${body.title}» ساخته شد.`, { key: body.key, moduleKey: body.moduleKey, grantable: body.grantable, stepUp: body.stepUp }, { type: 'permission', id: permTargetId(body.key), label: body.title });
     });
     return this.registry.permission(body.key);
   }
@@ -114,7 +121,7 @@ export class PermissionAdminService {
       await m.query('UPDATE permissions SET title = ?, description = ?, module_key = ?, grantable = ?, step_up = ? WHERE permission_key = ?', [title, description, moduleKey, grantable ? 1 : 0, stepUp, key]);
       await this.claims.publishMany(m, affected);
       await this.rbac.bump(m);
-      await this.log(m, actorId, 'permission.update', `مجوز «${title}» ویرایش شد.`, { key, fields: changed });
+      await this.log(m, actorId, 'permission.update', `مجوز «${title}» ویرایش شد.`, { key, fields: changed }, { type: 'permission', id: permTargetId(key), label: title });
     });
     return this.registry.permission(key);
   }
@@ -134,7 +141,7 @@ export class PermissionAdminService {
       await m.query('DELETE FROM permissions WHERE permission_key = ?', [key]);
       await this.claims.publishMany(m, affected);
       await this.rbac.bump(m);
-      await this.log(m, actorId, 'permission.delete', `مجوز «${before?.title ?? key}» حذف شد.`, { key, affectedUsers: new Set(affected).size });
+      await this.log(m, actorId, 'permission.delete', `مجوز «${before?.title ?? key}» حذف شد.`, { key, affectedUsers: new Set(affected).size }, { type: 'permission', id: permTargetId(key), label: before?.title ?? key });
     });
     return before!;
   }
@@ -150,7 +157,7 @@ export class PermissionAdminService {
         throw e;
       }
       await this.rbac.bump(m);
-      await this.log(m, actorId, 'module.create', `ماژول «${body.title}» ساخته شد.`, { key: body.key });
+      await this.log(m, actorId, 'module.create', `ماژول «${body.title}» ساخته شد.`, { key: body.key }, { type: 'module', id: body.key, label: body.title });
     });
     return this.registry.module(body.key);
   }
@@ -166,7 +173,7 @@ export class PermissionAdminService {
       if (title === cur.title && description === cur.description && sortOrder === cur.sort_order) return;
       await m.query('UPDATE system_modules SET title = ?, description = ?, sort_order = ?, updated_at = ? WHERE module_key = ?', [title, description, sortOrder, this.clock.now(), key]);
       await this.rbac.bump(m);
-      await this.log(m, actorId, 'module.update', `ماژول «${title}» ویرایش شد.`, { key, fields: Object.keys(body) });
+      await this.log(m, actorId, 'module.update', `ماژول «${title}» ویرایش شد.`, { key, fields: Object.keys(body) }, { type: 'module', id: key, label: title });
     });
     return this.registry.module(key);
   }
@@ -184,7 +191,7 @@ export class PermissionAdminService {
       await m.query('DELETE FROM role_modules WHERE module_key = ?', [key]);
       await m.query('DELETE FROM system_modules WHERE module_key = ?', [key]);
       await this.rbac.bump(m);
-      await this.log(m, actorId, 'module.delete', `ماژول «${rows[0].title}» حذف شد.`, { key });
+      await this.log(m, actorId, 'module.delete', `ماژول «${rows[0].title}» حذف شد.`, { key }, { type: 'module', id: key, label: rows[0].title });
     });
     return before!;
   }
