@@ -86,7 +86,9 @@ export const DEFAULT_ROLE_PERMS: Record<string, readonly string[]> = {
  * تنها `is_system` و ماژولِ مجوز سیستمی (که قابل‌تغییر نیستند، E4) تضمین می‌شوند.
  * `rbac_meta` اگر نبود با version=1 ساخته می‌شود.
  */
-export async function seedRbac(q: Q, now: Date, opts: { v16?: boolean } = {}): Promise<void> {
+export async function seedRbac(q: Q, now: Date, opts: { v16?: boolean; initialize?: boolean } = {}): Promise<void> {
+  // initialize: فقط migration ۱.۵ (DynamicRbac) — ردیف‌های قبلی (InitSchema/AdminExpansion) هنوز grantable/step_up/عنوان درست ندارند
+  const init = opts.initialize ?? false;
   // migration ۱.۵ (DynamicRbac) فقط دادهٔ زمان خودش را می‌کارد؛ ۱.۶.۰ را OpsExpansion (و بازگردانی تست) اضافه می‌کند
   const v16 = opts.v16 ?? true;
   const modules = SEED_MODULES.filter((m) => v16 || !m.v16);
@@ -100,7 +102,7 @@ export async function seedRbac(q: Q, now: Date, opts: { v16?: boolean } = {}): P
   for (const p of perms) {
     await q.query(
       `INSERT INTO permissions (permission_key, title, module_key, description, is_system, grantable, step_up) VALUES (?, ?, ?, ?, 1, ?, ?)
-       ON DUPLICATE KEY UPDATE module_key = VALUES(module_key), is_system = 1`,
+       ON DUPLICATE KEY UPDATE module_key = VALUES(module_key), is_system = 1${init ? ', title = VALUES(title), description = VALUES(description), grantable = VALUES(grantable), step_up = VALUES(step_up)' : ''}`,
       [p.key, p.title, p.module, p.description, p.grantable ? 1 : 0, p.stepUp]
     );
   }

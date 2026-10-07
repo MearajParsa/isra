@@ -590,3 +590,14 @@ describe('اصلاحات امنیتی', () => {
   });
 });
 
+
+describe('مهاجرت روی DB تازه', () => {
+  it('پیش‌فرض‌های مجوز سیستمی درست کاشته می‌شوند (session.create قابل‌دادن؛ مجوزهای دیدن بدون step-up)', async () => {
+    const rows = (await t.ds.query("SELECT permission_key, grantable, step_up FROM permissions WHERE permission_key IN ('session.create','system.users.view','system.users.manage')")) as { permission_key: string; grantable: number; step_up: string }[];
+    const by = Object.fromEntries(rows.map((r) => [r.permission_key, r]));
+    expect(Number(by['session.create']!.grantable)).toBe(1);
+    expect(by['session.create']!.step_up).toBe('none');
+    expect(by['system.users.view']!.step_up).toBe('none');
+    expect(by['system.users.manage']!.step_up).toBe('required');
+  });
+});
