@@ -80,7 +80,7 @@ describe('tehran: بازه و سطل‌ها', () => {
 
 describe('ماتریس مجوز پیش‌فرض ۱.۴', () => {
   it('developer همه قفل؛ super_admin: sessions.view/reports.view بدون قفل و بدون manage', () => {
-    expect(ALL_PERMISSIONS).toHaveLength(19);
+    expect(ALL_PERMISSIONS).toHaveLength(32);
     for (const p of NEW_V16) expect(DEFAULT_ROLE_PERMS.super_admin!).not.toContain(p);
     expect([...LOCKED.developer!].sort()).toEqual([...ALL_PERMISSIONS].sort());
     expect(DEFAULT_ROLE_PERMS.super_admin!).toEqual(expect.arrayContaining(['system.sessions.view', 'system.reports.view']));

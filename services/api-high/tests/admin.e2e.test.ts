@@ -176,16 +176,17 @@ describe('grant مستقیم (D1)', () => {
 });
 
 describe('ماتریس مجوز', () => {
-  it('H-10/H-11: دو نقش undeletable با دارندگان و قفل‌ها؛ فهرست مجوزها', async () => {
+  it('H-10/H-11: نقش‌های ثابت undeletable با دارندگان و قفل‌ها؛ فهرست مجوزها', async () => {
     const dev = await mkUser(t, 'توسعه', ['developer']);
-    const roles = await a.get('/system/roles', dev);
+    const roles = await a.get('/system/roles?tier=high', dev);
     expect(roles.body.data.map((r: any) => r.key)).toEqual(['developer', 'super_admin']);
-    expect(roles.body.data[0]).toMatchObject({ undeletable: true, holders: 1, title: 'توسعه‌دهنده' });
-    expect(roles.body.data[0].lockedPermissions).toHaveLength(19);
+    expect((await a.get('/system/roles', dev)).body.data.map((r: any) => r.key)).toEqual(['developer', 'guest', 'quran_student', 'super_admin', 'teacher']);
+    expect(roles.body.data[0]).toMatchObject({ undeletable: true, holders: 1, title: 'توسعه‌دهنده', tier: 'high' });
+    expect(roles.body.data[0].lockedPermissions).toHaveLength(32);
     expect(roles.body.data[1].lockedPermissions).toEqual(expect.arrayContaining(['system.users.view', 'system.role.assign', 'system.permission.edit', 'system.audit.view']));
     const perms = await a.get('/system/permissions?pageSize=50', dev);
-    expect(perms.body.meta.total).toBe(19);
-    expect(perms.body.data.find((p: any) => p.key === 'session.create')).toMatchObject({ moduleKey: 'sessions', grantable: true });
+    expect(perms.body.meta.total).toBe(32);
+    expect(perms.body.data.find((p: any) => p.key === 'session.create')).toMatchObject({ moduleKey: 'teaching', grantable: true });
   });
 
   it('developer ثابت ⇒ 403؛ حذف مجوز قفل‌شده ⇒ 409 LOCKED_PERMISSION؛ تغییر مجاز ⇒ claim دارندگان تازه می‌شود', async () => {
@@ -236,43 +237,44 @@ describe('کاربران (جست‌وجو)', () => {
 
 describe('تنظیمات سراسری', () => {
   const put = async (u: User, body: object) => a.put('/system/settings', await u.step(), body);
-  const valid = (version: number, over: object = {}) => ({ version, evalWeights: { voice: 50, tone: 30, tajweed: 20 }, badgeThresholds: [10, 20, 30, 40], flags: { maintenance_mode: false, registration_open: true }, ...over });
+  const valid = (version: number, over: object = {}) => ({ version, flags: { maintenance_mode: false, registration_open: true }, ...over });
 
-  it('مقدار اولیهٔ سیستم (seed): ۴۰/۳۰/۳۰ و ۵۰/۱۵۰/۳۰۰/۵۰۰', async () => {
+  it('مقدار اولیهٔ سیستم (seed): فقط پرچم‌ها (۱.۷.۰ بدون وزن/آستانه)', async () => {
     const dev = await mkUser(t, 'توسعه', ['developer']);
     const s = await a.get('/system/settings', dev);
-    expect(s.body.data).toMatchObject({ version: 1, evalWeights: { voice: 40, tone: 30, tajweed: 30 }, badgeThresholds: [50, 150, 300, 500], flags: { maintenance_mode: false, registration_open: true } });
+    expect(s.body.data).toMatchObject({ version: 1, flags: { maintenance_mode: false, registration_open: true } });
+    expect(s.body.data.evalWeights).toBeUndefined();
+    expect(s.body.data.badgeThresholds).toBeUndefined();
   });
 
   it('به‌روزرسانی: نسخه +۱، audit، رویداد برای mid/low؛ نسخهٔ قدیمی ⇒ 409 VERSION_MISMATCH', async () => {
     const dev = await mkUser(t, 'توسعه', ['developer']);
-    const ok = await put(dev, valid(1));
+    const ok = await put(dev, valid(1, { flags: { maintenance_mode: true, registration_open: true } }));
     expect(ok.status).toBe(200);
-    expect(ok.body.data).toMatchObject({ version: 2, evalWeights: { voice: 50, tone: 30, tajweed: 20 }, updatedBy: 'توسعه' });
-    expect((await outboxTypes(t)).find((e) => e.type === 'system.settings.changed')!.payload).toMatchObject({ version: 2, badgeThresholds: [10, 20, 30, 40], flags: { registration_open: true } });
+    expect(ok.body.data).toMatchObject({ version: 2, flags: { maintenance_mode: true }, updatedBy: 'توسعه' });
+    expect((await outboxTypes(t)).find((e) => e.type === 'system.settings.changed')!.payload).toEqual({ version: 2, flags: { maintenance_mode: true, registration_open: true } });
     const stale = await put(dev, valid(1));
     expect(stale.status).toBe(409);
     expect(stale.body.error.details).toMatchObject({ reason: 'VERSION_MISMATCH', currentVersion: 2 });
-    expect((await a.get('/system/audit?action=settings.updated', dev)).body.data[0].meta).toMatchObject({ version: 2, before: { evalWeights: { voice: 40 } }, after: { evalWeights: { voice: 50 } } });
+    expect((await a.get('/system/audit?action=settings.updated', dev)).body.data[0].meta).toMatchObject({ version: 2, before: { flags: { maintenance_mode: false } }, after: { flags: { maintenance_mode: true } } });
   });
 
   it('به‌روزرسانی هم‌زمان با یک نسخه ⇒ فقط یکی موفق', async () => {
     const dev = await mkUser(t, 'توسعه', ['developer']);
     const cur = (await a.get('/system/settings', dev)).body.data.version;
-    const rs = await Promise.all(Array.from({ length: 5 }, async (_, i) => put(dev, valid(cur, { evalWeights: { voice: 40 + i, tone: 30, tajweed: 30 - i } }))));
+    const rs = await Promise.all(Array.from({ length: 5 }, async (_, i) => put(dev, valid(cur, { flags: { maintenance_mode: i % 2 === 0, registration_open: true } }))));
     expect(rs.filter((r) => r.status === 200)).toHaveLength(1);
     expect(rs.filter((r) => r.status === 409)).toHaveLength(4);
   });
 
-  it('اعتبارسنجی: جمع وزن‌ها، آستانهٔ غیرصعودی، پرچم ناشناخته، فیلد اضافه', async () => {
+  it('اعتبارسنجی: وزن/آستانهٔ منسوخ (۱.۷.۰) ⇒ 400، پرچم ناشناخته، فیلد اضافه', async () => {
     const dev = await mkUser(t, 'توسعه', ['developer']);
     const v = (await a.get('/system/settings', dev)).body.data.version;
-    expect((await put(dev, valid(v, { evalWeights: { voice: 50, tone: 30, tajweed: 30 } }))).status).toBe(400);
-    expect((await put(dev, valid(v, { badgeThresholds: [10, 10, 30, 40] }))).status).toBe(400);
-    expect((await put(dev, valid(v, { badgeThresholds: [10, 20, 30] }))).status).toBe(400);
+    expect((await put(dev, valid(v, { evalWeights: { voice: 40, tone: 30, tajweed: 30 } }))).status).toBe(400);
+    expect((await put(dev, valid(v, { badgeThresholds: [10, 20, 30, 40] }))).status).toBe(400);
     expect((await put(dev, valid(v, { flags: { maintenance_mode: false, registration_open: true, hack: true } }))).status).toBe(400);
     expect((await put(dev, { ...valid(v), updatedBy: 'x' })).status).toBe(400);
-    expect((await put(dev, valid(v, { evalWeights: { voice: 100, tone: 0, tajweed: 0 } }))).status).toBe(200);
+    expect((await put(dev, valid(v))).status).toBe(200);
   });
 
   it('super_admin با settings.edit مجاز؛ بدون step-up ⇒ 403', async () => {

@@ -6,12 +6,11 @@ import { AppError } from '../common/app-error';
 import { Clock } from '../common/clock';
 import { bufToUuid, isUuid, uuidToBuf, uuidv7 } from '../common/ids';
 import { LiveService } from '../live/live.service';
-import { MembersAccess, SESSION_COLS, type JoinPolicy, type SessionRow, type Visibility, sortRoles } from './access.service';
+import { type CommentVisibility, MembersAccess, SESSION_COLS, type JoinPolicy, type RawSessionRow, type SessionRow, type Visibility, fromRawSession } from './access.service';
 import { OccurrencesService } from './occurrences.service';
-import { SettingsService } from './settings.service';
 import { conflict, parseJson, type Q } from './db';
 import { emitInboxBatch } from './outbox.writer';
-import { canTransition, isStaffRole, permissionsFor, type SessionRole, type SessionState } from './rules';
+import { type Permission, type SessionRole, type SessionState, canTransition, effectivePermissions, parsePermissions } from './rules';
 import { type Schedule, nextStartMs, nextStartsAt, toTehranIso } from './schedule';
 
 type Input = z.infer<typeof SessionInput>;
@@ -28,10 +27,11 @@ export interface SessionDto {
   capacity: number | null;
   memberCount: number;
   visibility: Visibility;
+  commentsEnabled: boolean;
+  commentVisibility: CommentVisibility;
 }
 
-type RawSessionRow = Omit<SessionRow, 'id' | 'created_by'> & { id: Buffer; created_by: Buffer };
-const fromRaw = (r: RawSessionRow): SessionRow => ({ ...r, id: bufToUuid(r.id), created_by: bufToUuid(r.created_by) });
+const fromRaw = fromRawSession;
 const likeArg = (q: string) => `%${q.replace(/[\\%_]/g, '\\$&')}%`;
 
 @Injectable()
@@ -41,7 +41,6 @@ export class SessionsService {
     private readonly clock: Clock,
     private readonly access: MembersAccess,
     private readonly live: LiveService,
-    private readonly settings: SettingsService,
     private readonly occurrences: OccurrencesService
   ) {}
 
@@ -58,13 +57,15 @@ export class SessionsService {
       joinPolicy: r.join_policy ?? 'request',
       capacity: r.capacity ?? null,
       memberCount: Number(r.member_count ?? 0),
-      visibility: r.visibility ?? 'public'
+      visibility: r.visibility ?? 'public',
+      commentsEnabled: r.comments_enabled === undefined ? true : !!Number(r.comments_enabled),
+      commentVisibility: r.comment_visibility ?? 'public'
     };
   }
 
   /** PublicSession (strict): بدون visibility؛ draft هرگز به اینجا نمی‌رسد */
   publicDto(r: SessionRow) {
-    const { visibility: _v, ...rest } = this.toDto(r);
+    const { visibility: _v, commentsEnabled: _c, commentVisibility: _cv, ...rest } = this.toDto(r);
     return { ...rest, status: rest.status as Exclude<SessionState, 'draft'> };
   }
 
@@ -73,19 +74,33 @@ export class SessionsService {
     return ms === null ? null : new Date(ms);
   }
 
+  /** ۱.۷.۰: سازنده صاحب (owner_id) جلسه است و ردیف عضویت ندارد؛ پشتیبان‌های ثابت او خودکار مؤثرند */
   async create(userId: string, input: Input): Promise<SessionDto> {
     const now = this.clock.now();
     const id = uuidv7(now.getTime());
-    await this.ds.transaction(async (m) => {
-      await m.query(
-        `INSERT INTO sessions (id, title, description, status, schedule_type, schedule, next_starts_at, location_label, location_route_url, join_policy, visibility, capacity, created_by, version, created_at, updated_at)
-         VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
-        [uuidToBuf(id), input.title, input.description, input.schedule.type, JSON.stringify(input.schedule), this.snapshot(input.schedule), input.location.label, input.location.routeUrl ?? null, input.joinPolicy, input.visibility, input.capacity ?? null, uuidToBuf(userId), now, now]
-      );
-      const memberId = uuidv7(now.getTime());
-      await m.query("INSERT INTO session_members (id, session_id, user_id, status, requested_at, decided_by, decided_at, source, added_by) VALUES (?, ?, ?, 'approved', ?, ?, ?, 'staff', ?)", [uuidToBuf(memberId), uuidToBuf(id), uuidToBuf(userId), now, uuidToBuf(userId), now, uuidToBuf(userId)]);
-      await m.query("INSERT INTO session_member_roles (member_id, role) VALUES (?, 'session_manager')", [uuidToBuf(memberId)]);
-    });
+    await this.ds.query(
+      `INSERT INTO sessions (id, title, description, status, schedule_type, schedule, next_starts_at, location_label, location_route_url, join_policy, visibility, capacity, comments_enabled, comment_visibility, created_by, owner_id, version, created_at, updated_at)
+       VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+      [
+        uuidToBuf(id),
+        input.title,
+        input.description,
+        input.schedule.type,
+        JSON.stringify(input.schedule),
+        this.snapshot(input.schedule),
+        input.location.label,
+        input.location.routeUrl ?? null,
+        input.joinPolicy,
+        input.visibility,
+        input.capacity ?? null,
+        input.commentsEnabled ? 1 : 0,
+        input.commentVisibility,
+        uuidToBuf(userId),
+        uuidToBuf(userId),
+        now,
+        now
+      ]
+    );
     return this.dtoById(this.ds, id);
   }
 
@@ -110,7 +125,7 @@ export class SessionsService {
     if (session.status !== 'draft' && session.status !== 'scheduled') throw conflict('SESSION_LOCKED', 'جلسهٔ شروع‌شده یا پایان‌یافته قابل ویرایش نیست.');
     const now = this.clock.now();
     await m.query(
-      `UPDATE sessions SET title = ?, description = ?, schedule_type = ?, schedule = ?, next_starts_at = ?, location_label = ?, location_route_url = ?, join_policy = ?, visibility = ?${input.capacity === undefined ? '' : ', capacity = ?'}, version = version + 1, updated_at = ? WHERE id = ?`,
+      `UPDATE sessions SET title = ?, description = ?, schedule_type = ?, schedule = ?, next_starts_at = ?, location_label = ?, location_route_url = ?, join_policy = ?, visibility = ?, comments_enabled = ?, comment_visibility = ?${input.capacity === undefined ? '' : ', capacity = ?'}, version = version + 1, updated_at = ? WHERE id = ?`,
       [
         input.title,
         input.description,
@@ -121,6 +136,8 @@ export class SessionsService {
         input.location.routeUrl ?? null,
         input.joinPolicy,
         input.visibility,
+        input.commentsEnabled ? 1 : 0,
+        input.commentVisibility,
         ...(input.capacity === undefined ? [] : [input.capacity]),
         now,
         uuidToBuf(session.id)
@@ -135,15 +152,17 @@ export class SessionsService {
     }
   }
 
-  /** اعضای تأییدشدهٔ جلسه (به‌جز exclude) */
+  /** اعضای تأییدشده + کادر (صاحب/پشتیبان‌ها) جلسه (به‌جز exclude) */
   private async memberIds(m: Q, sessionId: string, exclude: string | null): Promise<string[]> {
     const rows = (await m.query("SELECT user_id FROM session_members WHERE session_id = ? AND status = 'approved'", [uuidToBuf(sessionId)])) as { user_id: Buffer }[];
-    return rows.map((r) => bufToUuid(r.user_id)).filter((u) => u !== exclude);
+    const all = new Set([...rows.map((r) => bufToUuid(r.user_id)), ...(await this.access.staffUserIds(sessionId, m))]);
+    if (exclude) all.delete(exclude);
+    return [...all];
   }
 
   async transition(userId: string, sessionId: string, to: SessionState): Promise<SessionDto> {
     await this.ds.transaction(async (m) => {
-      const { session } = await this.access.load(m, sessionId, userId, 'session.transition', true);
+      const { session } = await this.access.load(m, sessionId, userId, 'session.edit', true);
       await this.applyTransition(m, session, to);
     });
     this.live.emit(sessionId, 'session.state', { status: to });
@@ -203,7 +222,7 @@ export class SessionsService {
     return found;
   }
 
-  /** M-07: حذف نرم جلسهٔ draft توسط مدیر (session.edit)؛ غیر draft ⇒ SESSION_LOCKED */
+  /** M-07: حذف نرم جلسهٔ draft توسط صاحب/پشتیبانِ session.edit؛ غیر draft ⇒ SESSION_LOCKED */
   async deleteDraft(userId: string, sessionId: string): Promise<Record<string, never>> {
     const { session } = await this.access.load(this.ds, sessionId, userId, 'session.edit');
     if (session.status !== 'draft') throw conflict('SESSION_LOCKED', 'فقط جلسهٔ پیش‌نویس قابل حذف است.');
@@ -211,69 +230,100 @@ export class SessionsService {
     return {};
   }
 
+  /** M-02: نقش (owner/supporter/member)، عضویت من و مجوزهای مؤثر */
   async me(userId: string, sessionId: string) {
-    const { session, membership, permissions } = await this.access.load(this.ds, sessionId, userId);
+    const { session, membership, permissions, role } = await this.access.load(this.ds, sessionId, userId);
     const occ = await this.occurrences.forMe(this.ds, sessionId, userId);
     return {
       session: this.toDto(session),
-      membership: membership ? { status: membership.status, roles: membership.roles } : null,
+      role,
+      membership: membership ? { status: membership.status } : null,
       permissions,
       myAttendance: occ.myAttendance,
-      occurrence: occ.occurrence,
-      evalWeights: { ...(await this.settings.get()).weights }
+      occurrence: occ.occurrence
     };
   }
 
+  /** M-00: hasStaffRole = صاحب یا پشتیبان دست‌کم یک جلسهٔ موجود، یا پشتیبان ثابت یک استاد */
   async caps(userId: string, canCreate: boolean) {
-    const r = (await this.ds.query("SELECT 1 AS x FROM session_members m JOIN sessions s ON s.id = m.session_id AND s.deleted_at IS NULL JOIN session_member_roles r ON r.member_id = m.id WHERE m.user_id = ? AND m.status = 'approved' AND r.role <> 'quran_student' LIMIT 1", [uuidToBuf(userId)])) as unknown[];
-    return { canCreateSession: canCreate, hasStaffRole: r.length > 0 };
+    const u = uuidToBuf(userId);
+    const r = (await this.ds.query(
+      `SELECT EXISTS(SELECT 1 FROM sessions WHERE owner_id = ? AND deleted_at IS NULL)
+           OR EXISTS(SELECT 1 FROM session_supporters x JOIN sessions s ON s.id = x.session_id AND s.deleted_at IS NULL WHERE x.user_id = ?)
+           OR EXISTS(SELECT 1 FROM teacher_supporters WHERE user_id = ?) AS staff`,
+      [u, u, u]
+    )) as { staff: number | string }[];
+    return { canCreateSession: canCreate, hasStaffRole: Number(r[0]?.staff ?? 0) > 0 };
   }
 
-  /** M-01: فیلترهای اختیاری status (وضعیت جلسه) و role (نقش من؛ فقط عضویت تأییدشده) */
+  /**
+   * M-01: جلسه‌های من = صاحب ∪ پشتیبان (per جلسه یا ثابتِ استاد صاحب) ∪ عضو (هر وضعیت). نقش = بالاترین (owner > supporter > member).
+   * draft فقط برای کادر. `scope=staff` ⇒ فقط owner/supporter. pendingCount فقط برای دارندگان membership.approve.
+   */
   async mySessions(userId: string, scope: 'all' | 'staff', page: number, pageSize: number, filter: { status?: SessionState; role?: SessionRole } = {}) {
-    const uid = uuidToBuf(userId);
-    const conds: string[] = [];
+    const u = uuidToBuf(userId);
+    const ROLE = `CASE WHEN s.owner_id = ? THEN 'owner'
+                       WHEN EXISTS (SELECT 1 FROM session_supporters x WHERE x.session_id = s.id AND x.user_id = ?)
+                         OR EXISTS (SELECT 1 FROM teacher_supporters t WHERE t.teacher_id = s.owner_id AND t.user_id = ?) THEN 'supporter'
+                       ELSE 'member' END`;
+    const ids = `SELECT id AS sid FROM sessions WHERE owner_id = ?
+                 UNION SELECT session_id FROM session_supporters WHERE user_id = ?
+                 UNION SELECT s2.id FROM teacher_supporters t2 JOIN sessions s2 ON s2.owner_id = t2.teacher_id WHERE t2.user_id = ?
+                 UNION SELECT session_id FROM session_members WHERE user_id = ?`;
+    const conds: string[] = ['r.d_at IS NULL', "(r.role <> 'member' OR r.status <> 'draft')"];
     const extra: unknown[] = [];
-    if (scope === 'staff') conds.push("m.status = 'approved' AND EXISTS (SELECT 1 FROM session_member_roles x WHERE x.member_id = m.id AND x.role <> 'quran_student')");
+    if (scope === 'staff') conds.push("r.role <> 'member'");
     if (filter.status) {
-      conds.push('s.status = ?');
+      conds.push('r.status = ?');
       extra.push(filter.status);
     }
     if (filter.role) {
-      conds.push("m.status = 'approved' AND EXISTS (SELECT 1 FROM session_member_roles y WHERE y.member_id = m.id AND y.role = ?)");
+      conds.push('r.role = ?');
       extra.push(filter.role);
+      if (filter.role === 'member') conds.push("r.m_status = 'approved'");
     }
-    const staff = conds.map((c) => `AND ${c}`).join(' ');
+    const derived = `FROM (SELECT ${SESSION_COLS}, s.deleted_at AS d_at, ${ROLE} AS role, m.status AS m_status
+                             FROM (SELECT DISTINCT sid FROM (${ids}) u) i
+                             JOIN sessions s ON s.id = i.sid
+                             LEFT JOIN session_members m ON m.session_id = s.id AND m.user_id = ?) r
+                    WHERE ${conds.join(' AND ')}`;
+    // ترتیب placeholderها: ROLE (۳) ← ids (۴) ← join عضویت (۱) ← فیلترها
+    const args = [u, u, u, u, u, u, u, u, ...extra];
     const [rows, cnt] = await Promise.all([
-      this.ds.query(
-        `SELECT ${SESSION_COLS}, m.status AS m_status,
-                (SELECT GROUP_CONCAT(r.role) FROM session_member_roles r WHERE r.member_id = m.id) AS roles
-           FROM session_members m JOIN sessions s ON s.id = m.session_id
-          WHERE m.user_id = ? AND s.deleted_at IS NULL ${staff}
-          ORDER BY s.created_at DESC, s.id DESC LIMIT ? OFFSET ?`,
-        [uid, ...extra, pageSize, (page - 1) * pageSize]
-      ) as Promise<(RawSessionRow & { m_status: 'pending' | 'approved' | 'rejected'; roles: string | null })[]>,
-      this.ds.query(`SELECT COUNT(*) AS n FROM session_members m JOIN sessions s ON s.id = m.session_id WHERE m.user_id = ? AND s.deleted_at IS NULL ${staff}`, [uid, ...extra]) as Promise<{ n: string | number }[]>
+      this.ds.query(`SELECT r.* ${derived} ORDER BY r.created_at DESC, r.id DESC LIMIT ? OFFSET ?`, [...args, pageSize, (page - 1) * pageSize]) as Promise<(RawSessionRow & { role: SessionRole; m_status: 'pending' | 'approved' | 'rejected' | null })[]>,
+      this.ds.query(`SELECT COUNT(*) AS n ${derived}`, args) as Promise<{ n: string | number }[]>
     ]);
 
-    // pendingCount فقط برای دارندگان membership.approve
-    const approvers = rows.filter((r) => r.m_status === 'approved' && permissionsFor(sortRoles(r.roles?.split(',') ?? [])).includes('membership.approve'));
+    // مجوز مؤثر پشتیبان‌ها (دسته‌ای) برای pendingCount
+    const sup = rows.filter((r) => r.role === 'supporter');
+    const perms = new Map<string, Permission[]>();
+    if (sup.length) {
+      const sids = sup.map((r) => r.id);
+      const owners = [...new Map(sup.map((r) => [r.owner_id.toString('hex'), r.owner_id])).values()];
+      const [sp, tp] = await Promise.all([
+        this.ds.query(`SELECT session_id, permissions FROM session_supporters WHERE user_id = ? AND session_id IN (${sids.map(() => '?').join(',')})`, [u, ...sids]) as Promise<{ session_id: Buffer; permissions: unknown }[]>,
+        this.ds.query(`SELECT teacher_id, permissions FROM teacher_supporters WHERE user_id = ? AND teacher_id IN (${owners.map(() => '?').join(',')})`, [u, ...owners]) as Promise<{ teacher_id: Buffer; permissions: unknown }[]>
+      ]);
+      const spm = new Map(sp.map((x) => [bufToUuid(x.session_id), parsePermissions(x.permissions)]));
+      const tpm = new Map(tp.map((x) => [bufToUuid(x.teacher_id), parsePermissions(x.permissions)]));
+      for (const r of sup) perms.set(bufToUuid(r.id), effectivePermissions('supporter', tpm.get(bufToUuid(r.owner_id)) ?? null, spm.get(bufToUuid(r.id)) ?? null));
+    }
+    const approver = (r: (typeof rows)[number]) => r.role === 'owner' || (r.role === 'supporter' && (perms.get(bufToUuid(r.id)) ?? []).includes('membership.approve'));
+    const approvers = rows.filter(approver);
     const pending = new Map<string, number>();
     if (approvers.length) {
-      const ids = approvers.map((r) => r.id);
-      const pc = (await this.ds.query(`SELECT session_id, COUNT(*) AS n FROM session_members WHERE status = 'pending' AND session_id IN (${ids.map(() => '?').join(',')}) GROUP BY session_id`, ids)) as { session_id: Buffer; n: string | number }[];
+      const pc = (await this.ds.query(`SELECT session_id, COUNT(*) AS n FROM session_members WHERE status = 'pending' AND session_id IN (${approvers.map(() => '?').join(',')}) GROUP BY session_id`, approvers.map((r) => r.id))) as { session_id: Buffer; n: string | number }[];
       for (const p of pc) pending.set(bufToUuid(p.session_id), Number(p.n));
     }
 
     return {
       items: rows.map((r) => {
-        const id = bufToUuid(r.id);
-        const roles = sortRoles(r.roles?.split(',') ?? []);
+        const s = fromRaw(r);
         return {
-          session: this.toDto({ ...r, id, created_by: bufToUuid(r.created_by) }),
-          roles,
-          membership: r.m_status,
-          ...(approvers.includes(r) ? { pendingCount: pending.get(id) ?? 0 } : {})
+          session: this.toDto(s),
+          role: r.role,
+          membership: r.role === 'member' ? (r.m_status ?? 'pending') : null,
+          ...(approver(r) ? { pendingCount: pending.get(s.id) ?? 0 } : {})
         };
       }),
       page,
@@ -345,5 +395,5 @@ export class SessionsService {
   }
 }
 
-export { isStaffRole, toTehranIso };
+export { toTehranIso };
 export type { SessionRole };

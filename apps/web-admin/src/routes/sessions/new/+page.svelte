@@ -42,7 +42,7 @@
 
 <svelte:head><title>جلسهٔ جدید — مدیریت اسراء</title></svelte:head>
 
-<PageHeader title="جلسهٔ جدید" subtitle="جلسه از طرف یک کاربر ساخته می‌شود و او «مدیر جلسه» خواهد بود." backHref={withBase('/sessions')} />
+<PageHeader title="جلسهٔ جدید" subtitle="جلسه از طرف یک کاربر ساخته می‌شود و او «استاد صاحب جلسه» خواهد بود." backHref={withBase('/sessions')} />
 
 {#if !canManage}
   <EmptyState icon="lock" title="مجوز ساخت جلسه ندارید" message="مجوز «مدیریت جلسه‌ها» برای نقش شما فعال نیست." />

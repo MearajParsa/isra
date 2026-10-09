@@ -1,38 +1,51 @@
 <script lang="ts">
-  import type { EvaluationInput, EvaluationWeights } from '$lib/api/mid-types';
+  import type { ActiveCriterion, EvaluationInput } from '$lib/api/mid-types';
   import { formatNumber } from '$lib/utils/format';
+  import { evaluationScore, weightShare } from '$lib/utils/evaluation';
   import Button from '$lib/components/ui/Button.svelte';
   import ScoreSlider from '$lib/components/ui/ScoreSlider.svelte';
 
   interface Props {
     name: string;
-    weights: EvaluationWeights;
+    /** M-45: معیارهای فعال (پویا؛ docs-v2/31 §۳) */
+    criteria: ActiveCriterion[];
     busy?: boolean;
     errors?: Record<string, string>;
     onsubmit: (input: Omit<EvaluationInput, 'queueItemId'>) => void;
     oncancel: () => void;
   }
-  let { name, weights, busy = false, errors = {}, onsubmit, oncancel }: Props = $props();
+  let { name, criteria, busy = false, errors = {}, onsubmit, oncancel }: Props = $props();
 
-  let voice = $state(5);
-  let tone = $state(5);
-  let tajweed = $state(5);
+  const sorted = $derived([...criteria].sort((a, b) => a.sortOrder - b.sortOrder));
+  /** نمرهٔ هر معیار (پیش‌فرض: نیمهٔ سقف) */
+  let values = $state<Record<string, number>>({});
   let note = $state('');
 
-  const sum = $derived(weights.voice + weights.tone + weights.tajweed);
-  const score = $derived(Math.round(((voice * weights.voice + tone * weights.tone + tajweed * weights.tajweed) / sum) * 10));
+  $effect(() => {
+    for (const c of sorted) if (values[c.id] === undefined) values[c.id] = Math.round(c.maxScore / 2);
+  });
+
+  const score = $derived(evaluationScore(sorted.map((c) => ({ weight: c.weight, maxScore: c.maxScore, score: values[c.id] ?? 0 }))));
 
   function submit(e: SubmitEvent) {
     e.preventDefault();
-    onsubmit({ voice, tone, tajweed, note: note.trim() || undefined });
+    onsubmit({ scores: sorted.map((c) => ({ criterionId: c.id, score: values[c.id] ?? 0 })), note: note.trim() || undefined });
   }
 </script>
 
 <form class="form" onsubmit={submit}>
   <h3>ارزیابی قرائت «{name}»</h3>
-  <ScoreSlider label="صوت" weight={weights.voice} bind:value={voice} error={errors.voice} disabled={busy} />
-  <ScoreSlider label="لحن" weight={weights.tone} bind:value={tone} error={errors.tone} disabled={busy} />
-  <ScoreSlider label="تجوید" weight={weights.tajweed} bind:value={tajweed} error={errors.tajweed} disabled={busy} />
+  {#each sorted as c, i (c.id)}
+    <ScoreSlider
+      label={c.title}
+      weight={weightShare(c.weight, sorted)}
+      max={c.maxScore}
+      bind:value={() => values[c.id] ?? 0, (v) => (values[c.id] = v)}
+      error={errors[`scores.${i}.score`] ?? errors[`scores.${i}`] ?? null}
+      disabled={busy}
+    />
+  {/each}
+  {#if errors.scores}<p class="err" role="alert">{errors.scores}</p>{/if}
 
   <div class="total" aria-live="polite">
     <span>امتیاز کل (وزن‌دار)</span>

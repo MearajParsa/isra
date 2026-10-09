@@ -13,7 +13,6 @@ import {
   AdminSession,
   SessionInput,
   SessionState,
-  SetRolesBody,
   TransitionBody,
 } from '../types';
 
@@ -112,16 +111,6 @@ export async function H67_decideMember(sessionId: string, memberId: string, body
     target: 'HIGH',
     method: 'PATCH',
     path: `/s/v1/system/sessions/${encodeURIComponent(sessionId)}/members/${encodeURIComponent(memberId)}`,
-    body,
-  });
-  return res.data;
-}
-
-export async function H68_setMemberRoles(sessionId: string, memberId: string, body: SetRolesBody): Promise<AdminMember> {
-  const res = await httpRequest<AdminMember>({
-    target: 'HIGH',
-    method: 'PUT',
-    path: `/s/v1/system/sessions/${encodeURIComponent(sessionId)}/members/${encodeURIComponent(memberId)}/roles`,
     body,
   });
   return res.data;

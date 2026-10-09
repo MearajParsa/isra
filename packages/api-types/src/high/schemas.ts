@@ -7,18 +7,26 @@ import {
   AddMemberOutcome,
   AttendanceEntry,
   AttendanceQuery,
+  CommentsQuery,
+  CriterionKey,
   Evaluation,
+  EvaluationScores,
   EvaluationsQuery,
+  GalleriesQuery,
+  CreateGalleryBody,
   Member,
   MembershipStatus,
-  Permission as SessionPermission,
   QueueActBody,
   QueueState,
-  SessionRole,
-  StaffAssignableRole
+  SessionRole
 } from '../mid/schemas';
 
-/** کلید نقش: انگلیسی کوچک/underscore (نقش‌های سیستمی `developer` و `super_admin` حذف‌نشدنی‌اند؛ بقیه پویا) */
+/**
+ * ۱.۷.۰ (docs-v2/31 §۱): سطح کاربری نقش/ماژول. high = پنل (developer، super_admin، …)؛ mid = استاد/پشتیبان (teacher، …)؛
+ * low = مهمان/قرآن‌آموز/کاربر عادی (guest، quran_student، …).
+ */
+export const Tier = named('Tier', z.enum(['high', 'mid', 'low']));
+/** کلید نقش: انگلیسی کوچک/underscore (نقش‌های ثابت `developer`، `super_admin`، `teacher`، `guest`، `quran_student` حذف‌نشدنی‌اند؛ بقیه پویا) */
 export const SystemRoleKey = named('SystemRoleKey', z.string().regex(/^[a-z][a-z0-9_]{2,31}$/, 'کلید نقش: حروف کوچک انگلیسی/عدد/_ (۳ تا ۳۲)').meta({ example: 'content_editor' }));
 /** کلید مجوز `module.action` (۲ تا ۴ بخش با نقطه): مثل `system.users.view` */
 export const PermissionKey = named('PermissionKey', z.string().max(64).regex(/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){1,3}$/, 'کلید مجوز: بخش‌های حروف کوچک انگلیسی با نقطه').meta({ example: 'system.users.view' }));
@@ -40,6 +48,7 @@ export const ModuleInfo = named(
     key: ModuleKey,
     title: z.string().max(60),
     description: z.string().max(300),
+    tier: Tier.default('high').meta({ description: '۱.۷.۰: سطح ماژول (teaching=mid، learning=low، بقیه high)' }),
     isSystem: z.boolean().meta({ description: 'ماژول‌های سیستمی حذف نمی‌شوند' }),
     sortOrder: z.number().int().min(0).max(1000),
     permissionCount: z.number().int().min(0)
@@ -65,7 +74,9 @@ export const SystemRole = named(
     key: SystemRoleKey,
     title: z.string().max(60),
     description: z.string().max(300),
-    undeletable: z.boolean().meta({ description: 'نقش‌های سیستمی (developer، super_admin) حذف نمی‌شوند (قفل #28)' }),
+    tier: Tier.default('high').meta({ description: '۱.۷.۰: سطح نقش؛ ویرایش نقش mid ⇒ system.roles.mid.manage، low ⇒ system.roles.low.manage' }),
+    undeletable: z.boolean().meta({ description: 'نقش‌های ثابت (developer، super_admin، teacher، guest، quran_student) حذف نمی‌شوند (قفل #28)' }),
+    implicit: z.boolean().default(false).meta({ description: 'عضویت ضمنی: quran_student = هر کاربر ثبت‌نام‌کرده؛ guest = درخواست بی‌توکن (نه قابل اختصاص؛ holders معنا ندارد)' }),
     permissions: z.array(PermissionKey).meta({ description: 'مجوزهای صریح نقش' }),
     modules: z.array(ModuleKey).meta({ description: 'ماژول‌های کامل داده‌شده به نقش (همهٔ مجوزهای حال و آیندهٔ ماژول)' }),
     effectivePermissions: z.array(PermissionKey).meta({ description: 'مجوزهای صریح ∪ مجوزهای ماژول‌ها' }),
@@ -82,6 +93,7 @@ export const CreateRoleBody = named(
       key: SystemRoleKey,
       title: z.string().trim().min(2).max(60),
       description: z.string().trim().max(300).default(''),
+      tier: Tier.default('high').meta({ description: '۱.۷.۰: پس از ساخت ثابت است' }),
       permissions: z.array(PermissionKey).max(200).default([]),
       modules: z.array(ModuleKey).max(50).default([])
     })
@@ -127,7 +139,15 @@ export const UpdatePermissionBody = named(
 );
 export const CreateModuleBody = named(
   'CreateModuleBody',
-  z.object({ key: ModuleKey, title: z.string().trim().min(2).max(60), description: z.string().trim().max(300).default(''), sortOrder: z.number().int().min(0).max(1000).default(100) }).strict()
+  z
+    .object({
+      key: ModuleKey,
+      title: z.string().trim().min(2).max(60),
+      description: z.string().trim().max(300).default(''),
+      tier: Tier.default('high').meta({ description: '۱.۷.۰: پس از ساخت ثابت است' }),
+      sortOrder: z.number().int().min(0).max(1000).default(100)
+    })
+    .strict()
 );
 export const UpdateModuleBody = named(
   'UpdateModuleBody',
@@ -145,12 +165,17 @@ export const RbacMatrix = named(
     roles: z.array(SystemRole)
   })
 );
-const AccessSource = z.object({ type: z.enum(['role', 'module', 'grant']), ref: z.string().max(64), stepUp: StepUpMode });
+const AccessSource = z.object({
+  type: z.enum(['role', 'module', 'grant', 'baseline']).meta({ description: '۱.۷.۰: baseline = عضویت ضمنی quran_student (ref = quran_student)' }),
+  ref: z.string().max(64),
+  stepUp: StepUpMode
+});
 export const EffectiveAccess = named(
   'EffectiveAccess',
   z.object({
     userId: Id,
     roles: z.array(SystemRoleKey),
+    tiers: z.array(Tier).meta({ description: '۱.۷.۰: سطوح نقش‌های کاربر (low همیشه به‌خاطر quran_student ضمنی)' }),
     grants: z.array(Grant),
     stepUpExempt: z.boolean().meta({ description: 'توسعه‌دهنده برای هیچ اقدامی step-up ندارد' }),
     permissions: z.array(z.object({ key: PermissionKey, stepUp: StepUpMode.meta({ description: 'نتیجهٔ نهایی برای این کاربر (توسعه‌دهنده ⇒ همیشه none)' }), sources: z.array(AccessSource) }))
@@ -162,6 +187,7 @@ export const SystemMe = named(
   z.object({
     user: z.object({ id: Id, name: z.string().max(80), phone: IranMobile }),
     roles: z.array(SystemRoleKey),
+    tiers: z.array(Tier).meta({ description: '۱.۷.۰: سطوح نقش‌های من؛ ورود به پنل = نقش tier=high یا دست‌کم یک مجوز `system.*`' }),
     permissions: z.array(PermissionKey),
     stepUpExempt: z.boolean().meta({ description: 'نقش developer ⇒ هیچ اقدامی step-up ندارد (جز تغییر رمز خودش H-04)' }),
     stepUp: z.record(PermissionKey, StepUpMode).meta({ description: 'برای هر مجوزِ مؤثر: آیا اقدام‌های آن نیازمند step-up است (پس از اعمال override نقش‌ها؛ developer ⇒ همه none)' })
@@ -263,12 +289,13 @@ export const AdminSession = named(
   'AdminSession',
   MidSession.extend({
     createdBy: z.object({ id: Id, name: z.string().max(80) }),
+    owner: z.object({ id: Id, name: z.string().max(80) }).meta({ description: '۱.۷.۰: استاد صاحب جلسه (تغییر با H-74)' }),
     counts: z.object({
       members: z.number().int().min(0),
       pending: z.number().int().min(0),
       attendance: z.number().int().min(0),
       evaluations: z.number().int().min(0),
-      managers: z.number().int().min(0).default(1).meta({ description: '۰ = جلسهٔ بی‌مدیر (مثلاً مدیرش حذف شده) — با H-74 مدیر بگذارید' }),
+      supporters: z.number().int().min(0).default(0).meta({ description: '۱.۷.۰: پشتیبان‌های مؤثر (ثابت استاد ∪ per جلسه)' }),
       occurrences: z.number().int().min(0).default(0)
     }),
     createdAt: IsoDateTime,
@@ -280,6 +307,7 @@ export const AdminSessionsQuery = z.object({
   q: z.string().trim().max(60).optional().meta({ description: 'عنوان یا آدرس' }),
   status: SessionState.optional(),
   creatorId: Id.optional(),
+  ownerId: Id.optional().meta({ description: '۱.۷.۰: استاد صاحب' }),
   from: IsoDate.optional().meta({ description: 'شروع بعدی (nextStartsAt) از' }),
   to: IsoDate.optional(),
   includeDeleted: z.enum(['true', 'false']).default('false'),
@@ -287,17 +315,14 @@ export const AdminSessionsQuery = z.object({
 });
 export const AdminCreateSessionBody = named(
   'AdminCreateSessionBody',
-  z.object({ creatorId: Id.optional().meta({ description: 'سازندهٔ جلسه (پیش‌فرض: خود ادمین)؛ سازنده session_manager می‌شود' }), session: SessionInput }).strict()
+  z.object({ creatorId: Id.optional().meta({ description: 'سازنده و صاحب جلسه (پیش‌فرض: خود ادمین)؛ ۱.۷.۰: owner می‌شود' }), session: SessionInput }).strict()
 );
 export const AdminMember = named('AdminMember', Member.extend({ phone: IranMobile.nullable(), decidedAt: IsoDateTime.nullable() }));
 export const AdminMembersQuery = pageQuery(100).extend({
   status: z.enum(['pending', 'approved', 'rejected']).optional(),
-  role: SessionRole.optional(),
   q: z.string().trim().min(1).max(40).optional().meta({ description: 'نام یا شماره (شماره در high به userId تبدیل می‌شود)' }),
   userId: Id.optional()
 });
-/** H-68 (۱.۶.۰): ادمین می‌تواند session_manager را هم بدهد/بگیرد (هم‌مدیر)؛ آخرین مدیر ⇒ CONFLICT(LAST_HOLDER) */
-export const AdminSetMemberRolesBody = named('AdminSetMemberRolesBody', z.object({ roles: z.array(SessionRole).min(1).max(4) }).strict());
 
 // ───── افزودن مستقیم اعضا (H-73) ─────
 const AdminMemberRef = z
@@ -313,7 +338,6 @@ export const AdminAddMembersBody = named(
           z
             .object({
               user: AdminMemberRef,
-              roles: z.array(StaffAssignableRole).min(1).max(3).optional().meta({ description: 'پیش‌فرض: defaultRoles' }),
               firstName: PersonName.optional().meta({ description: 'فقط با createMissing برای شمارهٔ ثبت‌نام‌نکرده' }),
               lastName: PersonName.optional()
             })
@@ -321,12 +345,11 @@ export const AdminAddMembersBody = named(
         )
         .min(1)
         .max(200),
-      defaultRoles: z.array(StaffAssignableRole).min(1).max(3).default(['quran_student']),
-      onExisting: z.enum(['skip', 'merge', 'replace']).default('skip').meta({ description: 'عضو موجود: skip دست نمی‌خورد؛ merge نقش‌ها اضافه؛ replace نقش‌ها جایگزین (مدیر حفظ می‌شود)' }),
       createMissing: z.boolean().default(false).meta({ description: 'شمارهٔ ثبت‌نام‌نکرده ⇒ ساخت کاربر (نیازمند system.users.manage هم)' }),
       notify: z.boolean().default(true)
     })
     .strict()
+    .meta({ description: '۱.۷.۰: فقط عضو (بدون نقش؛ پشتیبان از H-108). عضو تأییدشده ⇒ unchanged؛ pending/rejected ⇒ approved.' })
 );
 export const AdminAddMembersResult = named(
   'AdminAddMembersResult',
@@ -343,15 +366,13 @@ export const AdminAddMembersResult = named(
     counts: z.record(AddMemberOutcome, z.number().int().min(0))
   })
 );
-/** H-74 انتقال/تعیین مدیر جلسه */
-export const TransferManagerBody = named(
-  'TransferManagerBody',
+/** H-74 (۱.۷.۰): تغییر استاد صاحب جلسه */
+export const TransferOwnerBody = named(
+  'TransferOwnerBody',
   z
     .object({
       userId: Id,
-      previous: z.enum(['demote', 'remove', 'keep']).default('demote').meta({ description: 'demote: مدیر قبلی عضو با previousRoles می‌ماند؛ remove: حذف؛ keep: هم‌مدیر می‌ماند' }),
-      previousRoles: z.array(StaffAssignableRole).min(1).max(3).default(['quran_student']),
-      transferCreator: z.boolean().default(false).meta({ description: 'سازندهٔ جلسه (createdBy) هم عوض شود' }),
+      previousOwner: z.enum(['supporter', 'remove']).default('supporter').meta({ description: 'supporter: صاحب قبلی پشتیبان per جلسه با همهٔ مجوزها می‌شود؛ remove: هیچ نقشی در جلسه نمی‌ماند' }),
       notify: z.boolean().default(true)
     })
     .strict()
@@ -379,13 +400,12 @@ export const AdminQueueNextBody = named(
 );
 export const AdminQueueActBody = named('AdminQueueActBody', QueueActBody.extend({ expectPosition: z.number().int().min(1).optional() }).strict());
 export const AdminVoidEvaluationBody = named('AdminVoidEvaluationBody', z.object({ reason: Reason }).strict());
-const Score = z.number().int().min(0).max(10);
 export const AdminEvaluationPatchBody = named(
   'AdminEvaluationPatchBody',
   z
-    .object({ voice: Score.optional(), tone: Score.optional(), tajweed: Score.optional(), note: z.string().trim().max(300).optional(), reason: Reason })
+    .object({ scores: EvaluationScores.optional().meta({ description: 'فقط معیارهای snapshot همان ارزیابی' }), note: z.string().trim().max(300).optional(), reason: Reason })
     .strict()
-    .refine((v) => v.voice !== undefined || v.tone !== undefined || v.tajweed !== undefined || v.note !== undefined, { message: 'دست‌کم یک فیلد ارزیابی لازم است.' })
+    .refine((v) => v.scores !== undefined || v.note !== undefined, { message: 'دست‌کم یک فیلد ارزیابی لازم است.' })
 );
 
 // ───── تاریخچهٔ عضویت و امتیاز کاربر ─────
@@ -398,10 +418,10 @@ export const UserMembership = named(
   'UserMembership',
   z.object({
     session: z.object({ id: Id, title: z.string().max(80), status: SessionState, nextStartsAt: IsoDateTime.nullable(), deletedAt: IsoDateTime.nullable() }),
-    memberId: Id,
-    roles: z.array(SessionRole).max(4),
-    status: MembershipStatus,
-    requestedAt: IsoDateTime,
+    memberId: Id.nullable().meta({ description: 'null برای صاحب/پشتیبانِ غیرعضو' }),
+    role: SessionRole.meta({ description: '۱.۷.۰: owner | supporter | member' }),
+    status: MembershipStatus.nullable().meta({ description: 'فقط برای member' }),
+    requestedAt: IsoDateTime.nullable(),
     decidedAt: IsoDateTime.nullable(),
     attendanceCount: z.number().int().min(0),
     evaluations: z.object({ count: z.number().int().min(0), avgScore: z.number().min(0).max(100).nullable() }),
@@ -518,14 +538,6 @@ export const SessionExportQuery = z.object({
   occurrenceId: Id.optional()
 });
 
-// ───── ماتریس نقش‌های جلسه (فقط‌خواندنی) ─────
-export const SessionRolesMatrix = named(
-  'SessionRolesMatrix',
-  z.object({
-    roles: z.array(z.object({ key: SessionRole, title: z.string().max(40), permissions: z.array(SessionPermission) })),
-    permissions: z.array(z.object({ key: SessionPermission, title: z.string().max(80) }))
-  })
-);
 export const AdminDecideBody = named('AdminDecideBody', z.object({ action: z.enum(['approve', 'reject']) }).strict());
 export const AdminAttendanceList = named('AdminAttendanceList', z.object({ items: z.array(AttendanceEntry), total: z.number().int().min(0), occurrenceId: Id.nullable().default(null) }));
 export const AdminQueue = named('AdminQueue', QueueState);
@@ -570,25 +582,12 @@ export const LeaderboardQuery = z.object({ limit: z.coerce.number().int().min(1)
 export const LeaderboardItem = named('LeaderboardItem', z.object({ userId: Id, name: z.string().max(80), points: Count, badges: Count }));
 
 
-export const EvalWeights = named(
-  'SystemEvalWeights',
-  z
-    .object({ voice: z.number().int().min(0).max(100), tone: z.number().int().min(0).max(100), tajweed: z.number().int().min(0).max(100) })
-    .strict()
-    .refine((w) => w.voice + w.tone + w.tajweed === 100, { message: 'مجموع وزن‌ها باید دقیقاً ۱۰۰ باشد.' })
-);
-const Thresholds = z
-  .tuple([z.number().int().positive(), z.number().int().positive(), z.number().int().positive(), z.number().int().positive()])
-  .refine((t) => t.every((x, i) => i === 0 || x > (t[i - 1] ?? 0)), { message: 'آستانه‌ها باید اکیداً صعودی باشند.' })
-  .meta({ description: 'نشان‌های ۵۰/۱۵۰/۳۰۰/۵۰۰ (پیش‌فرض)؛ افت امتیاز نشان را باطل نمی‌کند' });
 export const Flags = z.object({ maintenance_mode: z.boolean(), registration_open: z.boolean() }).strict();
 
 export const SystemSettings = named(
   'SystemSettings',
   z.object({
     version: z.number().int().min(1).meta({ description: 'نسخهٔ خوش‌بینانه (optimistic concurrency)' }),
-    evalWeights: EvalWeights,
-    badgeThresholds: Thresholds.meta({ description: 'منسوخ (۱.۶.۰): نشان‌ها از H-32..H-37 مدیریت می‌شوند؛ این مقدار نادیده گرفته می‌شود' }),
     flags: Flags,
     updatedAt: IsoDateTime,
     updatedBy: z.string().max(80)
@@ -596,10 +595,13 @@ export const SystemSettings = named(
 );
 export const UpdateSettingsBody = named(
   'UpdateSettingsBody',
-  z.object({ version: z.number().int().min(1), evalWeights: EvalWeights, badgeThresholds: Thresholds.optional().meta({ description: 'منسوخ؛ نادیده گرفته می‌شود' }), flags: Flags }).strict()
+  z
+    .object({ version: z.number().int().min(1), flags: Flags })
+    .strict()
+    .meta({ description: '۱.۷.۰: evalWeights (⇒ معیارهای ارزیابی H-100..H-103) و badgeThresholds (⇒ نشان‌ها H-32..H-37) حذف شدند' })
 );
 
-export const AuditTargetType = named('AuditTargetType', z.enum(['user', 'role', 'settings', 'session', 'permission', 'module', 'badge', 'announcement']));
+export const AuditTargetType = named('AuditTargetType', z.enum(['user', 'role', 'settings', 'session', 'permission', 'module', 'badge', 'announcement', 'criterion', 'supporter', 'gallery', 'comment']));
 export const AuditEntry = named(
   'AuditEntry',
   z.object({
@@ -632,5 +634,70 @@ export const Overview = named(
     lastAudit: z.array(AuditEntry).max(5)
   })
 );
+// ───────── ۱.۷.۰ (docs-v2/31): سطح، معیار ارزیابی، گالری، کامنت ─────────
+export const RolesQuery = pageQuery(10).extend({ tier: Tier.optional() });
+export const ModulesQuery = pageQuery(50).extend({ tier: Tier.optional() });
+
+/** معیار ارزیابی (high منبع حقیقت؛ کش mid با evaluation.criteria.changed) */
+export const EvaluationCriterion = named(
+  'EvaluationCriterion',
+  z.object({
+    id: Id,
+    key: CriterionKey,
+    title: z.string().max(60),
+    description: z.string().max(300),
+    weight: z.number().int().min(1).max(100),
+    maxScore: z.number().int().min(1).max(100),
+    active: z.boolean(),
+    sortOrder: z.number().int().min(0).max(1000),
+    used: z.boolean().meta({ description: 'در دست‌کم یک ارزیابی استفاده شده ⇒ حذف ممنوع (فقط غیرفعال)' }),
+    createdAt: IsoDateTime,
+    updatedAt: IsoDateTime
+  })
+);
+export const EvaluationCriteriaList = named(
+  'EvaluationCriteriaList',
+  z.object({ version: z.number().int().min(1), items: z.array(EvaluationCriterion).max(15) }),
+  'همهٔ معیارها (فعال و غیرفعال) به ترتیب sortOrder؛ حداکثر ۱۵'
+);
+const CriterionTitle = z.string().trim().min(2).max(60);
+export const CreateCriterionBody = named(
+  'CreateCriterionBody',
+  z
+    .object({
+      key: CriterionKey,
+      title: CriterionTitle,
+      description: z.string().trim().max(300).default(''),
+      weight: z.number().int().min(1).max(100),
+      maxScore: z.number().int().min(1).max(100).default(10),
+      active: z.boolean().default(true),
+      sortOrder: z.number().int().min(0).max(1000).default(100)
+    })
+    .strict()
+);
+export const UpdateCriterionBody = named(
+  'UpdateCriterionBody',
+  z
+    .object({
+      title: CriterionTitle.optional(),
+      description: z.string().trim().max(300).optional(),
+      weight: z.number().int().min(1).max(100).optional(),
+      maxScore: z.number().int().min(1).max(100).optional(),
+      active: z.boolean().optional(),
+      sortOrder: z.number().int().min(0).max(1000).optional()
+    })
+    .strict()
+    .refine((v) => Object.keys(v).length > 0, { message: 'دست‌کم یک فیلد لازم است.' })
+    .meta({ description: 'کلید معیار ثابت است (snapshot ارزیابی‌ها)' })
+);
+
+export const AdminGalleriesQuery = GalleriesQuery.extend({ occurrenceId: Id.optional() });
+export const AdminCreateGalleryBody = named('AdminCreateGalleryBody', CreateGalleryBody.extend({ occurrenceId: Id }).strict());
+export const AdminCommentsQuery = CommentsQuery.extend({
+  occurrenceId: Id.optional(),
+  authorId: Id.optional(),
+  hidden: z.enum(['true', 'false']).optional().meta({ description: 'نبود = همه' })
+});
+
 export { Uuid };
 export const LeaderboardResponse = named('LeaderboardResponse', z.object({ items: z.array(LeaderboardItem) }));

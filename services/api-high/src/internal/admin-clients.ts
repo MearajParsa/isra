@@ -1,3 +1,6 @@
+import { type IncomingMessage, request as httpRequest } from 'node:http';
+import { request as httpsRequest } from 'node:https';
+import { Transform, type Readable } from 'node:stream';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { z } from 'zod';
 import { ERROR_CATALOG, type ErrorCode, HEADERS, internal } from '@isra/api-types';
@@ -67,23 +70,96 @@ abstract class OriginClient {
     } catch (e) {
       throw this.unavailable(e instanceof Error ? e.name : 'network');
     }
+    return this.interpret(res.status, text);
+  }
+
+  /** نگاشت پاسخ مبدأ (envelope یا خطا) — مشترک بین fetch و stream */
+  protected interpret(status: number, text: string): { data: unknown; meta: unknown } {
     let json: unknown;
     try {
       json = text ? JSON.parse(text) : {};
     } catch {
       json = undefined;
     }
-    if (!res.ok) {
+    if (status < 200 || status >= 300) {
       const eb = ErrBody.safeParse(json);
       const code = eb.success ? eb.data.error.code : undefined;
       const known = code !== undefined && code in ERROR_CATALOG ? (code as ErrorCode) : undefined;
-      const passthrough = res.status >= 400 && res.status < 500 && known !== undefined && ((res.status !== 401 && res.status !== 403) || known === 'AUTH_INVALID_CREDENTIALS');
+      const passthrough = status >= 400 && status < 500 && known !== undefined && ((status !== 401 && status !== 403) || known === 'AUTH_INVALID_CREDENTIALS');
       if (passthrough && eb.success) throw new AppError(known!, { message: eb.data.error.message, details: eb.data.error.details });
-      throw this.unavailable(`http ${res.status}`);
+      throw this.unavailable(`http ${status}`);
     }
     const ok = z.object({ success: z.literal(true), data: z.unknown(), meta: z.unknown().optional() }).safeParse(json);
     if (!ok.success) throw this.unavailable('bad envelope');
     return { data: ok.data.data, meta: ok.data.meta };
+  }
+
+  /**
+   * درخواست stream‌شده (۱.۷.۰، رسانهٔ گالری): بدنهٔ ورودی با backpressure و بدون بافر کامل به مبدأ pipe می‌شود و پاسخ به‌صورت
+   * stream برمی‌گردد. `timeoutMs` = مهلت بیکاری socket (نه کل انتقال). شبکه/timeout ⇒ 503.
+   * اگر مبدأ پیش از پایان بدنه پاسخ دهد (مثلاً 413/415)، خطای pipe نادیده گرفته می‌شود و همان پاسخ برمی‌گردد.
+   */
+  protected stream(method: string, tpl: string, o: { params?: Params; query?: Query; headers?: Record<string, string>; body?: Readable; maxBytes?: number; timeoutMs: number }): Promise<IncomingMessage> {
+    if (!this.baseUrl) return Promise.reject(this.unavailable('no base url'));
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(o.query ?? {})) if (v !== undefined) qs.set(k, String(v));
+    const url = new URL(`${this.baseUrl}/internal/v1${this.path(tpl, o.params)}${qs.size ? `?${qs}` : ''}`);
+    const send = url.protocol === 'https:' ? httpsRequest : httpRequest;
+    return new Promise<IncomingMessage>((resolve, reject) => {
+      let settled = false;
+      const done = (e: unknown, res?: IncomingMessage) => {
+        if (settled) return;
+        settled = true;
+        if (res) resolve(res);
+        else reject(e instanceof AppError ? e : this.unavailable(e instanceof Error ? e.name : 'network'));
+      };
+      const up = send(url, { method, headers: { ...(o.headers ?? {}), ...internalHeaders(this.env, this.peer) }, timeout: o.timeoutMs }, (res) => done(null, res));
+      up.on('timeout', () => up.destroy(new Error('timeout')));
+      up.on('error', (e) => done(e));
+      if (!o.body) {
+        up.end();
+        return;
+      }
+      // سقف دفاعی: بیش از Content-Length/maxBytes ⇒ قطع (parser HTTP خودش طول را محدود می‌کند؛ این لایهٔ دوم است)
+      const src = o.body;
+      let seen = 0;
+      const limit = new Transform({
+        transform: (chunk: Buffer, _enc, cb) => {
+          seen += chunk.length;
+          if (o.maxBytes !== undefined && seen > o.maxBytes) cb(new AppError('PAYLOAD_TOO_LARGE'));
+          else cb(null, chunk);
+        }
+      });
+      // pipe دستی (نه pipeline): شکست مقصد نباید socket کلاینت را ببندد تا پاسخ خطا هنوز قابل ارسال باشد؛ باقی بدنه دور ریخته می‌شود
+      const abort = (e: unknown) => {
+        src.unpipe(limit);
+        limit.unpipe(up);
+        src.resume();
+        up.destroy();
+        done(e);
+      };
+      limit.on('error', abort);
+      src.on('error', abort);
+      src.on('close', () => {
+        if (!src.readableEnded) abort(new Error('client aborted'));
+      });
+      src.pipe(limit).pipe(up);
+    });
+  }
+
+  /** بدنهٔ کوچک (خطا/envelope) از پاسخ stream‌شده با سقف ۶۴KB */
+  protected async readSmall(res: IncomingMessage, cap = 64 * 1024): Promise<string> {
+    const chunks: Buffer[] = [];
+    let n = 0;
+    for await (const c of res as AsyncIterable<Buffer>) {
+      n += c.length;
+      if (n > cap) {
+        res.destroy();
+        throw this.unavailable('response too large');
+      }
+      chunks.push(c);
+    }
+    return Buffer.concat(chunks).toString('utf8');
   }
 
   protected async one<T extends z.ZodType>(schema: T, method: string, tpl: string, o: CallOpts = {}): Promise<z.infer<T>> {
@@ -218,9 +294,6 @@ export class MidAdminClient extends OriginClient {
   decide(id: string, memberId: string, body: z.infer<typeof internal.MidAdminDecide>) {
     return this.one(internal.MidAdminMember, 'PATCH', M.member, { params: { id, memberId }, body });
   }
-  setMemberRoles(id: string, memberId: string, body: z.infer<typeof internal.MidAdminSetRoles>) {
-    return this.one(internal.MidAdminMember, 'PUT', M.memberRoles, { params: { id, memberId }, body });
-  }
   /** قرارداد پاسخ حذف را مشخص نکرده؛ اگر mid عضو حذف‌شده را برگرداند (userId برای audit) استفاده می‌شود */
   removeMember(id: string, memberId: string) {
     return this.maybe(z.object({ userId: z.string(), name: z.string().optional() }).loose(), 'DELETE', M.member, { params: { id, memberId } });
@@ -241,8 +314,9 @@ export class MidAdminClient extends OriginClient {
   membersDecide(id: string, body: z.infer<typeof internal.MidAdminDecideBulk>) {
     return this.one(internal.MidAdminDecideBulkResult, 'POST', M.membersDecide, { params: { id }, body });
   }
-  manager(id: string, body: z.input<typeof internal.MidAdminManager>) {
-    return this.one(internal.MidAdminManagerResult, 'PUT', M.manager, { params: { id }, body });
+  /** ۱.۷.۰: تغییر استاد صاحب (H-74) */
+  owner(id: string, body: z.input<typeof internal.MidAdminOwner>) {
+    return this.one(internal.MidAdminOwnerResult, 'PUT', M.owner, { params: { id }, body });
   }
   occurrences(id: string, query: Query) {
     return this.page(internal.MidAdminOccurrence, M.occurrences, { params: { id }, query });
@@ -280,6 +354,85 @@ export class MidAdminClient extends OriginClient {
   /** شمارش دارندگان؛ timeout کوتاه (فراخواننده خطا را به ۰ تبدیل می‌کند) */
   badgeHolders(timeoutMs: number) {
     return this.one(internal.MidAdminBadgeHolders, 'GET', M.badgeHolders, { timeoutMs });
+  }
+  // ───────── ۱.۷.۰ (docs-v2/31) ─────────
+  /** صاحبان جلسه (job اعطای teacher) */
+  sessionOwners(page: number, pageSize: number) {
+    return this.page(internal.MidAdminSessionOwner, M.sessionOwners, { query: { page, pageSize } });
+  }
+  teacherSupporters(id: string, query: Query) {
+    return this.page(internal.MidAdminTeacherSupporter, M.teacherSupporters, { params: { id }, query });
+  }
+  putTeacherSupporter(id: string, supporterId: string, body: z.input<typeof internal.MidAdminSupporterPut>) {
+    return this.one(internal.MidAdminTeacherSupporter, 'PUT', M.teacherSupporter, { params: { id, supporterId }, body });
+  }
+  deleteTeacherSupporter(id: string, supporterId: string, actorId: string): Promise<void> {
+    return this.none('DELETE', M.teacherSupporter, { params: { id, supporterId }, query: { actorId } });
+  }
+  sessionSupporters(id: string, query: Query) {
+    return this.page(internal.MidAdminSessionSupporter, M.supporters, { params: { id }, query });
+  }
+  putSessionSupporter(id: string, userId: string, body: z.input<typeof internal.MidAdminSupporterPut>) {
+    return this.one(internal.MidAdminSessionSupporter, 'PUT', M.supporter, { params: { id, userId }, body });
+  }
+  deleteSessionSupporter(id: string, userId: string, actorId: string): Promise<void> {
+    return this.none('DELETE', M.supporter, { params: { id, userId }, query: { actorId } });
+  }
+  galleries(id: string, query: Query) {
+    return this.page(internal.MidAdminGallery, M.galleries, { params: { id }, query });
+  }
+  createGallery(id: string, body: z.input<typeof internal.MidAdminCreateGallery>, idempotencyKey?: string) {
+    return this.one(internal.MidAdminGallery, 'POST', M.galleries, { params: { id }, body, idempotencyKey });
+  }
+  patchGallery(id: string, galleryId: string, body: z.input<typeof internal.MidAdminPatchGallery>) {
+    return this.one(internal.MidAdminGallery, 'PATCH', M.gallery, { params: { id, galleryId }, body });
+  }
+  deleteGallery(id: string, galleryId: string, actorId: string): Promise<void> {
+    return this.none('DELETE', M.gallery, { params: { id, galleryId }, query: { actorId } });
+  }
+  galleryItems(id: string, galleryId: string, query: Query) {
+    return this.page(internal.MidAdminGalleryItem, M.galleryItems, { params: { id, galleryId }, query });
+  }
+  deleteGalleryItem(id: string, galleryId: string, itemId: string, actorId: string): Promise<void> {
+    return this.none('DELETE', M.galleryItem, { params: { id, galleryId, itemId }, query: { actorId } });
+  }
+  /**
+   * H-115: بدنهٔ خام stream‌شده به MID_ADMIN.galleryItems (Content-Type/Content-Length اصلی؛ بدون بافر کامل).
+   * پاسخ کوچک JSON (GalleryItem) خوانده و مثل بقیهٔ فراخوانی‌ها نگاشت می‌شود.
+   */
+  async uploadGalleryItem(id: string, galleryId: string, query: z.input<typeof internal.MidAdminUploadQuery>, body: Readable, meta: { contentType: string; contentLength: number; idempotencyKey?: string }) {
+    const res = await this.stream('POST', M.galleryItems, {
+      params: { id, galleryId },
+      query: { actorId: query.actorId, title: query.title },
+      headers: { 'Content-Type': meta.contentType, 'Content-Length': String(meta.contentLength), ...(meta.idempotencyKey ? { [HEADERS.idempotencyKey]: meta.idempotencyKey } : {}) },
+      body,
+      maxBytes: meta.contentLength,
+      timeoutMs: this.env.MEDIA_PROXY_TIMEOUT_MS
+    });
+    const { data } = this.interpret(res.statusCode ?? 502, await this.readSmall(res));
+    const p = internal.MidAdminGalleryItem.safeParse(data);
+    if (!p.success) throw this.unavailable('bad payload');
+    return p.data;
+  }
+  /**
+   * H-117: محتوای خام از MID_ADMIN.galleryItemContent؛ `Range`/`If-None-Match`/`If-Range` عبور می‌کند. پاسخ ۲xx/۳۰۴/۴۱۶ همان stream است؛
+   * خطای JSON مبدأ (۴xx/۵xx) مثل بقیهٔ فراخوانی‌ها نگاشت می‌شود.
+   */
+  async galleryItemContent(id: string, galleryId: string, itemId: string, headers: Record<string, string>): Promise<IncomingMessage> {
+    const res = await this.stream('GET', M.galleryItemContent, { params: { id, galleryId, itemId }, headers, timeoutMs: this.env.MEDIA_PROXY_TIMEOUT_MS });
+    const st = res.statusCode ?? 502;
+    if ((st >= 200 && st < 300) || st === 304 || st === 416) return res;
+    this.interpret(st, await this.readSmall(res));
+    throw this.unavailable(`http ${st}`);
+  }
+  comments(id: string, query: Query) {
+    return this.page(internal.MidAdminComment, M.comments, { params: { id }, query });
+  }
+  moderateComment(id: string, commentId: string, body: z.input<typeof internal.MidAdminModerateComment>) {
+    return this.one(internal.MidAdminComment, 'PATCH', M.comment, { params: { id, commentId }, body });
+  }
+  deleteComment(id: string, commentId: string, actorId: string): Promise<void> {
+    return this.none('DELETE', M.comment, { params: { id, commentId }, query: { actorId } });
   }
   /** آمار وضعیت جلسه‌ها برای H-01 (مسیر internal موجود mid) */
   sessionStats() {

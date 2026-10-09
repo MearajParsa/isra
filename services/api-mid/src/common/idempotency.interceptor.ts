@@ -39,7 +39,9 @@ export class IdempotencyInterceptor implements NestInterceptor {
   private async run(req: IsraRequest, key: string, endpointId: string, next: CallHandler): Promise<unknown> {
     const user = uuidToBuf(req.user!.userId);
     const scoped = `${endpointId}:${key}`.slice(0, 80);
-    const hash = createHash('sha256').update(`${req.method} ${req.path}\n${JSON.stringify(req.input?.body ?? {})}`).digest();
+    // بدنهٔ خام (بارگذاری): query و نوع/حجم اعلام‌شده هم در hash (محتوای فایل خوانده نمی‌شود)
+    const raw = endpoint(endpointId).rawBody ? `\n${JSON.stringify(req.input?.query ?? {})}\n${req.header('content-type') ?? ''}\n${req.header('content-length') ?? ''}` : '';
+    const hash = createHash('sha256').update(`${req.method} ${req.path}\n${JSON.stringify(req.input?.body ?? {})}${raw}`).digest();
     const now = this.clock.now();
 
     await this.ds.query('DELETE FROM idempotency_keys WHERE user_id = ? AND idem_key = ? AND created_at < ?', [user, scoped, new Date(now.getTime() - TTL_MS)]);

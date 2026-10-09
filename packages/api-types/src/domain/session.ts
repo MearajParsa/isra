@@ -50,6 +50,11 @@ export const SessionLocation = z
 export const JoinPolicy = named('JoinPolicy', z.enum(['request', 'open', 'invite_only']));
 /** public = در فهرست عمومی؛ unlisted = فقط با لینک مستقیم/دعوت (در فهرست عمومی و جست‌وجو نمی‌آید) */
 export const SessionVisibility = named('SessionVisibility', z.enum(['public', 'unlisted']));
+/**
+ * ۱.۷.۰ (docs-v2/31 §۵): دیدن کامنت‌ها. public = همهٔ کسانی که جلسه را می‌بینند؛
+ * reciter_only = کامنتِ حین تلاوت فقط برای نویسنده، خوانندهٔ همان نوبت صف و کادر (صاحب/پشتیبان/ادمین)؛ کامنت عمومیِ نوبت برای اعضا و کادر.
+ */
+export const CommentVisibility = named('CommentVisibility', z.enum(['public', 'reciter_only']));
 const Capacity = z.number().int().min(1).max(1000).nullable().meta({ description: 'سقف اعضای تأییدشده (null = بی‌سقف)' });
 
 const sessionBase = {
@@ -68,9 +73,14 @@ const sessionPolicy = {
   memberCount: z.number().int().min(0).default(0).meta({ description: 'اعضای تأییدشده' })
 };
 export const PublicSession = named('PublicSession', z.object({ ...sessionBase, status: PublicSessionStatus, ...sessionPolicy }).strict());
+/** ۱.۷.۰: تنظیمات کامنت جلسه (default تا پاسخ نسخهٔ قبلی سرویس نشکند) */
+const sessionComments = {
+  commentsEnabled: z.boolean().default(true),
+  commentVisibility: CommentVisibility.default('public')
+};
 export const MidSession = named(
   'MidSession',
-  z.object({ ...sessionBase, status: SessionState, ...sessionPolicy, visibility: SessionVisibility.default('public') }).strict()
+  z.object({ ...sessionBase, status: SessionState, ...sessionPolicy, visibility: SessionVisibility.default('public'), ...sessionComments }).strict()
 );
 
 /** ورودی ساخت/ویرایش جلسه (بدون id/status) */
@@ -84,7 +94,9 @@ export const SessionInput = named(
       location: SessionLocation,
       joinPolicy: JoinPolicy.default('request'),
       visibility: SessionVisibility.default('public'),
-      capacity: Capacity.optional().meta({ description: 'نبود = بدون تغییر (ویرایش) / بی‌سقف (ساخت)' })
+      capacity: Capacity.optional().meta({ description: 'نبود = بدون تغییر (ویرایش) / بی‌سقف (ساخت)' }),
+      commentsEnabled: z.boolean().default(true).meta({ description: '۱.۷.۰: false ⇒ ثبت کامنت تازه ممنوع (CONFLICT(COMMENTS_DISABLED))؛ کامنت‌های قبلی می‌مانند' }),
+      commentVisibility: CommentVisibility.default('public')
     })
     .strict()
     .superRefine((v, ctx) => {

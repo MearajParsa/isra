@@ -2,6 +2,34 @@
 
 فرمت: [Keep a Changelog](https://keepachangelog.com/fa/1.1.0/)؛ نسخه‌گذاری: [SemVer](https://semver.org/lang/fa/) روی قرارداد (جزئیات: `docs-v2/22-api-engineering-standards.md` §۵).
 
+## [1.7.0] — ۱۴۰۵/۰۷/۱۷
+> جزئیات رفتاری: docs-v2/31. **این نسخه تغییر ناسازگار دارد** (نقش‌های جلسه، بدنهٔ ارزیابی، تنظیمات) ولی با تصمیم مالک روی همان `v1` منتشر می‌شود:
+> هر سه سرویس و کلاینت‌های `web-main` و `web-admin` **در همین انتشار** به‌روز می‌شوند (ترتیب استقرار: low ← mid ← high؛ docs-v2/31 §۷). Android در فاز بعد.
+
+### ناسازگار (breaking)
+- **نقش جلسه:** `SessionRole` = `owner | supporter | member` (جایگزین `session_manager | session_supporter | teacher | quran_student`). `StaffAssignableRole` حذف شد.
+- **مجوزهای جلسه:** `SessionPermission` = `membership.approve`، `membership.manage`، `attendance.manage`، `queue.manage`، `eval.submit`، `gallery.manage`، `comment.moderate`، `occurrence.manage`، `session.edit` (حذف: `session.transition` ⇒ `session.edit`، `membership.roles`، `attendance.view` ⇒ صاحب/پشتیبان). `SESSION_ROLE_PERMISSIONS` ⇒ `SESSION_DELEGABLE_PERMISSIONS` (با عنوان فارسی؛ صاحب = همه).
+- **حذف endpoint:** M-13 (نقش عضو)، M-16 (مدیر جلسه)، H-68 (نقش عضو/هم‌مدیر). **H-74** ⇒ `PUT /system/sessions/{id}/owner` با `TransferOwnerBody {userId, previousOwner: supporter|remove}` (جایگزین `/manager` و `TransferManagerBody`).
+- **عضویت فقط عضو:** `AddMembersBody` (M-14) و `AdminAddMembersBody` (H-73) بدون `roles`/`defaultRoles`/`onExisting`؛ `CreateInviteBody`/`Invite` بدون `roles`؛ `Member`/`RosterItem` بدون `roles`؛ فیلتر `role` از M-11/M-18/H-66 حذف؛ `AddMemberOutcome` بدون `merged`/`replaced`.
+- **نمای من:** `SessionMe` ⇒ `role` (owner/supporter/member/null) + `membership {status}`؛ `evalWeights` حذف (⇒ M-45). `MySessionItem` ⇒ `role` + `membership` nullable. `UserMembership` (H-52) ⇒ `role`، `memberId`/`status`/`requestedAt` nullable.
+- **ارزیابی پویا:** `EvaluationBody`/`EvaluationPatchBody`/`AdminEvaluationPatchBody` ⇒ `scores: [{criterionId, score}]` (به‌جای voice/tone/tajweed)؛ پاسخ `Evaluation` ⇒ `criteria: [{criterionId,key,title,weight,maxScore,score}]` (snapshot) به‌جای `voice`/`tone`/`tajweed`/`weights`. `EvaluationWeights` حذف.
+- **تنظیمات:** `SystemSettings`/`UpdateSettingsBody` بدون `evalWeights` و `badgeThresholds` (بدنهٔ strict ⇒ ارسال آن‌ها VALIDATION_FAILED)؛ `SystemEvalWeights` حذف.
+- **H-48** ⇒ کاتالوگ مجوزهای قابل‌واگذاری (`SessionPermissionCatalog`؛ جایگزین `SessionRolesMatrix`).
+- `AdminSession.counts.managers` ⇒ `counts.supporters`؛ + `owner {id,name}`.
+- internal: `MID_ADMIN.memberRoles`، `MID_ADMIN.manager`، `MidAdminSetRoles`، `MidAdminManager(Result)` حذف ⇒ `MID_ADMIN.owner` + `MidAdminOwner(Result)`؛ `MidAdminAddMembers` بدون roles/onExisting؛ `MidAdminEvaluationPatch` با `scores`.
+
+### افزوده شد
+- **mid:** M-45 معیارهای فعال؛ M-60..M-63 پشتیبان ثابت استاد؛ M-64..M-67 پشتیبان per جلسه؛ M-68 کاتالوگ مجوزها؛ M-70..M-77 گالری per نوبت (بارگذاری خام، محتوا با Range)؛ M-78/M-79 گالری public برای مهمان (`/public/`، بی‌توکن، cache عمومی)؛ M-80..M-83 کامنت (حین تلاوت/عمومی نوبت).
+- **high:** H-100..H-103 معیارهای ارزیابی؛ H-104..H-109 پشتیبان‌ها؛ H-110..H-117 گالری (بارگذاری/محتوا stream به/از mid)؛ H-118..H-120 کامنت.
+- **سطح‌ها:** `Tier` (`high|mid|low`) روی `SystemRole`/`ModuleInfo`/`CreateRoleBody`/`CreateModuleBody`؛ فیلتر `tier` در H-10/H-88؛ `SystemRole.implicit`؛ `SystemMe.tiers`، `EffectiveAccess.tiers`، منبع دسترسی `baseline`. مدیریت نقش per سطح (H-12/H-13/H-15..H-18 با `permissionAny`: `system.roles.mid.manage`، `system.roles.low.manage`).
+- `SessionInput`/`MidSession`: `commentsEnabled` (پیش‌فرض true)، `commentVisibility` (`public|reciter_only`، پیش‌فرض public).
+- schemaها: `EvaluationCriterion`، `EvaluationCriteriaList`، `ActiveCriteria`، `EvaluationCriterionScore`، `TeacherSupporter`، `SessionSupporter`، `Gallery`، `GalleryItem`، `PublicGallery`، `Comment` و بدنه‌های مربوط.
+- `EndpointDef`: `rawBody {contentTypes, maxBytes}` (OpenAPI: requestBody باینری + `x-isra-max-body-bytes`)، `rangeRequests` (پارامتر `Range`، پاسخ 206، `x-isra-range`)، `permissionAny` (`x-isra-permission-any`). پاسخ خام غیرمتنی ⇒ `format: binary`.
+- Socket.IO: `comment.created` (فقط سوکت‌های مجاز)، `comment.updated`، `gallery.updated`، `supporters.updated`.
+- L-30/L-31: نیازمند `session.browse` مؤثر (baseline مهمان).
+- دلایل CONFLICT: `ALREADY_SUPPORTER`، `CRITERION_IN_USE`، `LAST_ACTIVE_CRITERION`، `GALLERY_KIND_MISMATCH`، `QUOTA_EXCEEDED`، `NOT_RECITING`، `COMMENTS_DISABLED`. `AuditTargetType` += criterion، supporter، gallery، comment.
+- internal: MID_ADMIN (`owner`، `sessionOwners`، `teacherSupporters`/`teacherSupporter`، `supporters`/`supporter`، `galleries`/`gallery`/`galleryItems`/`galleryItem`/`galleryItemContent`، `comments`/`comment`)؛ رویدادهای `evaluation.criteria.changed` (high ⇒ mid) و `tier.baseline.changed` (high ⇒ low، mid).
+
 ## [1.6.0] — ۱۴۰۵/۰۷/۱۵
 ### افزوده شد (سازگار؛ جزئیات docs-v2/30)
 - **عضویت کامل جلسه:** افزودن مستقیم عضو با شناسه یا شماره و نقش (M-14، H-73 تا ۲۰۰ نفر با createMissing)، حذف عضو توسط کادر (M-15)، اعطا/انتقال مدیر (M-16، H-74، H-68 با هم‌مدیر)، ترک جلسه (M-17)، تأیید گروهی (H-53)، دعوت با کد (M-50..M-53)، سیاست پیوستن/نمایش/ظرفیت در SessionInput.

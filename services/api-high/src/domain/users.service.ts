@@ -11,7 +11,7 @@ import { AuditService } from './audit.service';
 import { ClaimsService } from './claims.service';
 import { type Q, conflict, displayName } from './db';
 import { RbacService, type UserAccess } from './rbac.service';
-import { DEVELOPER, type Grant, type SystemRoleKey, sameSet, touchesDeveloper } from './rules';
+import { DEVELOPER, type Grant, LAST_HOLDER_ROLES, type SystemRoleKey, isImplicitRole, sameSet, touchesDeveloper } from './rules';
 import { RegistryService } from './access/registry.service';
 import { effectiveOfRoles, forbidden, invalid, requireHeld, requirePermissions, unique } from './access/write-helpers';
 
@@ -130,6 +130,7 @@ export class UsersService {
   /** پیش‌بررسی (پیش از ساخت حساب در low): نقش/grant موجود و E2/D6؛ تصمیم نهایی دوباره داخل تراکنش است */
   async preflightAssign(actorId: string, roles: readonly SystemRoleKey[], grants: readonly Grant[]): Promise<void> {
     if (!roles.length && !grants.length) return;
+    rejectImplicit(roles);
     const [actor, snap] = await Promise.all([this.rbac.access(actorId), this.registry.snapshot()]);
     const need: string[] = [];
     for (const r of roles) {
@@ -151,11 +152,13 @@ export class UsersService {
    * تخصیص/برداشتن نقش سیستم:
    *  - D6/E3: تغییر نقش developer فقط با developer
    *  - E2: نقش افزوده‌شده باید همهٔ مجوزهای مؤثرش را خودِ کاربر داشته باشد (developer معاف)؛ نقش ناموجود ⇒ NOT_FOUND
-   *  - D5: قفل آخرین دارندهٔ نقش‌های سیستمی (نقش پویا بدون دارنده مجاز است تا حذفش ممکن شود)
+   *  - D5: قفل آخرین دارندهٔ developer/super_admin (نقش پویا و teacher بدون دارنده مجازند)
+   *  - ۱.۷.۰: نقش ضمنی (guest، quran_student) قابل اختصاص نیست ⇒ VALIDATION_FAILED
    *  - اثر: audit + permVer + `system.role.changed` (همه در یک تراکنش)
    */
   async setRoles(actorId: string, targetId: string, roles: readonly SystemRoleKey[]) {
     const next = unique(roles).sort();
+    rejectImplicit(next);
     await this.rbac.write(async (m) => {
       const target = await this.mustRow(m, targetId);
       if (target.status === 'deleted') throw conflict('USER_NOT_ACTIVE', 'کاربر حذف‌شده است.');
@@ -174,7 +177,7 @@ export class UsersService {
       requireHeld(actor, await effectiveOfRoles(m, removed), 'برداشتن این نقش');
       for (const r of removed) {
         const def = defs.find((d) => d.role_key === r);
-        if (!def?.undeletable) continue;
+        if (!def?.undeletable || !LAST_HOLDER_ROLES.includes(r)) continue;
         const h = (await m.query('SELECT COUNT(*) AS n FROM (SELECT user_id FROM user_system_roles WHERE role_key = ? FOR UPDATE) h', [r])) as { n: string | number }[];
         if (Number(h[0]?.n ?? 0) - 1 < 1) throw conflict('LAST_HOLDER', `«${def.title}» باید دست‌کم یک دارنده داشته باشد.`, { role: r });
       }
@@ -222,9 +225,18 @@ export class UsersService {
     return this.get(targetId);
   }
 
+  /** admins = کاربران دارای دست‌کم یک نقش سطح high (۱.۷.۰: استادها شمرده نمی‌شوند) */
   async stats() {
-    const r = (await this.ds.query('SELECT (SELECT COUNT(*) FROM user_directory) AS total, (SELECT COUNT(DISTINCT user_id) FROM user_system_roles) AS admins')) as { total: string | number; admins: string | number }[];
+    const r = (await this.ds.query(
+      "SELECT (SELECT COUNT(*) FROM user_directory) AS total, (SELECT COUNT(DISTINCT u.user_id) FROM user_system_roles u JOIN system_roles s ON s.role_key = u.role_key WHERE s.tier = 'high') AS admins"
+    )) as { total: string | number; admins: string | number }[];
     return { total: Number(r[0]?.total ?? 0), admins: Number(r[0]?.admins ?? 0) };
   }
 }
 
+
+/** نقش ضمنی (guest/quran_student) قابل اختصاص صریح نیست (قفل #28) */
+function rejectImplicit(roles: readonly string[]): void {
+  const bad = roles.filter(isImplicitRole);
+  if (bad.length) throw new AppError('VALIDATION_FAILED', { message: 'نقش ضمنی مهمان/قرآن‌آموز قابل اختصاص نیست.', details: { fields: { roles: 'نقش ضمنی قابل اختصاص نیست.' }, invalid: bad } });
+}

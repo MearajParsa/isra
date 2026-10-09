@@ -38,6 +38,13 @@ import { PostCommit } from './domain/post-commit';
 import { AdminOpsController, PointsInternalController } from './internal/admin-ops.controller';
 import { AdminOpsService } from './internal/admin-ops.service';
 import { MaintenanceService } from './outbox/maintenance.service';
+import { CatalogService } from './domain/catalog.service';
+import { CommentsService } from './domain/comments.service';
+import { ContentController } from './domain/content.controller';
+import { GalleriesService } from './domain/galleries.service';
+import { SupportersService } from './domain/supporters.service';
+import { AdminContentController } from './internal/admin-content.controller';
+import { MediaService } from './media/media.service';
 import { OutboxService } from './outbox/outbox.service';
 
 const PROVIDERS = [RevocationService, JwtVerifier, RateLimitService, MembersAccess, SettingsService, PointsService, LiveService, SessionsService, MembersService, AttendanceService, QueueService, EvaluationsService, EventsService, AdminService, InvitesService, AdminMembersService, InternalGuard, OutboxService, MaintenanceService, EndpointGuard];
@@ -46,8 +53,12 @@ const PROVIDERS = [RevocationService, JwtVerifier, RateLimitService, MembersAcce
 const OPS_PROVIDERS = [PostCommit, BadgesService, OccurrencesService, AdminOpsService];
 const OPS_CONTROLLERS = [OpsController, AdminOpsController, PointsInternalController];
 
+/** ۱.۷.۰ صاحب/پشتیبان، معیار پویا، baseline سطوح، گالری، کامنت (docs-v2/31) */
+const CONTENT_PROVIDERS = [CatalogService, MediaService, SupportersService, GalleriesService, CommentsService];
+const CONTENT_CONTROLLERS = [ContentController, AdminContentController];
+
 @Global()
-@Module({ providers: [...PROVIDERS, ...OPS_PROVIDERS], exports: [...PROVIDERS, ...OPS_PROVIDERS] })
+@Module({ providers: [...PROVIDERS, ...OPS_PROVIDERS, ...CONTENT_PROVIDERS], exports: [...PROVIDERS, ...OPS_PROVIDERS, ...CONTENT_PROVIDERS] })
 class CoreModule {}
 
 @Module({})
@@ -72,7 +83,7 @@ export class AppModule {
         DatabaseModule,
         CoreModule
       ],
-      controllers: [MidController, InfraController, InternalController, AdminController, AdminMembersController, ...OPS_CONTROLLERS],
+      controllers: [MidController, InfraController, InternalController, AdminController, AdminMembersController, ...OPS_CONTROLLERS, ...CONTENT_CONTROLLERS],
       providers: [
         { provide: APP_FILTER, useClass: AllExceptionsFilter },
         // ترتیب مهم: Envelope بیرونی، Idempotency داخلی (پاسخ ذخیره‌شده هم envelope می‌شود)

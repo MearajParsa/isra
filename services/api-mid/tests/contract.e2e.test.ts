@@ -71,9 +71,13 @@ describe('انطباق پاسخ‌ها با schemaهای قرارداد', () => 
     check(def('M-11'), (await a.get(`/sessions/${id}/members`, m)).body);
     check(def('M-12'), (await a.patch(`/sessions/${id}/members/${req.body.data.id}`, m, { action: 'approve' })).body);
     await join(t, id, m, teacher, ['teacher']);
-    const sm = await join(t, id, m, stu);
-    check(def('M-13'), (await a.put(`/sessions/${id}/members/${sm}/roles`, m, { roles: [] })).body);
+    await join(t, id, m, stu);
     check(def('M-01'), (await a.get('/me/sessions', m)).body);
+    check(def('M-01'), (await a.get('/me/sessions', teacher)).body);
+    check(def('M-02'), (await a.get(`/sessions/${id}/me`, teacher)).body);
+    check(def('M-45'), (await a.get('/evaluation-criteria', stu)).body);
+    check(def('M-68'), (await a.get('/session-permissions', stu)).body);
+    check(def('M-64'), (await a.get(`/sessions/${id}/supporters`, m)).body);
     check(def('M-02'), (await a.get(`/sessions/${id}/me`, stu)).body);
 
     // ۱.۶.۰: جلسهٔ تکرارشونده ⇒ نوبت را کادر باز می‌کند
@@ -94,9 +98,22 @@ describe('انطباق پاسخ‌ها با schemaهای قرارداد', () => 
     const q = await a.post(`/sessions/${id}/queue/next`, teacher);
     check(def('M-33'), q.body);
     check(def('M-34'), (await a.patch(`/sessions/${id}/queue/${q.body.data.waiting[0].id}`, teacher, { action: 'skip' })).body);
-    const ev = await a.post(`/sessions/${id}/evaluations`, teacher, { queueItemId: q.body.data.current.id, voice: 9, tone: 8, tajweed: 7, note: 'خوب' });
+    const crit = (await a.get('/evaluation-criteria', teacher)).body.data.items as { id: string }[];
+    const ev = await a.post(`/sessions/${id}/evaluations`, teacher, { queueItemId: q.body.data.current.id, scores: crit.map((c) => ({ criterionId: c.id, score: 8 })), note: 'خوب' });
     check(def('M-40'), ev.body);
-    check(def('M-43'), (await a.patch(`/sessions/${id}/evaluations/${ev.body.data.id}`, teacher, { voice: 10 })).body);
+    check(def('M-43'), (await a.patch(`/sessions/${id}/evaluations/${ev.body.data.id}`, teacher, { scores: [{ criterionId: crit[0]!.id, score: 10 }] })).body);
+    check(def('M-81'), (await a.post(`/sessions/${id}/occurrences/${occ.body.data.id}/comments`, stu2, { body: 'ماشاءالله', queueItemId: q.body.data.current.id })).body);
+    const cm = await a.post(`/sessions/${id}/occurrences/${occ.body.data.id}/comments`, stu2, { body: 'کامنت عمومی' });
+    check(def('M-80'), (await a.get(`/sessions/${id}/occurrences/${occ.body.data.id}/comments`, stu)).body);
+    check(def('M-83'), (await a.patch(`/sessions/${id}/comments/${cm.body.data.id}`, m, { hidden: true })).body);
+    check(def('M-82'), (await a.del(`/sessions/${id}/comments/${cm.body.data.id}`, stu2)).body);
+    const g = await a.post(`/sessions/${id}/occurrences/${occ.body.data.id}/galleries`, m, { title: 'تصاویر جلسه', kind: 'image', visibility: 'public' });
+    check(def('M-71'), g.body);
+    check(def('M-72'), (await a.patch(`/sessions/${id}/galleries/${g.body.data.id}`, m, { title: 'تصاویر' })).body);
+    check(def('M-70'), (await a.get(`/sessions/${id}/occurrences/${occ.body.data.id}/galleries`, stu)).body);
+    check(def('M-74'), (await a.get(`/sessions/${id}/galleries/${g.body.data.id}/items`, stu)).body);
+    check(def('M-78'), (await request(t.http).get(`/o/v1/public/sessions/${id}/galleries`)).body);
+    check(def('M-73'), (await a.del(`/sessions/${id}/galleries/${g.body.data.id}`, m)).body);
     check(def('M-41'), (await a.get(`/sessions/${id}/evaluations`, teacher)).body);
     check(def('M-42'), (await a.get('/me/points', stu)).body);
     check(def('M-46'), (await a.get('/me/points/history', stu)).body);

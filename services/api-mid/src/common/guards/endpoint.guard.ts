@@ -2,9 +2,11 @@ import { type CanActivate, type ExecutionContext, Inject, Injectable } from '@ne
 import { Reflector } from '@nestjs/core';
 import type { Response } from 'express';
 import { HEADERS, type EndpointDef, type RateLimit } from '@isra/api-types';
-import { JwtVerifier, canCreateSession } from '../../auth/jwt-verifier';
+import { JwtVerifier } from '../../auth/jwt-verifier';
 import { ENV, type Env } from '../../config/env';
 import { SettingsService } from '../../domain/settings.service';
+import { CatalogService } from '../../domain/catalog.service';
+import { MediaService } from '../../media/media.service';
 import { INTERNAL_KEY } from '../../internal/internal-auth';
 import { AppError } from '../app-error';
 import { EP_KEY, endpoint } from '../ep';
@@ -17,7 +19,17 @@ const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH']);
  * D1 (docs-v2/30 §۱.۶): android-low فقط برای کارهای قرآن‌آموز مستقیم به mid می‌آید؛ بقیهٔ مسیرهای bearer ⇒ AUTH_FORBIDDEN
  * (ساخت/مدیریت جلسه فقط android-mid/web-main/high). Socket.IO جداگانه مجاز است.
  */
-export const ANDROID_LOW_ENDPOINTS: ReadonlySet<string> = new Set(['M-00', 'M-01', 'M-02', 'M-06', 'M-10', 'M-17', 'M-20', 'M-30', 'M-31', 'M-32', 'M-41', 'M-42', 'M-46', 'M-53']);
+export const ANDROID_LOW_ENDPOINTS: ReadonlySet<string> = new Set([
+  'M-00', 'M-01', 'M-02', 'M-06', 'M-10', 'M-17', 'M-20', 'M-30', 'M-31', 'M-32', 'M-41', 'M-42', 'M-46', 'M-53',
+  // ۱.۷.۰ (docs-v2/31): کارهای قرآن‌آموز — معیارها، دیدن گالری، کامنت حین تلاوت
+  'M-45', 'M-70', 'M-74', 'M-77', 'M-80', 'M-81', 'M-82'
+]);
+
+/**
+ * مجوزهای **سیستمی** (سطح کاربر؛ نه درون‌جلسه) که guard بررسی می‌کند: مؤثر = claim JWT ∪ baseline quran_student
+ * (بی‌توکن ⇒ baseline guest؛ رویداد tier.baseline.changed). بقیهٔ مقادیر `permission` (membership.*, owner, …) درون سرویس از DB.
+ */
+export const SYSTEM_PERMISSIONS: ReadonlySet<string> = new Set(['session.create', 'supporter.manage_own', 'comment.post', 'gallery.view']);
 
 /**
  * guard سراسری: سقف IP → احراز JWT (JWKS محلی) → مجوز سطح کاربر (`session.create`) → rate-limit → اعتبارسنجی zod.
@@ -30,6 +42,8 @@ export class EndpointGuard implements CanActivate {
     private readonly jwt: JwtVerifier,
     private readonly limiter: RateLimitService,
     private readonly settings: SettingsService,
+    private readonly catalog: CatalogService,
+    private readonly media: MediaService,
     @Inject(ENV) readonly env: Env
   ) {}
 
@@ -53,19 +67,36 @@ export class EndpointGuard implements CanActivate {
 
     if (req.ctx.client === 'android-low' && def.auth !== 'none' && !ANDROID_LOW_ENDPOINTS.has(def.id)) throw new AppError('AUTH_FORBIDDEN', { message: 'این عملیات از این اپ در دسترس نیست.' });
     await this.authenticate(def, req);
+    if (def.rawBody) {
+      // ۱.۷.۰: بدنهٔ خام (بارگذاری) — نوع و حجم اعلام‌شده پیش از خواندن بدنه؛ magic bytes و حجم واقعی در stream
+      const type = (req.header('content-type') ?? '').split(';')[0]!.trim().toLowerCase();
+      if (!def.rawBody.contentTypes.includes(type)) throw new AppError('UNSUPPORTED_MEDIA_TYPE');
+      if (Number(req.header('content-length') ?? 0) > def.rawBody.maxBytes) throw new AppError('PAYLOAD_TOO_LARGE');
+    }
     await this.rateLimit(def, req, res);
     this.validate(def, req);
     return true;
   }
 
   private async authenticate(def: EndpointDef, req: IsraRequest) {
-    if (def.auth === 'none') return;
+    if (def.auth === 'none') {
+      if (def.permission && SYSTEM_PERMISSIONS.has(def.permission) && !(await this.catalog.hasSystemPermission(def.permission, null))) throw new AppError('AUTH_FORBIDDEN');
+      return;
+    }
     const header = req.header('authorization');
     const token = header?.startsWith('Bearer ') ? header.slice(7).trim() : undefined;
+    if (!token && def.auth === 'bearerOrSignedUrl') {
+      // ۱.۷.۰: URL امضاشده (کاربر u)؛ فقط جایگزین احراز — دسترسی کاربر در سرویس دوباره بررسی می‌شود
+      const userId = this.media.verify(req.method, req.path, req.query as Record<string, unknown>);
+      if (!userId) throw new AppError('AUTH_REQUIRED');
+      req.user = { userId, roles: [], perms: [], signed: true };
+      return;
+    }
     if (!token) throw new AppError('AUTH_REQUIRED');
     const p = await this.jwt.verify(token);
     req.user = { userId: p.userId, roles: p.roles, perms: p.perms };
-    if (def.permission === 'session.create' && !canCreateSession(p)) throw new AppError('AUTH_FORBIDDEN', { message: 'مجوز ساخت جلسه ندارید.' });
+    if (def.permission && SYSTEM_PERMISSIONS.has(def.permission) && !(await this.catalog.hasSystemPermission(def.permission, req.user)))
+      throw new AppError('AUTH_FORBIDDEN', { message: def.permission === 'session.create' ? 'مجوز ساخت جلسه ندارید.' : undefined });
   }
 
   private async rateLimit(def: EndpointDef, req: IsraRequest, res: Response) {

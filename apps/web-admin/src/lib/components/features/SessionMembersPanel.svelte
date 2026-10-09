@@ -1,25 +1,23 @@
 <script lang="ts">
-  import { api, type AdminMember, type MemberAssignableRole, type MembershipStatus, type Page } from '$lib/api';
+  import { api, type AdminMember, type MembershipStatus, type Page } from '$lib/api';
   import { auth } from '$lib/auth/auth.svelte';
   import { toasts } from '$lib/stores/toast.svelte';
   import { stepped, describeError } from '$lib/utils/adminCall';
-  import { MEMBERSHIP, SESSION_ROLE } from '$lib/utils/labels';
+  import { MEMBERSHIP } from '$lib/utils/labels';
   import { formatDateTime, formatNumber } from '$lib/utils/format';
   import { formatPhone } from '$lib/utils/phone';
   import { Resource } from '$lib/utils/resource.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
-  import Sheet from '$lib/components/ui/Sheet.svelte';
   import Pager from '$lib/components/ui/Pager.svelte';
   import StatusChip from '$lib/components/ui/StatusChip.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
-  import NoticeBanner from '$lib/components/ui/NoticeBanner.svelte';
 
   interface Props {
     sessionId: string;
-    /** امکان تأیید/رد/نقش/حذف (مجوز مدیریت و جلسهٔ حذف‌نشده) */
+    /** امکان تأیید/رد/حذف (مجوز مدیریت و جلسهٔ حذف‌نشده). ۱.۷.۰: فقط اعضا؛ نقش‌های درون جلسه حذف شد */
     canManage: boolean;
     onchanged?: () => void;
   }
@@ -63,24 +61,6 @@
   const decide = (m: AdminMember, action: 'approve' | 'reject') =>
     act(m, (t, su) => api.system.decideMember(t, sessionId, m.id, action, su), action === 'approve' ? `عضویت «${m.name}» تأیید شد.` : `عضویت «${m.name}» رد شد.`);
 
-  // ───────── نقش‌ها ─────────
-  const assignable: MemberAssignableRole[] = ['session_supporter', 'teacher', 'quran_student'];
-  let roleFor = $state<AdminMember | null>(null);
-  let roleOpen = $state(false);
-  let selRoles = $state<MemberAssignableRole[]>([]);
-  function openRoles(m: AdminMember) {
-    roleFor = m;
-    selRoles = m.roles.filter((r): r is MemberAssignableRole => r !== 'session_manager' && r !== 'quran_student');
-    roleOpen = true;
-  }
-  async function saveRoles() {
-    const m = roleFor;
-    if (!m) return;
-    roleOpen = false;
-    await act(m, (t, su) => api.system.setMemberRoles(t, sessionId, m.id, selRoles, su), 'نقش‌های عضو ذخیره شد.');
-  }
-  const toggle = (r: MemberAssignableRole) => (selRoles = selRoles.includes(r) ? selRoles.filter((x) => x !== r) : [...selRoles, r]);
-
   // ───────── حذف ─────────
   let removeFor = $state<AdminMember | null>(null);
   let removeOpen = $state(false);
@@ -89,7 +69,6 @@
     if (!m) return;
     await act(m, (t, su) => api.system.removeMember(t, sessionId, m.id, su).then(() => true), `«${m.name}» از جلسه حذف شد.`);
   }
-  const isManager = (m: AdminMember) => m.roles.includes('session_manager');
 </script>
 
 <div class="pill-row" role="group" aria-label="فیلتر وضعیت عضویت">
@@ -112,7 +91,6 @@
           </div>
           <div class="chips">
             <StatusChip tone={tone[m.status]}>{MEMBERSHIP[m.status]}</StatusChip>
-            {#each m.roles as r (r)}<StatusChip tone={r === 'session_manager' ? 'info' : 'neutral'}>{SESSION_ROLE[r]}</StatusChip>{/each}
           </div>
           <div class="muted fa-small dates">
             درخواست: {formatDateTime(m.requestedAt)}{#if m.decidedAt}<br />تصمیم: {formatDateTime(m.decidedAt)}{/if}
@@ -123,14 +101,7 @@
                 <Button size="sm" loading={busyId === m.id} disabled={busyId !== null} onclick={() => decide(m, 'approve')}>تأیید</Button>
                 <Button size="sm" variant="secondary" disabled={busyId !== null} onclick={() => decide(m, 'reject')}>رد</Button>
               {/if}
-              {#if m.status === 'approved' && !isManager(m)}
-                <Button size="sm" variant="secondary" disabled={busyId !== null} onclick={() => openRoles(m)}>نقش‌ها</Button>
-              {/if}
-              {#if !isManager(m)}
-                <Button size="sm" variant="text" disabled={busyId !== null} onclick={() => ((removeFor = m), (removeOpen = true))}><Icon name="trash" size={18} />حذف</Button>
-              {:else}
-                <span class="muted fa-small">مدیر جلسه قابل‌حذف نیست</span>
-              {/if}
+              <Button size="sm" variant="text" disabled={busyId !== null} onclick={() => ((removeFor = m), (removeOpen = true))}><Icon name="trash" size={18} />حذف</Button>
             </div>
           {/if}
         </li>
@@ -145,24 +116,6 @@
 {:else}
   <div class="list" aria-hidden="true">{#each [0, 1, 2] as i (i)}<Skeleton h="84px" radius="var(--radius-md)" />{/each}</div>
 {/if}
-
-<Sheet bind:open={roleOpen} title="نقش‌های درون‌جلسه">
-  {#if roleFor}
-    <p class="muted">نقش‌های «{roleFor.name}» در این جلسه. بدون نقش، فقط قرآن‌آموز است. «مدیر جلسه» از این بخش تغییر نمی‌کند.</p>
-    <NoticeBanner tone="info">نقش «مدیر جلسه» به‌تنهایی دسترسی ارزیابی ندارد.</NoticeBanner>
-    <ul class="opts">
-      {#each assignable.filter((r) => r !== 'quran_student') as r (r)}
-        <li>
-          <label class="opt"><input type="checkbox" checked={selRoles.includes(r)} onchange={() => toggle(r)} /><strong>{SESSION_ROLE[r]}</strong></label>
-        </li>
-      {/each}
-    </ul>
-    <div class="sheet-acts">
-      <Button onclick={saveRoles} full>ذخیره</Button>
-      <Button variant="secondary" onclick={() => (roleOpen = false)} full>انصراف</Button>
-    </div>
-  {/if}
-</Sheet>
 
 <ConfirmDialog
   bind:open={removeOpen}
@@ -207,27 +160,5 @@
       grid-template-columns: 1.2fr 1.4fr 1.2fr auto;
       align-items: center;
     }
-  }
-  .sheet-acts {
-    display: grid;
-    gap: var(--space-sm);
-  }
-  .opts {
-    display: grid;
-    gap: var(--space-sm);
-  }
-  .opt {
-    display: flex;
-    align-items: center;
-    gap: var(--space-md);
-    padding: var(--space-md);
-    border: 1.5px solid var(--color-outline);
-    border-radius: var(--radius-md);
-    cursor: pointer;
-  }
-  .opt input {
-    width: 22px;
-    height: 22px;
-    accent-color: var(--color-accent);
   }
 </style>

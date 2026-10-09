@@ -103,16 +103,15 @@
       <table class="tbl wide">
         <caption class="sr-only">ارزیابی‌های جلسه</caption>
         <thead>
-          <tr><th scope="col">قرآن‌آموز</th><th scope="col">ارزیاب</th><th scope="col" class="n">صوت</th><th scope="col" class="n">لحن</th><th scope="col" class="n">تجوید</th><th scope="col" class="n">نمره (۱۰۰)</th><th scope="col" class="n">امتیاز</th><th scope="col">یادداشت</th><th scope="col">زمان</th></tr>
+          <tr><th scope="col">قرآن‌آموز</th><th scope="col">ارزیاب</th><th scope="col">معیارها</th><th scope="col" class="n">نمره (۱۰۰)</th><th scope="col" class="n">امتیاز</th><th scope="col">یادداشت</th><th scope="col">زمان</th></tr>
         </thead>
         <tbody>
           {#each evals.data.items as e (e.id)}
             <tr>
               <th scope="row">{name(e.userName)}</th>
               <td>{name(e.evaluatorName)}</td>
-              <td class="n">{formatNumber(e.voice)}</td>
-              <td class="n">{formatNumber(e.tone)}</td>
-              <td class="n">{formatNumber(e.tajweed)}</td>
+              <!-- ۱.۷.۰: snapshot معیارهای پویا در لحظهٔ ثبت -->
+              <td class="crit">{#each e.criteria as c, i (c.criterionId)}{#if i > 0}، {/if}<span>{c.title}: {formatNumber(c.score)}/{formatNumber(c.maxScore)}</span>{/each}</td>
               <td class="n"><strong>{formatNumber(e.score)}</strong></td>
               <td class="n">{formatNumber(e.points)}</td>
               <td class="note">{e.note || '—'}</td>
@@ -126,6 +125,9 @@
 {/if}
 
 <style>
+  .crit span {
+    white-space: nowrap;
+  }
   .bar {
     display: flex;
     align-items: center;

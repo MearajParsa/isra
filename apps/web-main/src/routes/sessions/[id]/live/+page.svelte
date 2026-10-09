@@ -2,7 +2,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { midApi } from '$lib/api';
-  import type { Evaluation, EvaluationInput, LiveEvent, QueueAction, QueueState, SessionMe } from '$lib/api/mid-types';
+  import type { ActiveCriteria, Evaluation, EvaluationInput, LiveEvent, QueueAction, QueueState, SessionMe } from '$lib/api/mid-types';
   import { auth } from '$lib/auth/auth.svelte';
   import { toasts } from '$lib/stores/toast.svelte';
   import { errorMessage, fieldErrors } from '$lib/utils/errors';
@@ -30,6 +30,8 @@
   const queue = new Resource<QueueState>();
   const attendance = new Resource<{ items: { userId: string; name: string; enteredAt: string }[]; total: number }>();
   const evals = new Resource<Page<Evaluation>>();
+  /** M-45: معیارهای فعال ارزیابی (پویا؛ docs-v2/31 §۳) */
+  const criteria = new Resource<ActiveCriteria>();
 
   let connected = $state(false);
   let tab = $state('queue');
@@ -37,16 +39,18 @@
   let evalTarget = $state<string | null>(null);
   let evalErrors = $state<Record<string, string>>({});
 
-  const weights = $derived(me.data?.evalWeights ?? { voice: 40, tone: 30, tajweed: 30 });
-  const approved = $derived(me.data?.membership?.status === 'approved');
+  const role = $derived(me.data?.role ?? null);
+  /** ۱.۷.۰: صاحب/پشتیبان ردیف عضویت ندارند ولی وارد اتاق می‌شوند */
+  const isStaff = $derived(role === 'owner' || role === 'supporter');
+  const approved = $derived(isStaff || me.data?.membership?.status === 'approved');
   const perms = $derived(me.data?.permissions ?? []);
-  const roles = $derived(me.data?.membership?.roles ?? []);
   const session = $derived(me.data?.session);
   const started = $derived(session?.status === 'started');
   const canQueue = $derived(perms.includes('queue.manage'));
   const canEval = $derived(perms.includes('eval.submit'));
-  const canAtt = $derived(perms.includes('attendance.view'));
-  const isStudent = $derived(roles.includes('quran_student'));
+  /** M-21: فهرست حاضرین برای صاحب/پشتیبان */
+  const canAtt = $derived(isStaff);
+  const isStudent = $derived(role === 'member');
   const present = $derived(Boolean(me.data?.myAttendance));
   const isStaffView = $derived(canQueue || canAtt);
 
@@ -55,6 +59,7 @@
   const loadQueue = (silent = false) => queue.load(() => tokenCall((t) => midApi.queue.state(t, id)), silent);
   const loadAtt = (silent = false) => attendance.load(() => tokenCall((t) => midApi.attendance.list(t, id)), silent);
   const loadEvals = (silent = false) => evals.load(() => tokenCall((t) => midApi.evaluations.list(t, id)), silent);
+  const loadCriteria = (silent = false) => criteria.load(() => tokenCall((t) => midApi.evaluations.criteria(t)), silent);
 
   // اعضای واردشده: بارگذاری اولیه
   $effect(() => {
@@ -67,6 +72,7 @@
     void loadQueue();
     void loadEvals();
     if (canAtt) void loadAtt();
+    if (canEval) void loadCriteria();
   });
 
   function onLive(e: LiveEvent) {
@@ -154,6 +160,8 @@
         await Promise.all([loadEvals(true), loadQueue(true)]);
       } catch (e) {
         evalErrors = fieldErrors(e);
+        // کاتالوگ معیارها ممکن است در high عوض شده باشد ⇒ تازه‌سازی برای تلاش بعدی
+        void loadCriteria(true);
         if (Object.keys(evalErrors).length === 0) throw e;
       }
     });
@@ -215,7 +223,7 @@
     </PageHeader>
 
     {#if session.status === 'scheduled'}
-      <NoticeBanner tone="info">جلسه هنوز شروع نشده است. ثبت حضور و صف پس از شروع توسط مدیر جلسه فعال می‌شود.</NoticeBanner>
+      <NoticeBanner tone="info">جلسه هنوز شروع نشده است. ثبت حضور و صف پس از شروع توسط استاد جلسه فعال می‌شود.</NoticeBanner>
     {:else if session.status === 'ended'}
       <NoticeBanner tone="info">این جلسه پایان یافته است. نتایج ارزیابی شما در پایین نمایش داده می‌شود.</NoticeBanner>
     {:else if !connected}
@@ -283,12 +291,18 @@
             {#if tab === 'evaluation'}
               {#if !canEval}
                 <NoticeBanner tone="warning">
-                  ثبت ارزیابی فقط برای معلم و پشتیبان جلسه مجاز است. مدیر جلسه به‌تنهایی نمی‌تواند ارزیابی ثبت کند.
+                  ثبت ارزیابی فقط برای استاد جلسه و پشتیبانِ دارای مجوز ارزیابی مجاز است.
                 </NoticeBanner>
-              {:else if targetItem}
+              {:else if targetItem && criteria.status === 'error'}
+                <EmptyState icon="alert" tone="error" compact title="معیارهای ارزیابی بارگذاری نشد" message={criteria.error ?? ''}>
+                  {#snippet action()}<Button variant="secondary" size="sm" onclick={() => loadCriteria()}>تلاش دوباره</Button>{/snippet}
+                </EmptyState>
+              {:else if targetItem && !criteria.data}
+                <Skeleton h="220px" radius="var(--radius-lg)" />
+              {:else if targetItem && criteria.data}
                 <EvaluationForm
                   name={targetItem.name ?? 'قرآن‌آموز'}
-                  {weights}
+                  criteria={criteria.data.items}
                   busy={busy === 'eval'}
                   errors={evalErrors}
                   onsubmit={submitEval}

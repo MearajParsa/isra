@@ -174,8 +174,9 @@ export class UsersAdminService {
     const t = await this.rbac.access(id);
     if (t.roles.includes('developer') && (await this.otherActiveDevelopers(id)) === 0) throw conflict('LAST_HOLDER', 'آخرین توسعه‌دهندهٔ فعال سیستم را نمی‌توان غیرفعال یا حذف کرد.', { role: 'developer' });
     if (kind === 'delete') {
-      // حذف نقش‌ها را هم می‌برد ⇒ آخرین دارندهٔ هر نقش قابل‌حذف نیست (D5)
+      // حذف نقش‌ها را هم می‌برد ⇒ آخرین دارندهٔ هر نقش قابل‌حذف نیست (D5)؛ ۱.۷.۰: teacher معاف (نقش ثابت بی‌دارنده مجاز است)
       for (const r of t.roles) {
+        if (r === 'teacher') continue;
         const n = (await this.ds.query('SELECT COUNT(*) AS n FROM user_system_roles WHERE role_key = ? AND user_id <> ?', [r, uuidToBuf(id)])) as { n: string | number }[];
         if (Number(n[0]?.n ?? 0) === 0) throw conflict('LAST_HOLDER', `آخرین دارندهٔ نقش «${r}» را نمی‌توان حذف کرد.`, { role: r });
       }

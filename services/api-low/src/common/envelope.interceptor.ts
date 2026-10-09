@@ -39,7 +39,8 @@ export class EnvelopeInterceptor implements NestInterceptor {
         else {
           const swr = cache.staleWhileRevalidateSec ? `, stale-while-revalidate=${cache.staleWhileRevalidateSec}` : '';
           res.setHeader('Cache-Control', `${cache.scope}, max-age=${cache.maxAgeSec}${swr}`);
-          res.setHeader('Vary', 'Accept-Encoding');
+          // ۱.۷.۰: پاسخ مسیر دارای مجوز به baseline مهمان/کاربر (Authorization) بستگی دارد ⇒ cache مشترک نباید بین آن‌ها نشت دهد
+          res.setHeader('Vary', def.permission || def.permissionAny ? 'Accept-Encoding, Authorization' : 'Accept-Encoding');
         }
 
         const body: unknown = def.raw

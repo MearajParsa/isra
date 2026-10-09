@@ -97,7 +97,7 @@ export class OccurrencesService {
 
   /** M-08 */
   async list(userId: string, sessionId: string, page: number, pageSize: number) {
-    await this.access.load(this.ds, sessionId, userId, 'attendance.view');
+    await this.access.load(this.ds, sessionId, userId, 'staff');
     return this.page(sessionId, page, pageSize);
   }
 

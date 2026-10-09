@@ -117,7 +117,6 @@ export function createAdminApi(lowHttp: Http, highHttp: Http): AdminApi {
       },
       sessionMembers: (tk, id, q = {}, s) => highHttp.list<AdminMember>(`${S}/sessions/${enc(id)}/members`, { query: { status: q.status, page: q.page ?? 1, pageSize: q.pageSize ?? 100 }, ...t(tk, s) }),
       decideMember: (tk, id, memberId, action, su) => highHttp.call<AdminMember>(`${S}/sessions/${enc(id)}/members/${enc(memberId)}`, { method: 'PATCH', body: { action }, ...step(tk, su) }),
-      setMemberRoles: (tk, id, memberId, roles, su) => highHttp.call<AdminMember>(`${S}/sessions/${enc(id)}/members/${enc(memberId)}/roles`, { method: 'PUT', body: { roles }, ...step(tk, su) }),
       removeMember: async (tk, id, memberId, su) => {
         await highHttp.call(`${S}/sessions/${enc(id)}/members/${enc(memberId)}`, { method: 'DELETE', ...step(tk, su) });
       },

@@ -7,7 +7,8 @@ export type UserStatus = 'active' | 'disabled' | 'deleted';
 export type StepUpMode = 'required' | 'none';
 export type SessionState = 'draft' | 'scheduled' | 'started' | 'ended';
 export type MembershipStatus = 'pending' | 'approved' | 'rejected';
-export type SessionRole = 'session_manager' | 'session_supporter' | 'teacher' | 'quran_student';
+/** ۱.۷.۰ (docs-v2/31 §۲) */
+export type SessionRole = 'owner' | 'supporter' | 'member';
 
 export type SystemRoleKey = string;
 export type PermissionKey = string;
@@ -46,16 +47,14 @@ export interface ApiErrorResponse {
   };
 }
 
-export interface SystemEvalWeights {
-  voice: number;
-  tone: number;
-  tajweed: number;
-}
-
-export interface EvaluationWeights {
-  voice: number;
-  tone: number;
-  tajweed: number;
+/** ۱.۷.۰: snapshot معیار پویا روی ارزیابی ثبت‌شده */
+export interface EvaluationCriterionScore {
+  criterionId: string;
+  key: string;
+  title: string;
+  weight: number;
+  maxScore: number;
+  score: number;
 }
 
 export interface AuthUser {
@@ -380,11 +379,18 @@ export interface AdminSession {
     id: string;
     name: string;
   };
+  /** ۱.۷.۰: استاد صاحب جلسه */
+  owner: {
+    id: string;
+    name: string;
+  };
   counts: {
     members: number;
     pending: number;
     attendance: number;
     evaluations: number;
+    supporters?: number;
+    occurrences?: number;
   };
   createdAt: string;
   updatedAt: string;
@@ -399,7 +405,6 @@ export interface AdminMember {
   id: string;
   userId: string;
   name: string;
-  roles: SessionRole[];
   status: MembershipStatus;
   requestedAt: string;
   phone: string | null;
@@ -408,10 +413,6 @@ export interface AdminMember {
 
 export interface AdminDecideBody {
   action: 'approve' | 'reject';
-}
-
-export interface SetRolesBody {
-  roles: ('session_supporter' | 'teacher' | 'quran_student')[];
 }
 
 export interface AttendanceEntry {
@@ -454,10 +455,7 @@ export interface Evaluation {
   userId: string;
   userName: string;
   evaluatorName: string;
-  voice: number;
-  tone: number;
-  tajweed: number;
-  weights: EvaluationWeights;
+  criteria: EvaluationCriterionScore[];
   score: number;
   points: number;
   note: string;
@@ -471,8 +469,6 @@ export interface AdminEvaluations {
 
 export interface SystemSettings {
   version: number;
-  evalWeights: SystemEvalWeights;
-  badgeThresholds: unknown[];
   flags: {
     maintenance_mode: boolean;
     registration_open: boolean;
@@ -483,8 +479,6 @@ export interface SystemSettings {
 
 export interface UpdateSettingsBody {
   version: number;
-  evalWeights: SystemEvalWeights;
-  badgeThresholds: unknown[];
   flags: {
     maintenance_mode: boolean;
     registration_open: boolean;

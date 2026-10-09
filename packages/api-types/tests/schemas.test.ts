@@ -30,11 +30,25 @@ describe('low: ورودی‌ها', () => {
 });
 
 describe('mid: ورودی‌ها', () => {
-  it('ارزیابی: ۰..۱۰ صحیح، strict، یادداشت ≤ ۳۰۰', () => {
-    const ok = { queueItemId: 'q-1', voice: 8, tone: 7, tajweed: 9 };
+  it('ارزیابی (۱.۷.۰): scores پویا، صحیح، یکتا per معیار، strict، یادداشت ≤ ۳۰۰', () => {
+    const ok = { queueItemId: 'q-1', scores: [{ criterionId: 'c1', score: 8 }, { criterionId: 'c2', score: 7 }] };
     expect(mid.EvaluationBody.safeParse(ok).success).toBe(true);
-    for (const bad of [{ ...ok, voice: 11 }, { ...ok, tone: -1 }, { ...ok, tajweed: 2.5 }, { ...ok, note: 'x'.repeat(301) }, { ...ok, score: 100 }, { ...ok, queueItemId: '../../etc' }])
+    const sc = (score: unknown) => ({ ...ok, scores: [{ criterionId: 'c1', score }] });
+    for (const bad of [
+      sc(101),
+      sc(-1),
+      sc(2.5),
+      { ...ok, scores: [] },
+      { ...ok, scores: [{ criterionId: 'c1', score: 1 }, { criterionId: 'c1', score: 2 }] },
+      { ...ok, scores: Array.from({ length: 16 }, (_, i) => ({ criterionId: `c${i}`, score: 1 })) },
+      { ...ok, voice: 8 },
+      { ...ok, note: 'x'.repeat(301) },
+      { ...ok, score: 100 },
+      { ...ok, queueItemId: '../../etc' }
+    ])
       expect(mid.EvaluationBody.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
+    expect(mid.EvaluationPatchBody.safeParse({}).success).toBe(false);
+    expect(mid.EvaluationPatchBody.safeParse({ note: 'خوب' }).success).toBe(true);
   });
   it('ورودی جلسه: پایان بعد از شروع و عناوین', () => {
     const s = { title: 'جلسه', description: 'توضیحات کافی برای جلسه.', location: { label: 'آنلاین' } };
@@ -44,9 +58,29 @@ describe('mid: ورودی‌ها', () => {
     expect(mid.SessionInput.safeParse({ ...s, schedule: { type: 'recurring', weekdays: [0], timeOfDay: '25:00', durationMin: 60 } }).success).toBe(false);
     expect(mid.SessionInput.safeParse({ ...s, schedule: { type: 'recurring', weekdays: [0], timeOfDay: '18:00', durationMin: 5 } }).success).toBe(false);
   });
-  it('تعیین نقش: manager قابل تخصیص نیست', () => {
-    expect(mid.SetRolesBody.safeParse({ roles: ['teacher'] }).success).toBe(true);
-    expect(mid.SetRolesBody.safeParse({ roles: ['session_manager'] }).success).toBe(false);
+  it('نقش جلسه (۱.۷.۰): فقط owner/supporter/member؛ مجوز پشتیبان از کاتالوگ و یکتا', () => {
+    expect(mid.SessionRole.options).toEqual(['owner', 'supporter', 'member']);
+    expect(mid.SESSION_DELEGABLE_PERMISSIONS.map((p) => p.key)).toEqual(mid.Permission.options);
+    expect(mid.SupporterPermissionsBody.safeParse({ permissions: ['eval.submit', 'queue.manage'] }).success).toBe(true);
+    for (const permissions of [[], ['eval.submit', 'eval.submit'], ['membership.roles'], ['session.transition']])
+      expect(mid.SupporterPermissionsBody.safeParse({ permissions }).success, JSON.stringify(permissions)).toBe(false);
+    expect(mid.AddSupporterBody.safeParse({ user: { userId: 'u1', phone: '09121234567' }, permissions: ['eval.submit'] }).success).toBe(false);
+    expect(mid.AddMembersBody.safeParse({ items: [{ user: { userId: 'u1' } }] }).success).toBe(true);
+    expect(mid.AddMembersBody.safeParse({ items: [{ user: { userId: 'u1' }, roles: ['teacher'] }] }).success).toBe(false);
+  });
+  it('کامنت و گالری (۱.۷.۰)', () => {
+    expect(mid.CreateCommentBody.safeParse({ body: 'بسیار عالی' }).success).toBe(true);
+    expect(mid.CreateCommentBody.safeParse({ body: 'x'.repeat(501) }).success).toBe(false);
+    expect(mid.CreateCommentBody.safeParse({ body: 'abc\u202Edef' }).success).toBe(false);
+    expect(mid.CreateCommentBody.safeParse({ body: 'سلام', atSec: 5 }).success).toBe(false);
+    expect(mid.CreateGalleryBody.parse({ title: 'عکس‌های جلسه', kind: 'image' }).visibility).toBe('members');
+    expect(mid.CreateGalleryBody.safeParse({ title: 'عکس', kind: 'video' }).success).toBe(false);
+    expect(mid.UpdateGalleryBody.safeParse({ kind: 'audio' }).success).toBe(false);
+    const s = { title: 'جلسه', description: 'توضیحات کافی برای جلسه.', location: { label: 'آنلاین' }, schedule: { type: 'recurring', weekdays: [0], timeOfDay: '18:00', durationMin: 60 } };
+    const parsed = mid.SessionInput.parse(s);
+    expect(parsed.commentsEnabled).toBe(true);
+    expect(parsed.commentVisibility).toBe('public');
+    expect(mid.SessionInput.safeParse({ ...s, commentVisibility: 'staff' }).success).toBe(false);
   });
   it('حضور: امتیاز فقط ۰ یا ۵', () => {
     const entry = { userId: 'u1', name: 'سارا', enteredAt: '2026-10-01T12:00:00Z' };
@@ -57,15 +91,28 @@ describe('mid: ورودی‌ها', () => {
 });
 
 describe('high: تنظیمات', () => {
-  const ok = { version: 1, evalWeights: { voice: 40, tone: 30, tajweed: 30 }, badgeThresholds: [50, 150, 300, 500], flags: { maintenance_mode: false, registration_open: true } };
+  const ok = { version: 1, flags: { maintenance_mode: false, registration_open: true } };
   it('پیش‌فرض‌ها معتبر', () => {
     expect(high.UpdateSettingsBody.safeParse(ok).success).toBe(true);
   });
-  it('مجموع وزن‌ها = ۱۰۰ و آستانه صعودی', () => {
-    expect(high.UpdateSettingsBody.safeParse({ ...ok, evalWeights: { voice: 50, tone: 30, tajweed: 30 } }).success).toBe(false);
-    expect(high.UpdateSettingsBody.safeParse({ ...ok, evalWeights: { voice: 33.3, tone: 33.3, tajweed: 33.4 } }).success).toBe(false);
-    expect(high.UpdateSettingsBody.safeParse({ ...ok, badgeThresholds: [50, 50, 300, 500] }).success).toBe(false);
-    expect(high.UpdateSettingsBody.safeParse({ ...ok, badgeThresholds: [50, 150, 300] }).success).toBe(false);
+  it('۱.۷.۰: evalWeights و badgeThresholds دیگر پذیرفته نمی‌شوند (strict)', () => {
+    expect(high.UpdateSettingsBody.safeParse({ ...ok, evalWeights: { voice: 40, tone: 30, tajweed: 30 } }).success).toBe(false);
+    expect(high.UpdateSettingsBody.safeParse({ ...ok, badgeThresholds: [50, 150, 300, 500] }).success).toBe(false);
+  });
+  it('معیار ارزیابی: وزن و سقف ۱..۱۰۰، کلید ثابت', () => {
+    expect(high.CreateCriterionBody.safeParse({ key: 'voice', title: 'صوت', weight: 40 }).success).toBe(true);
+    expect(high.CreateCriterionBody.safeParse({ key: 'voice', title: 'صوت', weight: 0 }).success).toBe(false);
+    expect(high.CreateCriterionBody.safeParse({ key: 'voice', title: 'صوت', weight: 40, maxScore: 101 }).success).toBe(false);
+    expect(high.CreateCriterionBody.safeParse({ key: 'Voice!', title: 'صوت', weight: 40 }).success).toBe(false);
+    expect(high.UpdateCriterionBody.safeParse({ key: 'tone' }).success).toBe(false);
+    expect(high.UpdateCriterionBody.safeParse({ active: false }).success).toBe(true);
+  });
+  it('تغییر صاحب جلسه و سطح نقش', () => {
+    expect(high.TransferOwnerBody.parse({ userId: 'u1' }).previousOwner).toBe('supporter');
+    expect(high.TransferOwnerBody.safeParse({ userId: 'u1', previousOwner: 'keep' }).success).toBe(false);
+    expect(high.CreateRoleBody.parse({ key: 'assistant', title: 'دستیار' }).tier).toBe('high');
+    expect(high.CreateRoleBody.safeParse({ key: 'assistant', title: 'دستیار', tier: 'top' }).success).toBe(false);
+    expect(high.AdminAddMembersBody.safeParse({ items: [{ user: { userId: 'u1' } }], defaultRoles: ['teacher'] }).success).toBe(false);
   });
   it('پرچم ناشناخته و نقش سفارشی رد می‌شود', () => {
     expect(high.UpdateSettingsBody.safeParse({ ...ok, flags: { ...ok.flags, hack: true } }).success).toBe(false);
@@ -79,7 +126,7 @@ describe('high: تنظیمات', () => {
     expect(high.CreateRoleBody.safeParse({ key: 'editor', title: 'ویراستار', foo: 1 }).success).toBe(false);
   });
   it('نقش‌های سیستم حذف‌ناپذیرند', () => {
-    const r = { key: 'developer', title: 't', description: 'd', undeletable: true, permissions: [], modules: [], effectivePermissions: [], lockedPermissions: [], stepUpRules: {}, holders: 1 };
+    const r = { key: 'developer', title: 't', description: 'd', tier: 'high', undeletable: true, permissions: [], modules: [], effectivePermissions: [], lockedPermissions: [], stepUpRules: {}, holders: 1 };
     expect(high.SystemRole.safeParse(r).success).toBe(true);
     expect(high.SystemRole.safeParse({ ...r, key: 'X' }).success).toBe(false);
   });

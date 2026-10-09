@@ -43,8 +43,13 @@ import { OpsController } from './domain/ops.controller';
 import { UserActivityService } from './domain/user-activity.service';
 import { BadgeImageController } from './internal/badge-image.controller';
 import { OutboxService } from './outbox/outbox.service';
+import { TeacherBackfillService } from './outbox/teacher-backfill.service';
+import { MediaUrlSigner } from './common/media-url';
+import { CriteriaService } from './domain/criteria/criteria.service';
+import { SessionContentService } from './domain/session-content.service';
+import { ContentController } from './domain/content.controller';
 
-const PROVIDERS = [RevocationService, JwtVerifier, RateLimitService, RbacService, AuditService, ClaimsService, UsersService, UsersAdminService, AccountService, SessionsAdminService, ReportsService, LowAdminClient, MidAdminClient, RolesService, RegistryService, PermissionAdminService, AccessQueryService, SettingsService, OverviewService, EventsService, InternalGuard, OutboxService, MaintenanceService, EndpointGuard, BadgesService, AnnouncementsService, ExportService, UserActivityService];
+const PROVIDERS = [RevocationService, JwtVerifier, RateLimitService, RbacService, AuditService, ClaimsService, UsersService, UsersAdminService, AccountService, SessionsAdminService, ReportsService, LowAdminClient, MidAdminClient, RolesService, RegistryService, PermissionAdminService, AccessQueryService, SettingsService, OverviewService, EventsService, InternalGuard, OutboxService, MaintenanceService, EndpointGuard, BadgesService, AnnouncementsService, ExportService, UserActivityService, MediaUrlSigner, CriteriaService, SessionContentService, TeacherBackfillService];
 
 @Global()
 @Module({ providers: PROVIDERS, exports: PROVIDERS })
@@ -73,7 +78,7 @@ export class AppModule {
         CoreModule
       ],
       // ExportController اول: `/system/users/export` پیش از `/system/users/:id`
-      controllers: [ExportController, HighController, AdminController, RbacController, OpsController, InfraController, EventsController, BadgeImageController],
+      controllers: [ExportController, HighController, AdminController, RbacController, OpsController, ContentController, InfraController, EventsController, BadgeImageController],
       providers: [
         { provide: APP_FILTER, useClass: AllExceptionsFilter },
         // ترتیب مهم: Envelope بیرونی، Idempotency داخلی (پاسخ ذخیره‌شده هم envelope می‌شود)

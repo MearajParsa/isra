@@ -27,10 +27,13 @@ pnpm --filter @isra/api-mid test       # ۱۴۱ تست؛ نیاز به MySQL (TE
 
 ## معماری و تصمیم‌ها
 - **auth:** JWT با JWKS سرویس low (RS256 pin، iss/aud/exp) به‌صورت محلی؛ بدون hop به low. نشست revoke‌شده تا انقضای access (≤۱۵ دقیقه) معتبر می‌ماند (قفل).
-- **مجوز:** `session.create` سطح کاربر از JWT (grant یا نقش developer/super_admin)؛ مجوزهای درون‌جلسه فقط از عضویت واقعی در DB (اجتماع نقش‌ها) — `perms` جعلی در JWT اثری ندارد.
+- **مجوز (۱.۷.۰، docs-v2/31):** مجوزهای سیستمی (`session.create`، `supporter.manage_own`، `comment.post`، `gallery.view`) = claim JWT ∪ baseline `quran_student` (بی‌توکن: baseline `guest`) از رویداد `tier.baseline.changed`. درون‌جلسه فقط از DB: **owner** (`sessions.owner_id`) همهٔ ۹ مجوز `SESSION_DELEGABLE_PERMISSIONS`؛ **supporter** = اجتماع `teacher_supporters` (ثابتِ استاد صاحب) و `session_supporters`؛ **member** هیچ. فقط کلیدهای کاتالوگ ذخیره/پذیرفته می‌شوند (ضد ارتقا)؛ `perms` جعلی در JWT اثری ندارد.
+- **ارزیابی:** معیارهای پویا از high (`evaluation.criteria.changed`، کش با version در `settings_cache`)؛ هر ارزیابی snapshot معیارها (`evaluations.criteria`) را نگه می‌دارد.
+- **گالری/رسانه:** فایل‌ها در `MEDIA_DIR/{sessionId}/{galleryId}/{itemId}` (stream ⇒ `.tmp` ⇒ rename اتمیک؛ magic bytes؛ حذف APP1/APP13 از JPEG؛ سهمیه per جلسه)؛ محتوا با Range/ETag؛ URL امضاشده (HMAC `MEDIA_URL_SECRET`، ۶۰۰ ثانیه، مقید به کاربر) و بررسی دوبارهٔ دسترسی. حذف نرم + پاک‌سازی فایل با job نگهداری.
+- **کامنت:** حین تلاوت (`queue_items.started_at` ⇒ `at_sec` سرور) یا عمومی نوبت؛ `commentVisibility` public/reciter_only (سیگنال realtime reciter_only فقط به اتاق شخصی `u:{id}`).
 - **یکتایی در DB:** `attendance(session,user)`، `ledger(reason,ref)`، `evaluations(queue_item)`، `badge(user,key)`، `queue active_key` ⇒ امتیاز/ارزیابی/صف حتی با درخواست موازی دوباره ثبت نمی‌شود. تراکنش‌های رقابتی با retry روی deadlock.
 - **صف:** سریال‌سازی با `SELECT … FOR UPDATE` روی ردیف جلسه؛ حریم خصوصی (غیرکادر: فقط جاری/جایگاه خود/تعداد).
-- **وزن/آستانه:** از high با رویداد `system.settings.changed` (نسخه‌دار، فقط رو‌به‌جلو)؛ پیش‌فرض ۴۰/۳۰/۳۰ و ۵۰/۱۵۰/۳۰۰/۵۰۰. وزن لحظهٔ ثبت روی ارزیابی ذخیره می‌شود.
+- **پرچم‌ها:** `system.settings.changed` (نسخه‌دار)؛ ۱.۷.۰: evalWeights نادیده (⇒ معیار پویا).
 - **realtime:** Socket.IO (`/o/v1/socket.io`، `auth:{token}`، `session.join` فقط عضو تأییدشده)؛ رویداد فقط سیگنال است. **محدودیت:** بدون Redis، فقط socketهای همین instance اطلاع می‌گیرند ⇒ برای realtime یک instance (یا sticky)؛ کلاینت بعد از reconnect REST را دوباره می‌خواند.
 - **اینباکس:** رویدادهای عضویت/نوبت/ارزیابی/نشان با outbox (`SKIP LOCKED`، backoff) به low می‌روند.
 - **نام کاربران:** از `user_directory` که با رویدادهای `user.registered`/`user.profile.updated` از low پر می‌شود (بدون hop).
@@ -39,8 +42,8 @@ pnpm --filter @isra/api-mid test       # ۱۴۱ تست؛ نیاز به MySQL (TE
 | جهت | مسیر |
 |-----|------|
 | low → mid | `GET /o/internal/v1/public/sessions`، `GET /o/internal/v1/public/sessions/{id}`، `GET /o/internal/v1/users/{id}/points`، `GET /o/internal/v1/stats/sessions` (برای high) |
-| low/high → mid | `POST /o/internal/v1/events` (low: `user.registered`، `user.profile.updated`، `session.revoked`، `user.phone.changed` (نادیده)، `user.status.changed` (deleted ⇒ نام پاک + «کاربر حذف‌شده»)؛ high: `system.*`) |
-| high → mid (ادمین) | `MID_ADMIN` زیر `/o/internal/v1/admin/*` (فقط `@InternalCallers('high')`): جلسه (فهرست/جزئیات/ساخت برای creatorId/ویرایش/transition/حذف نرم)، اعضا (فهرست/تصمیم/نقش/حذف)، حضور/صف/ارزیابی (فقط‌خواندنی، نمای کامل)، خلاصهٔ کاربر، گزارش‌ها (overview، سری جلسه‌ها، leaderboard). قواعد: `docs-v2/26-admin-expansion.md` |
+| low/high → mid | `POST /o/internal/v1/events` (low: `user.registered`، `user.profile.updated`، `session.revoked`، `user.phone.changed` (نادیده)، `user.status.changed` (deleted ⇒ نام پاک + «کاربر حذف‌شده»)؛ high: `system.*`، `badge.catalog.changed`، `evaluation.criteria.changed`، `tier.baseline.changed`) |
+| high → mid (ادمین) | `MID_ADMIN` زیر `/o/internal/v1/admin/*` (فقط `@InternalCallers('high')`): جلسه (فهرست/جزئیات/ساخت برای creatorId/ویرایش/transition/حذف نرم)، اعضا (فهرست/تصمیم/حذف)، صاحب (`owner`) و `session-owners`، پشتیبان‌ها (ثابت/per جلسه)، گالری (بارگذاری خام stream و محتوا با Range) و کامنت، حضور/صف/ارزیابی (فقط‌خواندنی، نمای کامل)، خلاصهٔ کاربر، گزارش‌ها (overview، سری جلسه‌ها، leaderboard). قواعد: `docs-v2/26-admin-expansion.md` |
 | mid → low | `POST {INTERNAL_URL_LOW}/internal/v1/events` (`INTERNAL_URL_LOW` = `…/c`) (`inbox.message.created`) |
 هدرهای `X-Internal-Caller` + `X-Internal-Token` (secret per جفت‌سرویس؛ ACL نوع رویداد/مسیر per فرستنده)؛ فقط شبکهٔ خصوصی.
 

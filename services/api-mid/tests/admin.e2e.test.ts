@@ -6,6 +6,7 @@ import { uuidToBuf, uuidv7 } from '../src/common/ids';
 import { MembersAccess as MembersAccessToken } from '../src/domain/access.service';
 import { SessionsService } from '../src/domain/sessions.service';
 import { type TestApp, type User, api, creator, join, mkSession, mkUser, sessionBody, startApp } from './helpers/app';
+import { sc } from './helpers/app';
 
 const LOW = 'test-pair-low-mid-0123456789abcdef01';
 const HIGH = 'test-pair-mid-high-0123456789abcdef0';
@@ -35,6 +36,8 @@ const sendEvent = (type: string, payload: object, caller: 'low' | 'high' = 'low'
     .send({ eventId: randomUUID(), type, occurredAt: new Date().toISOString(), payload });
 
 /** جلسهٔ started با مدیر + معلم + قرآن‌آموزها */
+const reason = (r: request.Response) => r.body?.error?.details?.reason as string | undefined;
+
 async function room(nStudents = 2) {
   const manager = await creator(t);
   const id = await mkSession(t, manager, 'started');
@@ -55,9 +58,9 @@ async function rawSession(over: { createdAt: string; updatedAt?: string; status?
   const id = uuidv7();
   const sched = JSON.stringify({ type: 'once', startsAt: '2030-01-04T18:00:00+03:30', endsAt: '2030-01-04T20:00:00+03:30' });
   await t.ds.query(
-    `INSERT INTO sessions (id, title, description, status, schedule_type, schedule, next_starts_at, location_label, created_by, version, created_at, updated_at, deleted_at)
-     VALUES (?, 'جلسهٔ خام', 'توضیحات جلسهٔ خام برای تست', ?, 'once', ?, NULL, 'مسجد', ?, 1, ?, ?, ?)`,
-    [bin(id), over.status ?? 'draft', sched, bin(over.createdBy ?? uuidv7()), new Date(over.createdAt), new Date(over.updatedAt ?? over.createdAt), over.deletedAt ? new Date(over.deletedAt) : null]
+    `INSERT INTO sessions (id, title, description, status, schedule_type, schedule, next_starts_at, location_label, created_by, owner_id, version, created_at, updated_at, deleted_at)
+     VALUES (?, 'جلسهٔ خام', 'توضیحات جلسهٔ خام برای تست', ?, 'once', ?, NULL, 'مسجد', ?, ?, 1, ?, ?, ?)`,
+    [bin(id), over.status ?? 'draft', sched, bin(over.createdBy ?? uuidv7()), bin(over.createdBy ?? uuidv7()), new Date(over.createdAt), new Date(over.updatedAt ?? over.createdAt), over.deletedAt ? new Date(over.deletedAt) : null]
   );
   return id;
 }
@@ -86,7 +89,7 @@ describe('ACL و احراز internal (MID_ADMIN)', () => {
 });
 
 describe('جلسه: فهرست/جزئیات/ساخت/ویرایش/transition', () => {
-  it('ساخت برای creatorId: draft، سازنده session_manager، خروجی مطابق قرارداد high.AdminSession', async () => {
+  it('ساخت برای creatorId: draft، سازنده owner، خروجی مطابق قرارداد high.AdminSession', async () => {
     const creatorUser = await mkUser(t, 'سازندهٔ ویژه'); // بدون مجوز session.create در JWT؛ ادمین دور می‌زند
     const r = await ad.post('/admin/sessions', { creatorId: creatorUser.id, session: sessionBody({ title: 'ساخت از ادمین' }) });
     expect(r.status).toBe(200);
@@ -94,11 +97,13 @@ describe('جلسه: فهرست/جزئیات/ساخت/ویرایش/transition', (
     const s = high.AdminSession.parse(r.body.data);
     expect(s.status).toBe('draft');
     expect(s.createdBy).toEqual({ id: creatorUser.id, name: 'سازندهٔ ویژه' });
-    expect(s.counts).toEqual({ members: 1, pending: 0, attendance: 0, evaluations: 0, managers: 1, occurrences: 0 });
+    expect(s.counts).toEqual({ members: 0, pending: 0, attendance: 0, evaluations: 0, supporters: 0, occurrences: 0 });
+    expect(s.owner).toEqual({ id: creatorUser.id, name: 'سازندهٔ ویژه' });
     expect(s.deletedAt).toBeNull();
     const me = await a.get(`/sessions/${s.id}/me`, creatorUser);
     expect(me.status).toBe(200);
-    expect(me.body.data.membership).toEqual({ status: 'approved', roles: ['session_manager'] });
+    expect(me.body.data.role).toBe('owner');
+    expect(me.body.data.membership).toBeNull();
     expect(me.body.data.permissions).toContain('session.edit');
     const detail = await ad.get(`/admin/sessions/${s.id}`);
     expect(high.AdminSession.parse(detail.body.data).id).toBe(s.id);
@@ -223,7 +228,7 @@ describe('حذف نرم: جلسهٔ حذف‌شده برای همهٔ APIهای 
     expect(await ids('includeDeleted=true')).toContain(r.id);
     expect((await ad.get(`/admin/sessions/${r.id}`)).body.data.deletedAt).toBeTruthy();
     // خواندن‌های ادمین روی جلسهٔ حذف‌شده
-    expect((await ad.get(`/admin/sessions/${r.id}/members`)).body.meta.total).toBe(3);
+    expect((await ad.get(`/admin/sessions/${r.id}/members`)).body.meta.total).toBe(r.studentMembers.length);
     expect((await ad.get(`/admin/sessions/${r.id}/attendance`)).status).toBe(200);
     expect((await ad.get(`/admin/sessions/${r.id}/queue`)).status).toBe(200);
     expect((await ad.get(`/admin/sessions/${r.id}/evaluations`)).status).toBe(200);
@@ -231,7 +236,7 @@ describe('حذف نرم: جلسهٔ حذف‌شده برای همهٔ APIهای 
     expect((await ad.patch(`/admin/sessions/${r.id}`, sessionBody())).status).toBe(404);
     expect((await ad.post(`/admin/sessions/${r.id}/transition`, { to: 'ended' })).status).toBe(404);
     expect((await ad.patch(`/admin/sessions/${r.id}/members/${r.studentMembers[0]}`, { action: 'approve' })).status).toBe(404);
-    expect((await ad.put(`/admin/sessions/${r.id}/members/${r.studentMembers[0]}/roles`, { roles: ['teacher'] })).status).toBe(404);
+    expect((await ad.put(`/admin/sessions/${r.id}/supporters/${r.students[0]!.id}`, { actorId: randomUUID(), permissions: ['queue.manage'] })).status).toBe(404);
     expect((await ad.del(`/admin/sessions/${r.id}/members/${r.studentMembers[0]}`)).status).toBe(404);
   });
 
@@ -269,7 +274,7 @@ describe('حذف نرم: جلسهٔ حذف‌شده برای همهٔ APIهای 
     expect((await a.get(`/sessions/${r.id}/queue`, s)).status).toBe(404);
     expect((await a.del(`/sessions/${r.id}/queue/me`, s)).status).toBe(404);
     expect((await a.post(`/sessions/${r.id}/queue/next`, r.teacher)).status).toBe(404);
-    expect((await a.post(`/sessions/${r.id}/evaluations`, r.teacher, { queueItemId: randomUUID(), voice: 5, tone: 5, tajweed: 5 })).status).toBe(404);
+    expect((await a.post(`/sessions/${r.id}/evaluations`, r.teacher, { queueItemId: randomUUID(), scores: sc({ voice: 5, tone: 5, tajweed: 5 }) })).status).toBe(404);
     expect((await a.get(`/sessions/${r.id}/evaluations`, r.teacher)).status).toBe(404);
     expect((await a.patch(`/sessions/${r.id}`, r.manager, sessionBody())).status).toBe(404);
     expect((await a.post(`/sessions/${r.id}/transition`, r.manager, { to: 'ended' })).status).toBe(404);
@@ -304,7 +309,7 @@ describe('اعضا (ادمین)', () => {
     await a.post(`/sessions/${r.id}/members`, p1);
     await a.post(`/sessions/${r.id}/members`, p2);
     const all = await ad.get(`/admin/sessions/${r.id}/members`);
-    expect(all.body.meta).toEqual({ page: 1, pageSize: 20, total: 4 });
+    expect(all.body.meta).toEqual({ page: 1, pageSize: 20, total: 2 });
     for (const m of all.body.data) {
       const parsed = high.AdminMember.parse(m);
       expect(parsed.phone).toBeNull();
@@ -316,7 +321,7 @@ describe('اعضا (ادمین)', () => {
     expect(approved.body.data.every((m: { decidedAt: string | null }) => m.decidedAt)).toBe(true);
     const pg = await ad.get(`/admin/sessions/${r.id}/members?pageSize=1&page=2`);
     expect(pg.body.data).toHaveLength(1);
-    expect(pg.body.meta).toEqual({ page: 2, pageSize: 1, total: 4 });
+    expect(pg.body.meta).toEqual({ page: 2, pageSize: 1, total: 2 });
     expect((await ad.get(`/admin/sessions/${r.id}/members?status=zzz`)).status).toBe(400);
   });
 
@@ -330,11 +335,9 @@ describe('اعضا (ادمین)', () => {
     const ok = await ad.patch(`/admin/sessions/${r.id}/members/${m1}`, { action: 'approve' });
     expect(ok.status).toBe(200);
     expect(ok.body.data.status).toBe('approved');
-    expect(ok.body.data.roles).toEqual(['quran_student']);
     expect(ok.body.data.phone).toBeNull();
     const no = await ad.patch(`/admin/sessions/${r.id}/members/${m2}`, { action: 'reject' });
     expect(no.body.data.status).toBe('rejected');
-    expect(no.body.data.roles).toEqual([]);
     expect(await inbox(u1.id)).toHaveLength(1);
     expect(await inbox(u2.id)).toHaveLength(1);
     const again = await ad.patch(`/admin/sessions/${r.id}/members/${m1}`, { action: 'reject' });
@@ -350,43 +353,39 @@ describe('اعضا (ادمین)', () => {
     expect((await ad.patch(`/admin/sessions/${r.id}/members/${other.studentMembers[0]}`, { action: 'approve' })).status).toBe(404);
   });
 
-  it('نقش‌ها (H-68، ۱.۶.۰): دقیقاً همین نقش‌ها (مدیر هم)؛ غیرتأییدشده 409؛ آخرین مدیر LAST_HOLDER؛ ورودی نامعتبر 400', async () => {
+  it('پشتیبان‌ها (H-104..H-109): ثابت استاد و per جلسه، upsert، مؤثر = اجتماع؛ صاحب SELF_PROTECTED؛ غیرفعال USER_NOT_ACTIVE', async () => {
     const r = await room(1);
-    const mid = r.studentMembers[0]!;
-    const set = await ad.put(`/admin/sessions/${r.id}/members/${mid}/roles`, { roles: ['teacher', 'session_supporter'], actorId: randomUUID() });
-    expect(set.status).toBe(200);
-    expect(set.body.data.roles).toEqual(['session_supporter', 'teacher']);
-    expect((await ad.put(`/admin/sessions/${r.id}/members/${mid}/roles`, { roles: ['quran_student'] })).body.data.roles).toEqual(['quran_student']);
-    expect((await ad.put(`/admin/sessions/${r.id}/members/${mid}/roles`, { roles: [] })).status).toBe(400);
-    expect((await ad.put(`/admin/sessions/${r.id}/members/${mid}/roles`, {})).status).toBe(400);
-    expect((await ad.put(`/admin/sessions/${r.id}/members/${randomUUID()}/roles`, { roles: ['teacher'] })).status).toBe(404);
-    const pend = await mkUser(t, 'در انتظار');
-    const pm = (await a.post(`/sessions/${r.id}/members`, pend)).body.data.id as string;
-    const na = await ad.put(`/admin/sessions/${r.id}/members/${pm}/roles`, { roles: ['teacher'] });
-    expect(na.status).toBe(409);
-    expect(na.body.error.details.reason).toBe('NOT_APPROVED');
-    // مدیر: برداشتن آخرین مدیر ⇒ LAST_HOLDER؛ هم‌مدیر ⇒ سپس مجاز
-    const mgr = ((await ad.get(`/admin/sessions/${r.id}/members`)).body.data as { id: string; roles: string[] }[]).find((m) => m.roles.includes('session_manager'))!;
-    const last = await ad.put(`/admin/sessions/${r.id}/members/${mgr.id}/roles`, { roles: ['teacher'] });
-    expect(last.status).toBe(409);
-    expect(last.body.error.details.reason).toBe('LAST_HOLDER');
-    expect((await ad.put(`/admin/sessions/${r.id}/members/${mgr.id}/roles`, { roles: ['session_manager', 'teacher'] })).body.data.roles).toEqual(['session_manager', 'teacher']);
-    expect((await ad.put(`/admin/sessions/${r.id}/members/${mid}/roles`, { roles: ['session_manager'] })).body.data.roles).toEqual(['session_manager']);
-    expect((await ad.put(`/admin/sessions/${r.id}/members/${mgr.id}/roles`, { roles: ['teacher'] })).body.data.roles).toEqual(['teacher']);
+    const sup = await mkUser(t, 'پشتیبان ادمین');
+    const put = await ad.put(`/admin/users/${r.manager.id}/supporters/${sup.id}`, { actorId: randomUUID(), permissions: ['queue.manage'] });
+    expect(put.status).toBe(200);
+    expect(internal.MidAdminTeacherSupporter.parse(put.body.data)).toMatchObject({ userId: sup.id, permissions: ['queue.manage'] });
+    expect((await ad.put(`/admin/users/${r.manager.id}/supporters/${sup.id}`, { actorId: randomUUID(), permissions: ['eval.submit'] })).body.data.permissions).toEqual(['eval.submit']);
+    expect((await ad.get(`/admin/users/${r.manager.id}/supporters`)).body.meta.total).toBe(1);
+    const ss = await ad.put(`/admin/sessions/${r.id}/supporters/${sup.id}`, { actorId: randomUUID(), permissions: ['gallery.manage'] });
+    expect(internal.MidAdminSessionSupporter.parse(ss.body.data)).toMatchObject({ permissions: ['eval.submit', 'gallery.manage'], sources: { teacher: ['eval.submit'], session: ['gallery.manage'] } });
+    const list = await ad.get(`/admin/sessions/${r.id}/supporters`);
+    expect(list.body.data.map((x: { userId: string }) => x.userId).sort()).toEqual([r.teacher.id, sup.id].sort());
+    expect(reason(await ad.put(`/admin/sessions/${r.id}/supporters/${r.manager.id}`, { actorId: randomUUID(), permissions: ['queue.manage'] }))).toBe('SELF_PROTECTED');
+    expect(reason(await ad.put(`/admin/users/${r.manager.id}/supporters/${r.manager.id}`, { actorId: randomUUID(), permissions: ['queue.manage'] }))).toBe('SELF_PROTECTED');
+    const dis = await mkUser(t, 'غیرفعال پشتیبان');
+    await t.ds.query("UPDATE user_directory SET status = 'disabled' WHERE user_id = ?", [bin(dis.id)]);
+    expect(reason(await ad.put(`/admin/sessions/${r.id}/supporters/${dis.id}`, { actorId: randomUUID(), permissions: ['queue.manage'] }))).toBe('USER_NOT_ACTIVE');
+    expect((await ad.put(`/admin/sessions/${r.id}/supporters/${sup.id}`, { actorId: randomUUID(), permissions: ['system.sessions.manage'] })).status).toBe(400);
+    expect((await ad.del(`/admin/sessions/${r.id}/supporters/${sup.id}?actorId=${randomUUID()}`)).status).toBe(200);
+    expect((await ad.del(`/admin/users/${r.manager.id}/supporters/${sup.id}?actorId=${randomUUID()}`)).status).toBe(200);
+    expect((await ad.del(`/admin/users/${r.manager.id}/supporters/${sup.id}?actorId=${randomUUID()}`)).status).toBe(200);
+    expect((await ad.get(`/admin/sessions/${r.id}/supporters`)).body.meta.total).toBe(1);
+    expect((await ad.del(`/admin/sessions/${r.id}/supporters/${sup.id}`)).status).toBe(400); // actorId لازم
   });
 
-  it('حذف عضو: مدیر ⇒ 409 CONFLICT؛ عضو عادی حذف با نقش‌ها و صف؛ درخواست دوباره ممکن؛ ناشناس 404', async () => {
+  it('حذف عضو: عضو عادی حذف با صف؛ درخواست دوباره ممکن؛ ناشناس 404', async () => {
     const r = await room(2);
     const [s1, s2] = r.students as [User, User];
     for (const s of [s1, s2]) {
       await a.post(`/sessions/${r.id}/attendance`, s);
       await a.post(`/sessions/${r.id}/queue`, s);
     }
-    const mgr = ((await ad.get(`/admin/sessions/${r.id}/members`)).body.data as { id: string; roles: string[] }[]).find((m) => m.roles.includes('session_manager'))!;
-    const refused = await ad.del(`/admin/sessions/${r.id}/members/${mgr.id}`);
-    expect(refused.status).toBe(409);
-    expect(refused.body.error.code).toBe('CONFLICT');
-    expect(((await ad.get(`/admin/sessions/${r.id}/members`)).body.data as unknown[]).length).toBe(4);
+    expect(((await ad.get(`/admin/sessions/${r.id}/members`)).body.data as unknown[]).length).toBe(2);
 
     const emit = vi.spyOn(t.live, 'emit');
     try {
@@ -395,8 +394,6 @@ describe('اعضا (ادمین)', () => {
     } finally {
       emit.mockRestore();
     }
-    const left = ((await t.ds.query('SELECT COUNT(*) AS n FROM session_member_roles WHERE member_id = ?', [bin(r.studentMembers[0]!)])) as { n: string }[])[0]!.n;
-    expect(Number(left)).toBe(0);
     const q = (await ad.get(`/admin/sessions/${r.id}/queue`)).body.data;
     expect(q.waiting.map((w: { userId: string }) => w.userId)).toEqual([s2.id]);
     expect((await a.get(`/sessions/${r.id}/me`, s1)).body.data.membership).toBeNull();
@@ -415,7 +412,7 @@ describe('حضور/صف/ارزیابی (نمای کامل فقط‌خواندن�
     }
     const nx = (await a.post(`/sessions/${r.id}/queue/next`, r.teacher)).body.data;
     const cur = nx.current.id as string;
-    const ev = await a.post(`/sessions/${r.id}/evaluations`, r.teacher, { queueItemId: cur, voice: 8, tone: 6, tajweed: 7 });
+    const ev = await a.post(`/sessions/${r.id}/evaluations`, r.teacher, { queueItemId: cur, scores: sc({ voice: 8, tone: 6, tajweed: 7 }) });
     expect(ev.status).toBe(200);
 
     // نمای عمومی غیرکادر: ماسک
@@ -450,12 +447,12 @@ describe('حضور/صف/ارزیابی (نمای کامل فقط‌خواندن�
     expect((await ad.post(`/admin/sessions/${r.id}/evaluations`, {})).status).toBe(404);
   });
 
-  it('manager به‌تنهایی ارزیابی نمی‌کند (قفل #15 دست‌نخورده)؛ جلسهٔ بدون داده ⇒ خالی', async () => {
+  it('قرآن‌آموز ارزیابی نمی‌کند (قفل #15)؛ جلسهٔ بدون داده ⇒ خالی', async () => {
     const r = await room(1);
     await a.post(`/sessions/${r.id}/attendance`, r.students[0]!);
     await a.post(`/sessions/${r.id}/queue`, r.students[0]!);
     const item = (await a.post(`/sessions/${r.id}/queue/next`, r.teacher)).body.data.current.id as string;
-    expect((await a.post(`/sessions/${r.id}/evaluations`, r.manager, { queueItemId: item, voice: 5, tone: 5, tajweed: 5 })).status).toBe(403);
+    expect((await a.post(`/sessions/${r.id}/evaluations`, r.students[0]!, { queueItemId: item, scores: sc({ voice: 5, tone: 5, tajweed: 5 }) })).status).toBe(403);
     const empty = await room(0);
     expect((await ad.get(`/admin/sessions/${empty.id}/evaluations`)).body.data).toEqual({ items: [], total: 0 });
     // once+started ⇒ نوبت #۱ باز است (بدون حضور)
@@ -473,7 +470,7 @@ describe('خلاصهٔ کاربر', () => {
     const sum = internal.MidAdminUserSummary.parse((await ad.get(`/admin/users/${s.id}/summary`)).body.data);
     expect(sum).toEqual({ points: { total: 5, badges: 0 }, sessions: { created: 0, memberships: 1, attended: 1 } });
     const mgr = internal.MidAdminUserSummary.parse((await ad.get(`/admin/users/${r.manager.id}/summary`)).body.data);
-    expect(mgr.sessions).toEqual({ created: 1, memberships: 1, attended: 0 });
+    expect(mgr.sessions).toEqual({ created: 1, memberships: 0, attended: 0 });
     await t.ds.query('INSERT INTO badge_awards (user_id, badge_id, awarded_at) VALUES (?, ?, NOW(3))', [bin(s.id), bin(uuidv7())]);
     expect((await ad.get(`/admin/users/${s.id}/summary`)).body.data.points.badges).toBe(1);
     await ad.del(`/admin/sessions/${r.id}`);
@@ -488,7 +485,7 @@ describe('گزارش‌ها', () => {
   // دادهٔ تست‌های قبلی (created_at=اکنون) نباید در شمارش bucketها دخالت کند
   beforeAll(async () => {
     await t.ds.query('SET FOREIGN_KEY_CHECKS = 0');
-    for (const tb of ['sessions', 'session_members', 'session_member_roles', 'attendance_entries', 'queue_items', 'evaluations', 'point_ledger', 'user_points', 'badge_awards']) await t.ds.query(`TRUNCATE TABLE ${tb}`);
+    for (const tb of ['sessions', 'session_members', 'session_supporters', 'teacher_supporters', 'attendance_entries', 'queue_items', 'evaluations', 'point_ledger', 'user_points', 'badge_awards']) await t.ds.query(`TRUNCATE TABLE ${tb}`);
     await t.ds.query('SET FOREIGN_KEY_CHECKS = 1');
   });
   const sessionsSeries = async (from: string, to: string, interval = 'day') => ad.get(`/admin/reports/sessions?from=${from}&to=${to}&interval=${interval}`);
@@ -571,7 +568,7 @@ describe('گزارش‌ها', () => {
 
   it('overview: شمارش جلسه‌ها per وضعیت (بدون حذف‌شده)، created در بازه، مشارکت، میانگین ارزیابی و امتیاز ledger', async () => {
     await t.ds.query('SET FOREIGN_KEY_CHECKS = 0');
-    for (const tb of ['sessions', 'session_members', 'session_member_roles', 'attendance_entries', 'queue_items', 'evaluations', 'point_ledger', 'user_points', 'badge_awards']) await t.ds.query(`TRUNCATE TABLE ${tb}`);
+    for (const tb of ['sessions', 'session_members', 'session_supporters', 'teacher_supporters', 'attendance_entries', 'queue_items', 'evaluations', 'point_ledger', 'user_points', 'badge_awards']) await t.ds.query(`TRUNCATE TABLE ${tb}`);
     await t.ds.query('SET FOREIGN_KEY_CHECKS = 1');
     const empty = await ad.get('/admin/reports/overview?from=2026-01-01&to=2026-12-31');
     expect(internal.MidAdminOverview.parse(empty.body.data)).toEqual({ sessions: { total: 0, created: 0, byStatus: { draft: 0, scheduled: 0, started: 0, ended: 0 } }, participation: { attendance: 0, evaluations: 0, avgScore: null, pointsAwarded: 0 } });
@@ -583,9 +580,9 @@ describe('گزارش‌ها', () => {
       await a.post(`/sessions/${r.id}/queue`, s);
     }
     const q1 = (await a.post(`/sessions/${r.id}/queue/next`, r.teacher)).body.data.current.id as string;
-    await a.post(`/sessions/${r.id}/evaluations`, r.teacher, { queueItemId: q1, voice: 10, tone: 10, tajweed: 10 }); // 100 ⇒ 10 امتیاز
+    await a.post(`/sessions/${r.id}/evaluations`, r.teacher, { queueItemId: q1, scores: sc({ voice: 10, tone: 10, tajweed: 10 }) }); // 100 ⇒ 10 امتیاز
     const q2 = (await a.post(`/sessions/${r.id}/queue/next`, r.teacher)).body.data.current.id as string;
-    await a.post(`/sessions/${r.id}/evaluations`, r.teacher, { queueItemId: q2, voice: 5, tone: 5, tajweed: 6 }); // میانگین وزنی: (20+15+18)/10... = 53 ⇒ 5 امتیاز
+    await a.post(`/sessions/${r.id}/evaluations`, r.teacher, { queueItemId: q2, scores: sc({ voice: 5, tone: 5, tajweed: 6 }) }); // میانگین وزنی: (20+15+18)/10... = 53 ⇒ 5 امتیاز
     const gone = await rawSession({ createdAt: new Date().toISOString(), status: 'ended' });
     await ad.del(`/admin/sessions/${gone}`);
     await rawSession({ createdAt: '2020-01-01T00:00:00Z', status: 'draft' }); // قدیمی؛ در total هست، در created بازه نه
@@ -642,7 +639,7 @@ describe('رویداد user.status.changed / user.phone.changed', () => {
     await a.post(`/sessions/${r.id}/attendance`, s);
     await a.post(`/sessions/${r.id}/queue`, s);
     const item = (await a.post(`/sessions/${r.id}/queue/next`, r.teacher)).body.data.current.id as string;
-    await a.post(`/sessions/${r.id}/evaluations`, r.teacher, { queueItemId: item, voice: 7, tone: 7, tajweed: 7 });
+    await a.post(`/sessions/${r.id}/evaluations`, r.teacher, { queueItemId: item, scores: sc({ voice: 7, tone: 7, tajweed: 7 }) });
     for (const st of ['disabled', 'active']) {
       expect((await sendEvent('user.status.changed', ev(s.id, st))).status).toBe(202);
       expect(await dir(s.id)).toMatchObject({ f: 'قرآن‌آموز', l: '1', d: 0 });

@@ -35,8 +35,9 @@ describe('یکپارچگی registry', () => {
   });
 
   it('هر endpoint سمت سرور هدف تأخیر معقول دارد (p95 ≤ ۴۰۰ms؛ عملیات گروهی/خروجی با سقف صریح)', () => {
-    // استثنای صریح: افزودن گروهی تا ۲۰۰ عضو (H-73)، تأیید گروهی (H-53)، افزودن/حضور گروهی (M-14/H-76) و خروجی CSV (H-43..H-45)
-    const heavy: Record<string, number> = { 'H-73': 1500, 'H-53': 800, 'H-76': 400, 'M-14': 400, 'H-43': 3000, 'H-44': 3000, 'H-45': 3000 };
+    // استثنای صریح: افزودن گروهی تا ۲۰۰ عضو (H-73)، تأیید گروهی (H-53)، افزودن/حضور گروهی (M-14/H-76)، خروجی CSV (H-43..H-45)
+    // و بارگذاری فایل خام تا ۵۰MB (M-75، H-115 با stream از high به mid)
+    const heavy: Record<string, number> = { 'H-73': 1500, 'H-53': 800, 'H-76': 400, 'M-14': 400, 'H-43': 3000, 'H-44': 3000, 'H-45': 3000, 'M-75': 2000, 'H-115': 3000 };
     for (const e of ALL_ENDPOINTS) {
       expect(e.sloP95Ms, e.id).toBeGreaterThan(0);
       expect(e.sloP95Ms, e.id).toBeLessThanOrEqual(heavy[e.id] ?? 400);
@@ -45,8 +46,14 @@ describe('یکپارچگی registry', () => {
 });
 
 describe('ردیابی docs ⇄ قرارداد', () => {
-  const ids = new Set(ALL_ENDPOINTS.map((e) => e.id));
+  /** حذف‌شده در ۱.۷.۰ (docs-v2/31 §۲)؛ docs قدیمی ممکن است هنوز به آن‌ها اشاره کنند */
+  const REMOVED = new Set(['M-13', 'M-16', 'H-68']);
+  const ids = new Set([...ALL_ENDPOINTS.map((e) => e.id), ...REMOVED]);
   const extract = (text: string, letter: string) => [...text.matchAll(new RegExp(`\\b${letter}-\\d{2}\\b`, 'g'))].map((m) => m[0]);
+
+  it('شناسه‌های حذف‌شده واقعاً در registry نیستند', () => {
+    for (const id of REMOVED) expect(ALL_ENDPOINTS.some((e) => e.id === id), id).toBe(false);
+  });
 
   it('همهٔ L-xx در docs-v2/15 وجود دارند', () => {
     for (const id of new Set(extract(read('15-api-low-web-main-draft.md'), 'L'))) expect(ids.has(id), id).toBe(true);
@@ -103,6 +110,49 @@ describe('سیاست امنیت (قرارداد)', () => {
     for (const e of ALL_ENDPOINTS.filter((x) => x.method === 'get')) expect(e.body, e.id).toBeUndefined();
     for (const id of ['M-20', 'L-02', 'L-05']) expect(ALL_ENDPOINTS.find((e) => e.id === id)?.idempotency, id).toBeTruthy();
     for (const id of ['M-03', 'M-05', 'M-40']) expect(ALL_ENDPOINTS.find((e) => e.id === id)?.idempotency, id).toBe('key');
+  });
+});
+
+describe('بدنهٔ خام و Range (۱.۷.۰)', () => {
+  it('rawBody فقط روی write، بدون body JSON، با نوع‌های مجاز و سقف ≤ ۵۰MB', () => {
+    for (const e of ALL_ENDPOINTS.filter((x) => x.rawBody)) {
+      expect(e.method, e.id).not.toBe('get');
+      expect(e.body, e.id).toBeUndefined();
+      expect(e.rawBody!.contentTypes.length, e.id).toBeGreaterThan(0);
+      for (const t of e.rawBody!.contentTypes) expect(t, e.id).toMatch(/^(image|audio)\/[a-z0-9.+-]+$/);
+      expect(e.rawBody!.contentTypes.some((t) => /svg|json|html/.test(t)), e.id).toBe(false);
+      expect(e.rawBody!.maxBytes, e.id).toBeGreaterThan(0);
+      expect(e.rawBody!.maxBytes, e.id).toBeLessThanOrEqual(50 * 1024 * 1024);
+      expect(e.errors, e.id).toEqual(expect.arrayContaining(['PAYLOAD_TOO_LARGE', 'UNSUPPORTED_MEDIA_TYPE']));
+      expect(e.idempotency, e.id).toBe('key');
+      expect(e.rateLimit, e.id).toBeTruthy();
+    }
+    expect(ALL_ENDPOINTS.filter((x) => x.rawBody).map((x) => x.id).sort()).toEqual(['H-115', 'M-75']);
+  });
+  it('rangeRequests فقط روی GET خام با ETag', () => {
+    for (const e of ALL_ENDPOINTS.filter((x) => x.rangeRequests)) {
+      expect(e.method, e.id).toBe('get');
+      expect(e.raw, e.id).toBe(true);
+      expect(e.contentType, e.id).toBeTruthy();
+      expect((e.cache as { etag?: boolean }).etag, e.id).toBe(true);
+    }
+    expect(ALL_ENDPOINTS.filter((x) => x.rangeRequests).map((x) => x.id).sort()).toEqual(['H-117', 'M-77', 'M-79']);
+  });
+  it('permissionAny غیرخالی و بدون تکرار permission اصلی', () => {
+    for (const e of ALL_ENDPOINTS.filter((x) => x.permissionAny)) {
+      expect(e.permission, e.id).toBeTruthy();
+      expect(e.permissionAny!.length, e.id).toBeGreaterThan(0);
+      expect(e.permissionAny, e.id).not.toContain(e.permission);
+    }
+  });
+  it('endpointهای مهمان mid زیر /public/ هستند، بدون توکن، با rate-limit و cache عمومی', () => {
+    for (const id of ['M-78', 'M-79']) {
+      const e = ALL_ENDPOINTS.find((x) => x.id === id)!;
+      expect(e.auth, id).toBe('none');
+      expect(e.path.startsWith('/public/'), id).toBe(true);
+      expect(e.rateLimit, id).toBeTruthy();
+      expect((e.cache as { scope: string }).scope, id).toBe('public');
+    }
   });
 });
 

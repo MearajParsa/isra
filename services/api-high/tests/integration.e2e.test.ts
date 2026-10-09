@@ -56,7 +56,7 @@ describe('outbox به low و mid', () => {
     const dev = await mkUser(t, 'توسعه', ['developer']);
     const svc = t.app.get(OutboxService);
     const s = await a.get('/system/settings', dev);
-    await a.put('/system/settings', await dev.step(), { version: s.body.data.version, evalWeights: { voice: 34, tone: 33, tajweed: 33 }, flags: { maintenance_mode: false, registration_open: true } });
+    await a.put('/system/settings', await dev.step(), { version: s.body.data.version, flags: { maintenance_mode: false, registration_open: true } });
     // شبیه‌سازی: low قبلاً گرفته و فقط mid مانده
     await t.ds.query("UPDATE outbox_events SET pending_peers = 'mid' WHERE type = 'system.settings.changed'");
     t.fake.status = 202;
@@ -95,7 +95,7 @@ describe('outbox به low و mid', () => {
     expect(await svc.tick()).toBe(0);
     // settings.changed ⇒ هر دو مقصد با secret جدا و eventId یکسان
     const s = await a.get('/system/settings', dev);
-    await a.put('/system/settings', await dev.step(), { version: s.body.data.version, evalWeights: { voice: 34, tone: 33, tajweed: 33 }, flags: { maintenance_mode: false, registration_open: true } });
+    await a.put('/system/settings', await dev.step(), { version: s.body.data.version, flags: { maintenance_mode: false, registration_open: true } });
     t.fake.events.length = 0;
     expect(await svc.tick()).toBe(1);
     expect(t.fake.events.map((e) => e.url).sort()).toEqual(['/c/internal/v1/events', '/o/internal/v1/events']);
@@ -125,6 +125,47 @@ describe('migration و seed', () => {
     await ds.initialize();
     try {
       const count = async (sql: string) => Number(((await ds.query(sql)) as { n: string }[])[0]!.n);
+      const events = async (type: string) => ((await ds.query('SELECT payload, pending_peers FROM outbox_events WHERE type = ? ORDER BY created_at, id', [type])) as { payload: unknown; pending_peers: string }[]).map((r) => ({ peers: r.pending_peers, payload: (typeof r.payload === 'string' ? JSON.parse(r.payload) : r.payload) as any }));
+      // ۱.۷.۰ (TiersTeacherContent)
+      expect(await count('SELECT COUNT(*) AS n FROM system_roles WHERE undeletable = 1')).toBe(5);
+      expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(32);
+      expect(await count("SELECT COUNT(*) AS n FROM role_permissions WHERE role_key = 'developer' AND locked = 1")).toBe(32);
+      await ds.query('DELETE FROM outbox_events');
+      await ds.undoLastMigration(); // TiersTeacherContent (۱.۷.۰)
+      expect(await count("SELECT COUNT(*) AS n FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'system_roles' AND column_name = 'tier'")).toBe(0);
+      expect(await count("SELECT COUNT(*) AS n FROM permissions WHERE permission_key = 'session.create' AND module_key = 'sessions'")).toBe(1);
+      // دادهٔ ۱.۶ پیش از ارتقا: نقش پویا با ماژول sessions، نقش پویای هم‌نام guest با دارنده، وزن‌های سفارشی
+      await ds.query("INSERT INTO system_roles (role_key, title, description, undeletable) VALUES ('creator_x', 't', 'd', 0)");
+      await ds.query("INSERT INTO role_modules (role_key, module_key) VALUES ('creator_x', 'sessions')");
+      await ds.query("UPDATE system_roles SET undeletable = 0 WHERE role_key IN ('teacher', 'guest', 'quran_student')");
+      await ds.query("DELETE FROM system_roles WHERE role_key IN ('teacher', 'guest', 'quran_student')");
+      await ds.query("INSERT INTO system_roles (role_key, title, description, undeletable) VALUES ('guest', 'مهمان قدیمی', 'd', 0)");
+      await ds.query("INSERT INTO user_directory (user_id, phone, first_name, last_name, status, perm_ver, created_at, updated_at) VALUES (UNHEX('00000000000000000000000000000abc'), '09120000abc', 'x', 'y', 'active', 1, NOW(3), NOW(3)) ON DUPLICATE KEY UPDATE status = 'active'");
+      await ds.query("INSERT INTO user_system_roles (user_id, role_key, granted_at) VALUES (UNHEX('00000000000000000000000000000abc'), 'guest', NOW(3))");
+      await ds.query("UPDATE system_settings SET eval_weights = '{\"voice\":50,\"tone\":25,\"tajweed\":25}'");
+      await ds.runMigrations(); // دوباره ۱.۷.۰ روی دادهٔ موجود
+      expect(await count("SELECT COUNT(*) AS n FROM role_permissions WHERE role_key = 'creator_x' AND permission_key = 'session.create'")).toBe(1);
+      expect(await count("SELECT COUNT(*) AS n FROM system_modules WHERE module_key = 'sessions'")).toBe(0);
+      expect(await count("SELECT COUNT(*) AS n FROM user_system_roles WHERE role_key = 'guest'")).toBe(0);
+      expect(await count("SELECT COUNT(*) AS n FROM system_roles WHERE role_key = 'guest' AND undeletable = 1 AND tier = 'low'")).toBe(1);
+      expect(((await ds.query('SELECT criterion_key AS k, weight AS w FROM evaluation_criteria ORDER BY sort_order')) as any[]).map((r) => [r.k, Number(r.w)])).toEqual([['voice', 50], ['tone', 25], ['tajweed', 25]]);
+      const crit = await events('evaluation.criteria.changed');
+      expect(crit.map((e) => [e.peers, e.payload.version, e.payload.criteria[0].id])).toEqual([['mid', 1, '00000000-0000-7000-8000-000000000001']]);
+      const base = await events('tier.baseline.changed');
+      expect(base).toHaveLength(1);
+      expect(base[0]!.peers).toBe('low,mid');
+      // نقش پویای قدیمی guest ⇒ پیش‌فرض کاشته نمی‌شود (ویرایش مالک حفظ)؛ quran_student تازه ⇒ ماژول learning
+      expect(base[0]!.payload.guest).toEqual([]);
+      expect(base[0]!.payload.quran_student).toEqual(['comment.post', 'gallery.view', 'points.view', 'session.browse', 'session.join']);
+      expect((await events('system.role.changed')).map((e) => e.payload.userId)).toContain('00000000-0000-0000-0000-000000000abc');
+      await ds.query("DELETE FROM role_permissions WHERE role_key = 'creator_x'");
+      await ds.query("DELETE FROM system_roles WHERE role_key = 'creator_x'");
+      await ds.query("DELETE FROM user_directory WHERE user_id = UNHEX('00000000000000000000000000000abc')");
+      await ds.query("INSERT IGNORE INTO role_permissions (role_key, permission_key) VALUES ('guest', 'session.browse'), ('guest', 'gallery.view')");
+      await ds.undoLastMigration(); // TiersTeacherContent
+      await ds.query("DELETE FROM role_permissions WHERE role_key IN ('teacher', 'guest', 'quran_student')");
+      await ds.query("DELETE FROM role_modules WHERE role_key IN ('teacher', 'guest', 'quran_student')");
+      await ds.query("DELETE FROM system_roles WHERE role_key IN ('teacher', 'guest', 'quran_student')");
       expect(await count('SELECT COUNT(*) AS n FROM system_roles WHERE undeletable = 1')).toBe(2);
       expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(19);
       expect(await count("SELECT COUNT(*) AS n FROM role_permissions WHERE role_key = 'developer' AND locked = 1")).toBe(19);
@@ -148,9 +189,11 @@ describe('migration و seed', () => {
       expect(await count("SELECT COUNT(*) AS n FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'permissions' AND column_name = 'perm_group'")).toBe(1);
       await expect(ds.query("INSERT INTO system_roles (role_key, title, description, undeletable) VALUES ('x', 't', 'd', 0)")).rejects.toThrow();
       await ds.query('DELETE FROM user_grants');
-      await ds.runMigrations(); // دوباره بالا (روی داده‌ی موجود): DynamicRbac + OpsExpansion
-      expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(19);
+      await ds.runMigrations(); // دوباره بالا (روی داده‌ی موجود): DynamicRbac + OpsExpansion + TiersTeacherContent
+      expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(32);
       await ds.query("DELETE FROM system_roles WHERE role_key = 'dyn_role_x'");
+      await ds.undoLastMigration(); // TiersTeacherContent
+      expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(19);
       await ds.undoLastMigration(); // OpsExpansion
       await ds.undoLastMigration(); // DynamicRbac
       await ds.undoLastMigration(); // AdminExpansion
@@ -160,11 +203,15 @@ describe('migration و seed', () => {
       await ds.undoLastMigration(); // InitSchema
       expect(await count('SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name <> "migrations"')).toBe(0);
       await ds.runMigrations(); // دیتابیس تازه: InitSchema → RevokedSessions → AdminExpansion → DynamicRbac
-      expect(await count('SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name <> "migrations"')).toBe(20);
-      expect(await count('SELECT COUNT(*) AS n FROM system_modules')).toBe(10);
+      expect(await count('SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name <> "migrations"')).toBe(23);
+      expect(await count('SELECT COUNT(*) AS n FROM system_modules')).toBe(13);
       expect(await count('SELECT COUNT(*) AS n FROM rbac_meta')).toBe(1);
       expect(await count('SELECT COUNT(*) AS n FROM system_settings')).toBe(1);
-      expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(19);
+      expect(await count('SELECT COUNT(*) AS n FROM permissions')).toBe(32);
+      expect(await count("SELECT COUNT(*) AS n FROM role_modules WHERE role_key = 'teacher'")).toBe(2);
+      expect(await count("SELECT COUNT(*) AS n FROM role_permissions WHERE role_key = 'guest'")).toBe(2);
+      expect(await count('SELECT COUNT(*) AS n FROM evaluation_criteria WHERE used = 1')).toBe(3);
+      expect(await count("SELECT COUNT(*) AS n FROM system_jobs WHERE job_key = 'teacher_backfill' AND status = 'pending'")).toBe(1);
       // seed نشان‌های قدیمی + رویداد کاتالوگ (نسخهٔ ۱) فقط به mid و low
       expect(await count('SELECT COUNT(*) AS n FROM badges')).toBe(4);
       const cat = (await ds.query("SELECT payload, pending_peers FROM outbox_events WHERE type = 'badge.catalog.changed'")) as { payload: unknown; pending_peers: string }[];

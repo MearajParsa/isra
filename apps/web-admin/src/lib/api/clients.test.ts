@@ -79,7 +79,6 @@ describe('نگاشت به قرارداد', () => {
     ['H-65', () => api.system.deleteSession('T', 's1', 'SU')],
     ['H-66', () => api.system.sessionMembers('T', 's1', { status: 'pending' })],
     ['H-67', () => api.system.decideMember('T', 's1', 'm1', 'approve', 'SU')],
-    ['H-68', () => api.system.setMemberRoles('T', 's1', 'm1', ['teacher'], 'SU')],
     ['H-69', () => api.system.removeMember('T', 's1', 'm1', 'SU')],
     ['H-70', () => api.system.sessionAttendance('T', 's1')],
     ['H-71', () => api.system.sessionQueue('T', 's1')],
@@ -90,7 +89,7 @@ describe('نگاشت به قرارداد', () => {
     ['H-83', () => api.system.reportOtp('T', {})],
     ['H-84', () => api.system.reportLeaderboard('T', 10)],
     ['H-30', () => api.system.settings('T')],
-    ['H-31', () => api.system.updateSettings('T', { version: 1, evalWeights: { voice: 40, tone: 30, tajweed: 30 }, badgeThresholds: [1, 2, 3, 4], flags: { maintenance_mode: false, registration_open: true } }, 'SU')],
+    ['H-31', () => api.system.updateSettings('T', { version: 1, flags: { maintenance_mode: false, registration_open: true } }, 'SU')],
     ['H-40', () => api.system.audit('T', { action: 'settings.updated' })]
   ];
 

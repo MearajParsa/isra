@@ -21,7 +21,7 @@ export const ACCEPTED_CALLERS: readonly Peer[] = ['mid', 'high'];
 export const EVENT_ACL: Readonly<Partial<Record<Peer, readonly string[]>>> = {
   mid: ['inbox.message.created', 'inbox.messages.created', 'points.changed'],
   // system.permission.changed: high به همهٔ مصرف‌کننده‌ها می‌فرستد؛ low فقط می‌پذیرد (no-op) تا outbox high تا ابد retry نکند
-  high: ['system.role.changed', 'system.settings.changed', 'system.permission.changed', 'inbox.messages.created', 'inbox.broadcast.created', 'badge.catalog.changed']
+  high: ['system.role.changed', 'system.settings.changed', 'system.permission.changed', 'inbox.messages.created', 'inbox.broadcast.created', 'badge.catalog.changed', 'tier.baseline.changed']
 };
 
 /**

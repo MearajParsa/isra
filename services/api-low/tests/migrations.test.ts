@@ -19,6 +19,9 @@ describe('migration', () => {
   it('down همهٔ جدول‌ها را برمی‌دارد و up دوباره می‌سازد (قابل تکرار)', async () => {
     await ds.runMigrations();
     expect((await tables()).length).toBe(16);
+    expect(Number(((await ds.query("SELECT COUNT(*) AS n FROM settings_cache WHERE setting_key = 'tier_baseline'")) as { n: number }[])[0]!.n)).toBe(1);
+    await ds.undoLastMigration(); // v5: فقط ردیف seed baseline
+    expect(Number(((await ds.query("SELECT COUNT(*) AS n FROM settings_cache WHERE setting_key = 'tier_baseline'")) as { n: number }[])[0]!.n)).toBe(0);
     await ds.undoLastMigration();
     expect((await tables()).length).toBe(12); // v4 down برگشت‌پذیر
     await ds.undoLastMigration();

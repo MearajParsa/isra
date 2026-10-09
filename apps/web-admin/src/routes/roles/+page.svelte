@@ -76,14 +76,16 @@
       : []
   );
 
-  // ماتریس نقش‌های جلسه (قفل #14/#15) — فقط نمایش
-  const sessionRoles = ['مدیر جلسه', 'پشتیبان', 'معلم', 'قرآن‌آموز'];
-  const sessionMatrix: { action: string; v: boolean[] }[] = [
-    { action: 'تنظیمات جلسه', v: [true, false, false, false] },
-    { action: 'تأیید عضویت', v: [true, true, false, false] },
-    { action: 'مدیریت صف', v: [true, true, true, false] },
-    { action: 'ثبت ارزیابی', v: [false, true, true, false] },
-    { action: 'حضور و پیوستن به صف', v: [false, false, false, true] }
+  // ماتریس نقش‌های جلسه (۱.۷.۰، docs-v2/31 §۲) — فقط نمایش؛ 'd' = فقط با مجوز واگذارشده از استاد
+  const sessionRoles = ['استاد صاحب جلسه', 'پشتیبان', 'قرآن‌آموز'];
+  const sessionMatrix: { action: string; v: (boolean | 'd')[] }[] = [
+    { action: 'ویرایش و تغییر وضعیت جلسه', v: [true, 'd', false] },
+    { action: 'تأیید عضویت', v: [true, 'd', false] },
+    { action: 'افزودن/حذف عضو', v: [true, 'd', false] },
+    { action: 'مدیریت صف', v: [true, 'd', false] },
+    { action: 'ثبت ارزیابی', v: [true, 'd', false] },
+    { action: 'تعیین پشتیبان', v: [true, false, false] },
+    { action: 'حضور و پیوستن به صف', v: [false, false, true] }
   ];
 </script>
 
@@ -161,7 +163,7 @@
 
   <section class="matrix" aria-labelledby="s-h">
     <h2 id="s-h">نقش‌های درون جلسه (فقط نمایش)</h2>
-    <p class="muted small">این مجوزها از نقش جلسه می‌آید و در این پنل تغییر نمی‌کند. مدیر جلسه به‌تنهایی نمی‌تواند ارزیابی ثبت کند.</p>
+    <p class="muted small">این مجوزها از نقش جلسه می‌آید و در این پنل تغییر نمی‌کند. استاد صاحب جلسه همهٔ مجوزها را دارد؛ پشتیبان فقط مجوزهایی که استاد (یا ادمین) به او واگذار کرده است.</p>
     <div class="scroll">
       <table>
         <thead>
@@ -172,7 +174,7 @@
             <tr>
               <th scope="row">{row.action}</th>
               {#each row.v as v, i (i)}
-                <td class="c">{#if v}<Icon name="check" size={18} class="yes" /><span class="sr-only">دارد</span>{:else}<span class="no" aria-hidden="true">—</span><span class="sr-only">ندارد</span>{/if}</td>
+                <td class="c">{#if v === 'd'}<span class="muted small">با مجوز</span>{:else if v}<Icon name="check" size={18} class="yes" /><span class="sr-only">دارد</span>{:else}<span class="no" aria-hidden="true">—</span><span class="sr-only">ندارد</span>{/if}</td>
               {/each}
             </tr>
           {/each}

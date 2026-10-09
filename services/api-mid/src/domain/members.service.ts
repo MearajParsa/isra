@@ -7,10 +7,9 @@ import { bufToUuid, isUuid, uuidToBuf, uuidv7 } from '../common/ids';
 import { ENV, type Env } from '../config/env';
 import { internalHeaders } from '../internal/internal-auth';
 import { LiveService } from '../live/live.service';
-import { MembersAccess, type SessionRow, approvedCount, sortRoles } from './access.service';
+import { MembersAccess, type SessionRow, approvedCount, satisfies } from './access.service';
 import { NAME_SQL, conflict, displayName, type Q } from './db';
 import { type InboxItem, emitInboxBatch } from './outbox.writer';
-import type { Permission, SessionRole } from './rules';
 
 export interface MemberRow {
   id: Buffer;
@@ -18,22 +17,19 @@ export interface MemberRow {
   status: 'pending' | 'approved' | 'rejected';
   requested_at: Date;
   name: string | null;
-  roles: string | null;
   decided_at?: Date | null;
 }
 
 export type MemberStatus = MemberRow['status'];
-export type AddOutcome = 'added' | 'approved' | 'merged' | 'replaced' | 'unchanged' | 'not_found' | 'not_active' | 'full';
+export type AddOutcome = 'added' | 'approved' | 'unchanged' | 'not_found' | 'not_active' | 'full';
 export type DecideOutcome = 'approved' | 'rejected' | 'skipped' | 'full' | 'not_found';
 
-export const MEMBER_SELECT = `SELECT m.id, m.user_id, m.status, m.requested_at, m.decided_at, ${NAME_SQL} AS name, (SELECT GROUP_CONCAT(r.role) FROM session_member_roles r WHERE r.member_id = m.id) AS roles
+export const MEMBER_SELECT = `SELECT m.id, m.user_id, m.status, m.requested_at, m.decided_at, ${NAME_SQL} AS name
                   FROM session_members m LEFT JOIN user_directory d ON d.user_id = m.user_id`;
 
-export const memberDto = (r: MemberRow) => ({ id: bufToUuid(r.id), userId: bufToUuid(r.user_id), name: r.name || displayName(), roles: sortRoles(r.roles?.split(',') ?? []), status: r.status, requestedAt: r.requested_at.toISOString() });
+/** ۱.۷.۰: Member فقط عضو (بدون نقش) */
+export const memberDto = (r: MemberRow) => ({ id: bufToUuid(r.id), userId: bufToUuid(r.user_id), name: r.name || displayName(), status: r.status, requestedAt: r.requested_at.toISOString() });
 export const adminMemberDto = (r: MemberRow) => ({ ...memberDto(r), phone: null, decidedAt: r.decided_at ? r.decided_at.toISOString() : null });
-
-const ROLE_FA: Record<SessionRole, string> = { session_manager: 'مدیر جلسه', session_supporter: 'پشتیبان', teacher: 'معلم', quran_student: 'قرآن‌آموز' };
-export const rolesFa = (roles: readonly SessionRole[]): string => sortRoles(roles).map((r) => ROLE_FA[r]).join('، ');
 
 const COOLDOWN_MS = 7 * 86_400_000;
 const PHONE_LIMITS = [
@@ -49,13 +45,11 @@ const ref = (sessionId: string) => `session:${sessionId}`;
 /** مورد افزودن پس از resolve: userId (یا نتیجهٔ پیشین not_found/not_active برای شمارهٔ ناشناس/غیرفعال) */
 export interface AddItem {
   userId: string | null;
-  roles: readonly SessionRole[];
   pre?: 'not_found' | 'not_active';
 }
 export interface AddOpts {
   actorId: string | null;
   source: 'staff' | 'admin';
-  onExisting: 'skip' | 'merge' | 'replace';
   notify: boolean;
   /** ردیف دایرکتوری برای کاربر نبوده (ادمین؛ یا شمارهٔ resolve‌شده از low) با این نام‌ها ساخته می‌شود */
   ensureDirectory?: ReadonlyMap<string, { firstName: string; lastName: string }>;
@@ -67,16 +61,18 @@ export interface AddResultItem {
   memberId: string | null;
 }
 
-interface MemberState {
-  memberId: string;
-  status: MemberStatus;
-  roles: Set<SessionRole>;
-  isNew: boolean;
+export interface ResolvedUser {
+  phone: string;
+  userId: string;
+  firstName: string;
+  lastName: string;
+  status: 'active' | 'disabled' | 'deleted';
 }
 
 /**
- * عضویت جلسه (قرارداد ۱.۶.۰؛ docs-v2/30 §۱.۴): درخواست/تأیید/رد، افزودن مستقیم، نقش‌ها، حذف، ترک، مدیر.
- * همهٔ نوشتن‌های رقابتی (ظرفیت/آخرین مدیر) زیر قفل ردیف جلسه؛ اعلان‌ها با رویداد دسته‌ای inbox.messages.created (outbox)؛
+ * عضویت جلسه (۱.۷.۰؛ docs-v2/31 §۲): `session_members` فقط اعضا (قرآن‌آموز) با وضعیت pending/approved/rejected.
+ * صاحب و پشتیبان‌ها جدا (sessions.owner_id، session_supporters/teacher_supporters).
+ * همهٔ نوشتن‌های رقابتی (ظرفیت) زیر قفل ردیف جلسه؛ اعلان‌ها با رویداد دسته‌ای inbox.messages.created (outbox)؛
  * رویداد realtime `members.updated` و اخراج socket پس از commit.
  */
 @Injectable()
@@ -109,17 +105,13 @@ export class MembersService {
     return memberDto(await this.oneRow(q, sessionId, memberId));
   }
 
-  /** فهرست با فیلتر وضعیت/نقش/نام (و userId برای ادمین) */
-  async query(sessionId: string, f: { status?: string; role?: string; q?: string; userId?: string }, page: number, pageSize: number) {
+  /** فهرست با فیلتر وضعیت/نام (و userId برای ادمین) */
+  async query(sessionId: string, f: { status?: string; q?: string; userId?: string }, page: number, pageSize: number) {
     const where = ['m.session_id = ?'];
     const args: unknown[] = [uuidToBuf(sessionId)];
     if (f.status) {
       where.push('m.status = ?');
       args.push(f.status);
-    }
-    if (f.role) {
-      where.push('EXISTS (SELECT 1 FROM session_member_roles x WHERE x.member_id = m.id AND x.role = ?)');
-      args.push(f.role);
     }
     if (f.userId) {
       where.push('m.user_id = ?');
@@ -139,22 +131,25 @@ export class MembersService {
     return { rows, page, pageSize, total: Number(cnt[0]?.n ?? 0) };
   }
 
-  async list(userId: string, sessionId: string, f: { status?: string; role?: string; q?: string }, page: number, pageSize: number) {
-    await this.access.load(this.ds, sessionId, userId, 'membership.approve');
+  /** M-11: membership.manage یا membership.approve (بررسی درخواست‌ها) */
+  async list(userId: string, sessionId: string, f: { status?: string; q?: string }, page: number, pageSize: number) {
+    const a = await this.access.load(this.ds, sessionId, userId);
+    if (!satisfies(a, 'membership.manage') && !satisfies(a, 'membership.approve')) throw new AppError('AUTH_FORBIDDEN');
     const r = await this.query(sessionId, f, page, pageSize);
     return { items: r.rows.map(memberDto), page, pageSize, total: r.total };
   }
 
   // ───────────────────────── M-10 درخواست عضویت ─────────────────────────
   /**
-   * open ⇒ approved فوری (quran_student، source=open، با ظرفیت)؛ invite_only ⇒ JOIN_CLOSED؛ request ⇒ pending + اعلان به کادر دارای membership.approve.
-   * ردشده: پس از ۷ روز دوباره pending (یا approved در open)؛ پیش از آن REQUEST_COOLDOWN + retryAfterSec.
+   * open ⇒ approved فوری (source=open، با ظرفیت)؛ invite_only ⇒ JOIN_CLOSED؛ request ⇒ pending + اعلان به دارندگان membership.approve.
+   * ردشده: پس از ۷ روز دوباره pending (یا approved در open)؛ پیش از آن REQUEST_COOLDOWN + retryAfterSec. صاحب جلسه عضو نمی‌شود.
    */
   async request(userId: string, sessionId: string) {
     let memberId = '';
     await this.ds.transaction(async (m) => {
-      const { session, membership } = await this.access.load(m, sessionId, userId, undefined, true);
+      const { session, membership, role } = await this.access.load(m, sessionId, userId, undefined, true);
       if (session.status === 'draft') throw new AppError('NOT_FOUND', { message: 'جلسه پیدا نشد.' });
+      if (role === 'owner') throw conflict('SESSION_MANAGER_PROTECTED', 'شما صاحب این جلسه هستید.');
       if (session.status === 'ended') throw conflict('SESSION_LOCKED', 'این جلسه پایان یافته است.');
       if (session.join_policy === 'invite_only') throw conflict('JOIN_CLOSED', 'عضویت در این جلسه فقط با دعوت است.');
       const now = this.clock.now();
@@ -170,15 +165,13 @@ export class MembersService {
       if (membership) {
         memberId = membership.memberId;
         await m.query('UPDATE session_members SET status = ?, requested_at = ?, decided_by = NULL, decided_at = ?, source = ?, added_by = NULL WHERE id = ?', [open ? 'approved' : 'pending', now, open ? now : null, open ? 'open' : 'request', uuidToBuf(memberId)]);
-        await m.query('DELETE FROM session_member_roles WHERE member_id = ?', [uuidToBuf(memberId)]);
       } else {
         memberId = uuidv7(now.getTime());
         const r = (await m.query('INSERT IGNORE INTO session_members (id, session_id, user_id, status, requested_at, decided_at, source) VALUES (?, ?, ?, ?, ?, ?, ?)', [uuidToBuf(memberId), uuidToBuf(sessionId), uid, open ? 'approved' : 'pending', now, open ? now : null, open ? 'open' : 'request'])) as { affectedRows?: number };
         if (!r.affectedRows) throw conflict('ALREADY_MEMBER', 'قبلاً برای این جلسه درخواست داده‌اید.');
       }
-      if (open) await m.query("INSERT IGNORE INTO session_member_roles (member_id, role) VALUES (?, 'quran_student')", [uuidToBuf(memberId)]);
-      else {
-        const staff = [...(await this.access.userIdsWithPermission(sessionId, 'membership.approve', m))];
+      if (!open) {
+        const staff = [...(await this.access.userIdsWithPermission(sessionId, 'membership.approve', m))].filter((u) => u !== userId);
         await emitInboxBatch(m, now, staff.map((u) => ({ userId: u, kind: 'membership' as const, title: 'درخواست عضویت تازه', body: `درخواست عضویت تازه‌ای برای «${session.title}» رسید.`, ref: ref(sessionId) })));
       }
     });
@@ -189,7 +182,7 @@ export class MembersService {
   // ───────────────────────── تأیید/رد ─────────────────────────
   /**
    * تصمیم دسته‌ای زیر قفل ردیف جلسه (فراخوان قفل را گرفته است). approve: pending/rejected ⇒ approved (ظرفیت ⇒ full)؛
-   * reject: فقط pending. بقیه ⇒ skipped. به‌روزرسانی و درج نقش‌ها چندردیفی؛ اعلان دسته‌ای.
+   * reject: فقط pending. بقیه ⇒ skipped. به‌روزرسانی چندردیفی؛ اعلان دسته‌ای.
    */
   async decideMany(m: Q, session: SessionRow, memberIds: readonly string[], action: 'approve' | 'reject', deciderId: string | null): Promise<{ outcomes: Map<string, DecideOutcome>; changedUsers: string[] }> {
     const outcomes = new Map<string, DecideOutcome>();
@@ -220,7 +213,6 @@ export class MembersService {
     const now = this.clock.now();
     const ids = changed.map((c) => uuidToBuf(c.id));
     await m.query(`UPDATE session_members SET status = ?, decided_by = ?, decided_at = ? WHERE id IN (${ph(ids.length)})`, [action === 'approve' ? 'approved' : 'rejected', deciderId ? uuidToBuf(deciderId) : null, now, ...ids]);
-    if (action === 'approve') await m.query(`INSERT IGNORE INTO session_member_roles (member_id, role) VALUES ${ids.map(() => "(?, 'quran_student')").join(',')}`, ids);
     await emitInboxBatch(
       m,
       now,
@@ -253,171 +245,61 @@ export class MembersService {
     return this.oneRow(this.ds, sessionId, memberId);
   }
 
-  // ───────────────────────── نقش‌ها ─────────────────────────
-  /** جایگزینی نقش‌های چند عضو با درج چندردیفی */
-  private async writeRoles(m: Q, finals: ReadonlyMap<string, ReadonlySet<SessionRole>>): Promise<void> {
-    if (!finals.size) return;
-    const ids = [...finals.keys()].map(uuidToBuf);
-    await m.query(`DELETE FROM session_member_roles WHERE member_id IN (${ph(ids.length)})`, ids);
-    const pairs = [...finals].flatMap(([id, roles]) => [...roles].map((r) => [uuidToBuf(id), r] as const));
-    if (pairs.length) await m.query(`INSERT INTO session_member_roles (member_id, role) VALUES ${pairs.map(() => '(?, ?)').join(',')}`, pairs.flat());
-  }
-
-  private async lockMember(m: Q, sessionId: string, memberId: string): Promise<{ userId: string; status: MemberStatus; roles: SessionRole[] }> {
-    if (!isUuid(memberId)) throw notFound();
-    const rows = (await m.query('SELECT m.user_id, m.status, (SELECT GROUP_CONCAT(r.role) FROM session_member_roles r WHERE r.member_id = m.id) AS roles FROM session_members m WHERE m.id = ? AND m.session_id = ? FOR UPDATE', [uuidToBuf(memberId), uuidToBuf(sessionId)])) as { user_id: Buffer; status: MemberStatus; roles: string | null }[];
-    const r = rows[0];
-    if (!r) throw notFound();
-    return { userId: bufToUuid(r.user_id), status: r.status, roles: sortRoles(r.roles?.split(',') ?? []) };
-  }
-
-  /** شمار مدیران تأییدشده (قفل‌دار؛ پس از قفل ردیف جلسه) */
-  private async managerCount(m: Q, sessionId: string): Promise<number> {
-    const r = (await m.query("SELECT COUNT(*) AS n FROM session_members x JOIN session_member_roles r ON r.member_id = x.id AND r.role = 'session_manager' WHERE x.session_id = ? AND x.status = 'approved' LOCK IN SHARE MODE", [uuidToBuf(sessionId)])) as { n: string | number }[];
-    return Number(r[0]?.n ?? 0);
-  }
-
-  private roleInbox(userId: string, session: SessionRow, roles: readonly SessionRole[]): InboxItem {
-    return { userId, kind: 'session', title: 'تغییر نقش', body: `نقش شما در جلسهٔ «${session.title}»: ${rolesFa(roles)}`, ref: ref(session.id) };
-  }
-
-  /**
-   * M-13: نقش‌های غیرمدیر؛ اگر عضو مدیر است، مدیر حفظ و نقش‌های داده‌شده کنارش (مدیر+معلم مجاز؛ قفل #15).
-   * آرایهٔ خالی: عضو عادی ⇒ قرآن‌آموز؛ مدیر ⇒ فقط مدیر.
-   */
-  async setRoles(userId: string, sessionId: string, memberId: string, roles: readonly SessionRole[]) {
-    await this.ds.transaction(async (m) => {
-      const { session } = await this.access.load(m, sessionId, userId, 'membership.roles', true);
-      const cur = await this.lockMember(m, sessionId, memberId);
-      if (cur.status !== 'approved') throw conflict('NOT_APPROVED', 'ابتدا عضویت باید تأیید شود.');
-      const requested = roles.filter((r) => r !== 'session_manager');
-      const isManager = cur.roles.includes('session_manager');
-      const next = new Set<SessionRole>(isManager ? ['session_manager', ...requested] : requested.length ? requested : ['quran_student']);
-      await this.applyRoleChange(m, session, memberId, cur, next, userId);
-    });
-    this.live.emit(sessionId, 'members.updated');
-    return this.one(this.ds, sessionId, memberId);
-  }
-
-  private async applyRoleChange(m: Q, session: SessionRow, memberId: string, cur: { userId: string; roles: SessionRole[] }, next: Set<SessionRole>, actorId: string | null): Promise<boolean> {
-    const same = cur.roles.length === next.size && cur.roles.every((r) => next.has(r));
-    if (same) return false;
-    if (cur.roles.includes('session_manager') && !next.has('session_manager') && (await this.managerCount(m, session.id)) <= 1) throw conflict('LAST_HOLDER', 'جلسه باید دست‌کم یک مدیر داشته باشد.');
-    await this.writeRoles(m, new Map([[memberId, next]]));
-    if (cur.userId !== actorId) await emitInboxBatch(m, this.clock.now(), [this.roleInbox(cur.userId, session, [...next])]);
-    return true;
-  }
-
-  /** MID_ADMIN.memberRoles (H-68): نقش‌ها دقیقاً همین (session_manager هم مجاز)؛ برداشتن آخرین مدیر ⇒ LAST_HOLDER */
-  async adminSetRoles(sessionId: string, memberId: string, roles: readonly SessionRole[], actorId: string | null) {
-    await this.ds.transaction(async (m) => {
-      const session = await this.requireLiveSession(m, sessionId, true);
-      const cur = await this.lockMember(m, sessionId, memberId);
-      if (cur.status !== 'approved') throw conflict('NOT_APPROVED', 'ابتدا عضویت باید تأیید شود.');
-      await this.applyRoleChange(m, session, memberId, cur, new Set(roles), actorId);
-    });
-    this.live.emit(sessionId, 'members.updated');
-    return adminMemberDto(await this.oneRow(this.ds, sessionId, memberId));
-  }
-
-  // ───────────────────────── M-16 مدیر ─────────────────────────
-  /**
-   * manager=true: هدف (approved) مدیر می‌شود؛ stepDown=true ⇒ در همان تراکنش نقش مدیر من برداشته می‌شود (انتقال اتمیک).
-   * manager=false: سلب مدیر از هدف؛ آخرین مدیر ⇒ LAST_HOLDER. عضو بی‌نقش ⇒ قرآن‌آموز.
-   */
-  async setManager(actorId: string, sessionId: string, memberId: string, manager: boolean, stepDown: boolean) {
-    await this.ds.transaction(async (m) => {
-      const { session, membership } = await this.access.load(m, sessionId, actorId, 'membership.roles', true);
-      const cur = await this.lockMember(m, sessionId, memberId);
-      if (cur.status !== 'approved') throw conflict('NOT_APPROVED', 'ابتدا عضویت باید تأیید شود.');
-      const now = this.clock.now();
-      const inbox: InboxItem[] = [];
-      const finals = new Map<string, Set<SessionRole>>();
-      if (manager) {
-        if (stepDown && cur.userId === actorId) throw new AppError('VALIDATION_FAILED', { message: 'برای انتقال، مدیر دیگری را انتخاب کنید.' });
-        if (!cur.roles.includes('session_manager')) {
-          finals.set(memberId, new Set<SessionRole>(['session_manager', ...cur.roles.filter((r) => r !== 'quran_student')]));
-          inbox.push({ userId: cur.userId, kind: 'session', title: 'مدیر جلسه شدید', body: `شما مدیر جلسهٔ «${session.title}» شدید.`, ref: ref(sessionId) });
-        }
-        if (stepDown && membership) {
-          const mine = new Set(membership.roles.filter((r) => r !== 'session_manager'));
-          if (!mine.size) mine.add('quran_student');
-          finals.set(membership.memberId, mine);
-        }
-      } else {
-        if (!cur.roles.includes('session_manager')) return;
-        if ((await this.managerCount(m, sessionId)) <= 1) throw conflict('LAST_HOLDER', 'جلسه باید دست‌کم یک مدیر داشته باشد.');
-        const rest = new Set(cur.roles.filter((r) => r !== 'session_manager'));
-        if (!rest.size) rest.add('quran_student');
-        finals.set(memberId, rest);
-        if (cur.userId !== actorId) inbox.push(this.roleInbox(cur.userId, session, [...rest]));
-      }
-      await this.writeRoles(m, finals);
-      await emitInboxBatch(m, now, inbox);
-    });
-    this.live.emit(sessionId, 'members.updated');
-    return this.one(this.ds, sessionId, memberId);
-  }
-
   // ───────────────────────── حذف / ترک ─────────────────────────
-  /** حذف عضو + نقش‌ها + آیتم‌های فعال صف (waiting/current)؛ حضور/ارزیابی/دفتر امتیاز می‌ماند */
-  private async deleteMember(m: Q, sessionId: string, memberId: string, userId: string): Promise<boolean> {
+  /** حذف عضو + آیتم‌های فعال صف (waiting/current)؛ حضور/ارزیابی/دفتر امتیاز می‌ماند */
+  async deleteMember(m: Q, sessionId: string, memberId: string, userId: string): Promise<boolean> {
     const q = (await m.query("DELETE FROM queue_items WHERE session_id = ? AND user_id = ? AND status IN ('waiting','current')", [uuidToBuf(sessionId), uuidToBuf(userId)])) as { affectedRows?: number };
-    await m.query('DELETE FROM session_member_roles WHERE member_id = ?', [uuidToBuf(memberId)]);
     await m.query('DELETE FROM session_members WHERE id = ?', [uuidToBuf(memberId)]);
     return !!q.affectedRows;
   }
 
-  private afterRemoval(sessionId: string, userId: string, queueChanged: boolean) {
+  private afterRemoval(sessionId: string, userId: string, queueChanged: boolean, evict = true) {
     this.live.emit(sessionId, 'members.updated');
     if (queueChanged) this.live.emit(sessionId, 'queue.updated');
-    this.live.evict(sessionId, [userId]);
+    if (evict) this.live.evict(sessionId, [userId]);
   }
 
-  /**
-   * M-15: مدیر ⇒ SESSION_MANAGER_PROTECTED؛ دارندهٔ membership.roles هر عضو غیرمدیر؛ پشتیبان فقط قرآن‌آموز یا درخواست pending/rejected.
-   * actorId=null ⇒ ادمین (MID_ADMIN.member DELETE).
-   */
+  /** پس از حذف عضو: اگر کاربر هنوز کادر است socket او نباید از اتاق اخراج شود */
+  private async stillStaff(sessionId: string, userId: string): Promise<boolean> {
+    return (await this.access.staffUserIds(sessionId)).has(userId);
+  }
+
+  /** M-15 (membership.manage): هر عضو یا درخواست. actorId=null ⇒ ادمین (MID_ADMIN.member DELETE). */
   async remove(actorId: string | null, sessionId: string, memberId: string): Promise<{ userId: string }> {
     let removed = { userId: '', queue: false };
     await this.ds.transaction(async (m) => {
-      let session: SessionRow;
-      let perms: Permission[] = [];
-      if (actorId) ({ session, permissions: perms } = await this.access.load(m, sessionId, actorId, 'membership.approve', true));
-      else session = await this.requireLiveSession(m, sessionId, true);
-      const cur = await this.lockMember(m, sessionId, memberId);
-      if (cur.roles.includes('session_manager')) throw conflict('SESSION_MANAGER_PROTECTED', 'مدیر جلسه قابل حذف نیست.');
-      if (actorId && !perms.includes('membership.roles')) {
-        const studentOnly = cur.roles.every((r) => r === 'quran_student');
-        if (cur.status === 'approved' && !studentOnly) throw new AppError('AUTH_FORBIDDEN', { message: 'فقط مدیر جلسه می‌تواند کادر را حذف کند.' });
-      }
-      const queue = await this.deleteMember(m, sessionId, memberId, cur.userId);
-      if (cur.userId !== actorId && cur.status === 'approved')
-        await emitInboxBatch(m, this.clock.now(), [{ userId: cur.userId, kind: 'session', title: 'حذف از جلسه', body: `عضویت شما در جلسهٔ «${session.title}» پایان یافت.`, ref: ref(sessionId) }]);
-      removed = { userId: cur.userId, queue };
+      const session = actorId ? (await this.access.load(m, sessionId, actorId, 'membership.manage', true)).session : await this.requireLiveSession(m, sessionId, true);
+      if (!isUuid(memberId)) throw notFound();
+      const rows = (await m.query('SELECT user_id, status FROM session_members WHERE id = ? AND session_id = ? FOR UPDATE', [uuidToBuf(memberId), uuidToBuf(sessionId)])) as { user_id: Buffer; status: MemberStatus }[];
+      const cur = rows[0];
+      if (!cur) throw notFound();
+      const userId = bufToUuid(cur.user_id);
+      const queue = await this.deleteMember(m, sessionId, memberId, userId);
+      if (userId !== actorId && cur.status === 'approved') await emitInboxBatch(m, this.clock.now(), [{ userId, kind: 'session', title: 'حذف از جلسه', body: `عضویت شما در جلسهٔ «${session.title}» پایان یافت.`, ref: ref(sessionId) }]);
+      removed = { userId, queue };
     });
-    this.afterRemoval(sessionId, removed.userId, removed.queue);
+    this.afterRemoval(sessionId, removed.userId, removed.queue, !(await this.stillStaff(sessionId, removed.userId)));
     return { userId: removed.userId };
   }
 
-  /** M-17: ترک جلسه / لغو درخواست؛ آخرین مدیر ⇒ LAST_HOLDER؛ ردشده دست نمی‌خورد (cooldown حفظ) */
+  /** M-17: ترک جلسه / لغو درخواست؛ صاحب ⇒ SESSION_MANAGER_PROTECTED؛ ردشده دست نمی‌خورد (cooldown حفظ) */
   async leave(userId: string, sessionId: string): Promise<Record<string, never>> {
     let queue = false;
     await this.ds.transaction(async (m) => {
-      const { membership } = await this.access.load(m, sessionId, userId, undefined, true);
+      const { membership, role } = await this.access.load(m, sessionId, userId, undefined, true);
+      if (role === 'owner') throw conflict('SESSION_MANAGER_PROTECTED', 'صاحب جلسه عضو نیست؛ تغییر صاحب فقط از پنل مدیریت ممکن است.');
       if (!membership) throw new AppError('NOT_FOUND', { message: 'عضو این جلسه نیستید.' });
       if (membership.status === 'rejected') return;
-      if (membership.status === 'approved' && membership.roles.includes('session_manager') && (await this.managerCount(m, sessionId)) <= 1) throw conflict('LAST_HOLDER', 'ابتدا مدیریت جلسه را به عضو دیگری بسپارید.');
       queue = await this.deleteMember(m, sessionId, membership.memberId, userId);
     });
-    this.afterRemoval(sessionId, userId, queue);
+    this.afterRemoval(sessionId, userId, queue, !(await this.stillStaff(sessionId, userId)));
     return {};
   }
 
   // ───────────────────────── افزودن مستقیم (M-14 / MID_ADMIN.membersAdd) ─────────────────────────
   /**
-   * در یک تراکنش (فراخوان ردیف جلسه را قفل کرده است): نبود ⇒ insert approved؛ pending/rejected ⇒ approved + نقش‌ها؛
-   * approved ⇒ skip=unchanged / merge=اجتماع / replace=جایگزین با حفظ مدیر. دایرکتوری ناموجود ⇒ not_found، غیرفعال ⇒ not_active، ظرفیت ⇒ full.
+   * در یک تراکنش (فراخوان ردیف جلسه را قفل کرده است): نبود ⇒ insert approved؛ pending/rejected ⇒ approved؛ approved ⇒ unchanged.
+   * صاحب جلسه ⇒ unchanged (عضو نمی‌شود). دایرکتوری ناموجود ⇒ not_found، غیرفعال ⇒ not_active، ظرفیت ⇒ full.
    * همهٔ نوشتن‌ها چندردیفی (بدون حلقهٔ per آیتم روی DB).
    */
   async applyAdd(m: Q, session: SessionRow, items: readonly AddItem[], o: AddOpts): Promise<AddResultItem[]> {
@@ -429,53 +311,40 @@ export class MembersService {
       if (add.length) await m.query(`INSERT IGNORE INTO user_directory (user_id, first_name, last_name, updated_at) VALUES ${add.map(() => '(?, ?, ?, ?)').join(',')}`, add.flatMap(([id, n]) => [uuidToBuf(id), n.firstName.slice(0, 40), n.lastName.slice(0, 40), now]));
     }
     const dir = new Map<string, boolean>();
-    const state = new Map<string, MemberState>();
+    const state = new Map<string, { memberId: string; status: MemberStatus }>();
     if (ids.length) {
       const d = (await m.query(`SELECT user_id, status, deleted FROM user_directory WHERE user_id IN (${ph(ids.length)})`, ids.map(uuidToBuf))) as { user_id: Buffer; status: string; deleted: number }[];
       for (const r of d) dir.set(bufToUuid(r.user_id), r.status === 'active' && !r.deleted);
-      const ex = (await m.query(`SELECT m.id, m.user_id, m.status, (SELECT GROUP_CONCAT(r.role) FROM session_member_roles r WHERE r.member_id = m.id) AS roles FROM session_members m WHERE m.session_id = ? AND m.user_id IN (${ph(ids.length)}) FOR UPDATE`, [sid, ...ids.map(uuidToBuf)])) as { id: Buffer; user_id: Buffer; status: MemberStatus; roles: string | null }[];
-      for (const r of ex) state.set(bufToUuid(r.user_id), { memberId: bufToUuid(r.id), status: r.status, roles: new Set(sortRoles(r.roles?.split(',') ?? [])), isNew: false });
+      const ex = (await m.query(`SELECT id, user_id, status FROM session_members WHERE session_id = ? AND user_id IN (${ph(ids.length)}) FOR UPDATE`, [sid, ...ids.map(uuidToBuf)])) as { id: Buffer; user_id: Buffer; status: MemberStatus }[];
+      for (const r of ex) state.set(bufToUuid(r.user_id), { memberId: bufToUuid(r.id), status: r.status });
     }
     let free = session.capacity === null ? Infinity : session.capacity - (await approvedCount(m, session.id));
     const out: AddResultItem[] = [];
     const inserts: { memberId: string; userId: string }[] = [];
     const promote: string[] = [];
-    const finals = new Map<string, Set<SessionRole>>();
     const inbox = new Map<string, InboxItem>();
     items.forEach((it, index) => {
       const userId = it.userId;
       if (it.pre || !userId) return out.push({ index, userId, outcome: it.pre ?? 'not_found', memberId: null });
       if (!dir.has(userId)) return out.push({ index, userId, outcome: 'not_found', memberId: null });
       if (!dir.get(userId)) return out.push({ index, userId, outcome: 'not_active', memberId: null });
-      const roles = new Set(it.roles);
+      if (userId === session.owner_id) return out.push({ index, userId, outcome: 'unchanged', memberId: null });
       const st = state.get(userId);
-      if (!st || st.status !== 'approved') {
-        if (free <= 0) return out.push({ index, userId, outcome: 'full', memberId: st?.memberId ?? null });
-        free--;
-        if (st) {
-          st.status = 'approved';
-          st.roles = roles;
-          promote.push(st.memberId);
-        } else {
-          const memberId = uuidv7(now.getTime());
-          state.set(userId, { memberId, status: 'approved', roles, isNew: true });
-          inserts.push({ memberId, userId });
-        }
-        const s = state.get(userId)!;
-        finals.set(s.memberId, s.roles);
-        inbox.set(userId, { userId, kind: 'membership', title: 'عضو جلسه شدید', body: `شما به جلسهٔ «${session.title}» افزوده شدید (${rolesFa([...roles])}).`, ref: ref(session.id) });
-        return out.push({ index, userId, outcome: st ? 'approved' : 'added', memberId: s.memberId });
+      if (st && st.status === 'approved') return out.push({ index, userId, outcome: 'unchanged', memberId: st.memberId });
+      if (free <= 0) return out.push({ index, userId, outcome: 'full', memberId: st?.memberId ?? null });
+      free--;
+      let memberId: string;
+      if (st) {
+        st.status = 'approved';
+        memberId = st.memberId;
+        promote.push(memberId);
+      } else {
+        memberId = uuidv7(now.getTime());
+        state.set(userId, { memberId, status: 'approved' });
+        inserts.push({ memberId, userId });
       }
-      let next: Set<SessionRole>;
-      if (o.onExisting === 'merge') next = new Set([...st.roles, ...roles]);
-      else if (o.onExisting === 'replace') next = new Set([...(st.roles.has('session_manager') ? (['session_manager'] as SessionRole[]) : []), ...roles]);
-      else return out.push({ index, userId, outcome: 'unchanged', memberId: st.memberId });
-      const same = next.size === st.roles.size && [...next].every((r) => st.roles.has(r));
-      if (same) return out.push({ index, userId, outcome: 'unchanged', memberId: st.memberId });
-      st.roles = next;
-      finals.set(st.memberId, next);
-      if (!inbox.has(userId) || !st.isNew) inbox.set(userId, this.roleInbox(userId, session, [...next]));
-      return out.push({ index, userId, outcome: o.onExisting === 'merge' ? 'merged' : 'replaced', memberId: st.memberId });
+      inbox.set(userId, { userId, kind: 'membership', title: 'عضو جلسه شدید', body: `شما به جلسهٔ «${session.title}» افزوده شدید.`, ref: ref(session.id) });
+      return out.push({ index, userId, outcome: st ? 'approved' : 'added', memberId });
     });
 
     const actor = o.actorId ? uuidToBuf(o.actorId) : null;
@@ -485,7 +354,6 @@ export class MembersService {
         inserts.flatMap((x) => [uuidToBuf(x.memberId), sid, uuidToBuf(x.userId), now, actor, now, o.source, actor])
       );
     if (promote.length) await m.query(`UPDATE session_members SET status = 'approved', decided_by = ?, decided_at = ?, source = ?, added_by = ? WHERE id IN (${ph(promote.length)})`, [actor, now, o.source, actor, ...promote.map(uuidToBuf)]);
-    await this.writeRoles(m, finals);
     if (o.notify) await emitInboxBatch(m, now, [...inbox.values()].filter((x) => x.userId !== o.actorId));
     return out;
   }
@@ -496,35 +364,33 @@ export class MembersService {
   }
 
   /**
-   * M-14: مدیر (membership.roles) هر نقش غیرمدیر؛ پشتیبان فقط quran_student. شماره‌ها قبل از تراکنش با low resolve می‌شوند
+   * M-14 (membership.manage): فقط عضو. شماره‌ها قبل از تراکنش با low resolve می‌شوند
    * (سقف durable per actor: ۲۰/دقیقه و ۱۰۰/روز؛ شماره هرگز لاگ/ذخیره نمی‌شود). جلسهٔ ended ⇒ SESSION_LOCKED.
    */
-  async add(actorId: string, sessionId: string, body: { items: { user: { userId?: string; phone?: string }; roles: SessionRole[] }[]; onExisting: 'skip' | 'merge'; notify: boolean }) {
-    const pre = await this.access.load(this.ds, sessionId, actorId, 'membership.approve');
-    const canRoles = pre.permissions.includes('membership.roles');
-    if (!canRoles && body.items.some((i) => i.roles.some((r) => r !== 'quran_student'))) throw new AppError('AUTH_FORBIDDEN', { message: 'پشتیبان فقط قرآن‌آموز اضافه می‌کند.' });
+  async add(actorId: string, sessionId: string, body: { items: { user: { userId?: string; phone?: string } }[]; notify: boolean }) {
+    const pre = await this.access.load(this.ds, sessionId, actorId, 'membership.manage');
     if (pre.session.status === 'ended') throw conflict('SESSION_LOCKED', 'این جلسه پایان یافته است.');
 
     const phones = [...new Set(body.items.map((i) => i.user.phone).filter((p): p is string => !!p))];
     const resolved = phones.length ? await this.resolvePhones(actorId, phones) : new Map<string, ResolvedUser>();
     const ensure = new Map<string, { firstName: string; lastName: string }>();
     const items: AddItem[] = body.items.map((i) => {
-      if (i.user.userId) return { userId: i.user.userId, roles: i.roles };
+      if (i.user.userId) return { userId: i.user.userId };
       const u = resolved.get(i.user.phone!);
-      if (!u) return { userId: null, roles: i.roles, pre: 'not_found' };
-      if (u.status !== 'active') return { userId: u.userId, roles: i.roles, pre: 'not_active' };
+      if (!u) return { userId: null, pre: 'not_found' };
+      if (u.status !== 'active') return { userId: u.userId, pre: 'not_active' };
       ensure.set(u.userId, { firstName: u.firstName, lastName: u.lastName });
-      return { userId: u.userId, roles: i.roles };
+      return { userId: u.userId };
     });
 
     const res = await this.ds.transaction(async (m) => {
-      const { session } = await this.access.load(m, sessionId, actorId, 'membership.approve', true);
+      const { session } = await this.access.load(m, sessionId, actorId, 'membership.manage', true);
       if (session.status === 'ended') throw conflict('SESSION_LOCKED', 'این جلسه پایان یافته است.');
-      return this.applyAdd(m, session, items, { actorId, source: 'staff', onExisting: body.onExisting, notify: body.notify, ensureDirectory: ensure });
+      return this.applyAdd(m, session, items, { actorId, source: 'staff', notify: body.notify, ensureDirectory: ensure });
     });
     this.live.emit(sessionId, 'members.updated');
     const rows = await this.resultRows(sessionId, res);
-    const added = res.filter((r) => r.outcome === 'added' || r.outcome === 'approved' || r.outcome === 'merged').length;
+    const added = res.filter((r) => r.outcome === 'added' || r.outcome === 'approved').length;
     return {
       items: res.map((r) => ({ index: r.index, userId: r.userId, outcome: r.outcome, member: r.memberId && rows.get(r.memberId) && r.outcome !== 'full' ? memberDto(rows.get(r.memberId)!) : null })),
       added,
@@ -532,7 +398,7 @@ export class MembersService {
     };
   }
 
-  /** سقف durable شماره‌ها per actor (افزایش اتمیک به اندازهٔ تعداد شماره در یک اتصال) */
+  /** سقف durable شماره‌ها per actor (افزایش اتمیک به اندازهٔ تعداد شماره در یک اتصال) — مشترک M-14/M-61/M-65 */
   private async chargePhoneQuota(actorId: string, n: number): Promise<void> {
     const nowMs = this.clock.now().getTime();
     for (const l of PHONE_LIMITS) {
@@ -547,7 +413,7 @@ export class MembersService {
   }
 
   /** POST {low}/internal/v1/users/resolve — بیرون از تراکنش؛ خطا/۵xx ⇒ SERVICE_UNAVAILABLE؛ فقط تعداد لاگ می‌شود */
-  private async resolvePhones(actorId: string, phones: readonly string[]): Promise<Map<string, ResolvedUser>> {
+  async resolvePhones(actorId: string, phones: readonly string[]): Promise<Map<string, ResolvedUser>> {
     await this.chargePhoneQuota(actorId, phones.length);
     const base = this.env.INTERNAL_URL_LOW;
     if (!base) throw new AppError('SERVICE_UNAVAILABLE');
@@ -580,12 +446,4 @@ export class MembersService {
     if (!session) throw new AppError('NOT_FOUND', { message: 'جلسه پیدا نشد.' });
     return session;
   }
-}
-
-interface ResolvedUser {
-  phone: string;
-  userId: string;
-  firstName: string;
-  lastName: string;
-  status: 'active' | 'disabled' | 'deleted';
 }

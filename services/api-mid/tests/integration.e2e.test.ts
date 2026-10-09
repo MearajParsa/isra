@@ -57,13 +57,14 @@ describe('رویدادهای ورودی (از low/high)', () => {
     expect((await a.get(`/sessions/${id}/members?status=pending`, m)).body.data[0].name).toBe('مریم‌السادات احمدی');
   });
 
-  it('system.settings.changed: فقط نسخهٔ جدیدتر؛ جمع وزن‌ها باید ۱۰۰ باشد؛ نوع ناشناخته پذیرفته می‌شود', async () => {
+  it('system.settings.changed: فقط نسخهٔ جدیدتر؛ evalWeights قدیمی نادیده (۱.۷.۰)؛ نوع ناشناخته ⇒ 403', async () => {
     const good = { version: 5, evalWeights: { voice: 50, tone: 25, tajweed: 25 }, badgeThresholds: [10, 20, 30, 40] };
     expect((await send(ev('system.settings.changed', good))).status).toBe(202);
     expect((await send(ev('system.settings.changed', { ...good, version: 3, evalWeights: { voice: 10, tone: 10, tajweed: 80 } }))).status).toBe(202);
-    expect((await send(ev('system.settings.changed', { ...good, version: 9, evalWeights: { voice: 50, tone: 50, tajweed: 50 } }))).status).toBe(400);
+    expect((await send(ev('system.settings.changed', { ...good, version: 9, badgeThresholds: [1, 2, 3] }))).status).toBe(400);
+    expect((await send(ev('system.settings.changed', { version: 10, flags: { maintenance_mode: false, registration_open: true } }))).status).toBe(202);
     const u = await mkUser(t, 'نمونه');
-    expect((await a.get('/me/points', u)).body.data.badges.map((b: any) => b.threshold)).toEqual([10, 20, 30, 40]);
+    expect((await a.get('/me/points', u)).body.data.badges.map((b: any) => b.threshold)).toEqual([50, 150, 300, 500]);
     expect((await send(ev('future.event', { a: 1 }))).status).toBe(403); // allow-list نوع رویداد per فرستنده
     await t.ds.query('DELETE FROM settings_cache');
   });
@@ -240,7 +241,8 @@ describe('Socket.IO realtime (قفل: روی api-mid)', () => {
       const events: any[] = [];
       s.on('live', (e) => events.push(e));
       const q = await a.post(`/sessions/${id}/queue/next`, teacher);
-      await a.post(`/sessions/${id}/evaluations`, teacher, { queueItemId: q.body.data.current.id, voice: 5, tone: 5, tajweed: 5 });
+      const crit = (await a.get('/evaluation-criteria', teacher)).body.data.items as { id: string }[];
+      await a.post(`/sessions/${id}/evaluations`, teacher, { queueItemId: q.body.data.current.id, scores: crit.map((c) => ({ criterionId: c.id, score: 5 })) });
       await new Promise((r) => setTimeout(r, 200));
       expect(events.find((e) => e.type === 'queue.turned')).toEqual({ type: 'queue.turned', sessionId: id, payload: { userId: stu.id } });
       expect(events.some((e) => e.type === 'eval.updated')).toBe(true);

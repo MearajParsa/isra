@@ -107,7 +107,7 @@ export class AdminOpsService {
   // ───── ارزیابی ─────
   evaluationPatch(id: string, evalId: string, b: Patch) {
     if (!isUuid(id)) throw notFound();
-    if (b.voice === undefined && b.tone === undefined && b.tajweed === undefined && b.note === undefined) throw new AppError('VALIDATION_FAILED', { message: 'دست‌کم یک فیلد ارزیابی لازم است.' });
+    if (b.scores === undefined && b.note === undefined) throw new AppError('VALIDATION_FAILED', { message: 'دست‌کم یک فیلد ارزیابی لازم است.' });
     return this.evals.adminPatch(id, evalId, b);
   }
 

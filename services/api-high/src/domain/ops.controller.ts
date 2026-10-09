@@ -12,27 +12,12 @@ type Id = { id: string };
 type B<K extends keyof typeof high> = (typeof high)[K] extends z.ZodType ? z.infer<(typeof high)[K]> : never;
 const uid = (r: IsraRequest) => r.user!.userId;
 
-type SessionRole = z.infer<typeof mid.SessionRole>;
-type SessionPermission = z.infer<typeof mid.Permission>;
-const ROLE_TITLES: Record<SessionRole, string> = { session_manager: 'مدیر جلسه', session_supporter: 'پشتیبان', teacher: 'معلم', quran_student: 'قرآن‌آموز' };
-const PERMISSION_TITLES: Record<SessionPermission, string> = {
-  'session.edit': 'ویرایش جلسه',
-  'session.transition': 'تغییر وضعیت جلسه',
-  'membership.approve': 'تأیید یا رد درخواست عضویت',
-  'membership.roles': 'تعیین نقش اعضا',
-  'queue.manage': 'مدیریت صف نوبت',
-  'eval.submit': 'ثبت ارزیابی',
-  'attendance.view': 'دیدن حضور',
-  'attendance.manage': 'ثبت حضور و غیاب',
-  'occurrence.manage': 'باز و بستن نوبت برگزاری'
-};
-/** H-48: ماتریس ثابت از منبع حقیقت مشترک (`SESSION_ROLE_PERMISSIONS` در api-types) */
-export const SESSION_ROLES_MATRIX: B<'SessionRolesMatrix'> = {
-  roles: (Object.keys(mid.SESSION_ROLE_PERMISSIONS) as SessionRole[]).map((key) => ({ key, title: ROLE_TITLES[key], permissions: [...mid.SESSION_ROLE_PERMISSIONS[key]] as SessionPermission[] })),
-  permissions: mid.Permission.options.map((key) => ({ key, title: PERMISSION_TITLES[key] }))
+/** H-48 (۱.۷.۰): کاتالوگ مجوزهای قابل‌واگذاری به پشتیبان از منبع حقیقت مشترک (`SESSION_DELEGABLE_PERMISSIONS`؛ همان M-68) */
+export const SESSION_PERMISSION_CATALOG: z.infer<typeof mid.SessionPermissionCatalog> = {
+  permissions: mid.SESSION_DELEGABLE_PERMISSIONS.map((p) => ({ key: p.key, title: p.title }))
 };
 
-/** ۱.۶.۰ (docs-v2/30): نشان‌ها، پیام همگانی، ماتریس نقش جلسه. مجوز/step-up/اعتبارسنجی در EndpointGuard. */
+/** ۱.۶.۰ (docs-v2/30): نشان‌ها، پیام همگانی؛ ۱.۷.۰: کاتالوگ مجوز پشتیبان. مجوز/step-up/اعتبارسنجی در EndpointGuard. */
 @Controller()
 export class OpsController {
   constructor(
@@ -79,7 +64,7 @@ export class OpsController {
   }
 
   @Route('H-48')
-  sessionRoles() {
-    return SESSION_ROLES_MATRIX;
+  sessionPermissions() {
+    return SESSION_PERMISSION_CATALOG;
   }
 }

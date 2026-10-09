@@ -6,7 +6,7 @@ import { AppError } from '../../common/app-error';
 import { Clock } from '../../common/clock';
 import type { Q } from '../db';
 import { RbacService } from '../rbac.service';
-import type { PermissionKey, StepUpMode } from '../rules';
+import { type PermissionKey, type StepUpMode, type Tier, isImplicitRole } from '../rules';
 import { effectiveOfRole } from './policy';
 
 export type RbacMatrix = z.infer<typeof high.RbacMatrix>;
@@ -20,6 +20,7 @@ interface ModuleRow {
   module_key: string;
   title: string;
   description: string;
+  tier: Tier;
   is_system: number;
   sort_order: number;
   n: string | number;
@@ -37,6 +38,7 @@ interface RoleRow {
   role_key: string;
   title: string;
   description: string;
+  tier: Tier;
   undeletable: number;
   holders: string | number;
 }
@@ -96,9 +98,9 @@ export class RegistryService {
     // نسخه اول خوانده می‌شود: اگر نوشتنی وسط بخواند، نسخه ≤ داده است (بدترین حالت یک بار کش اضافه)
     const version = await this.rbac.version(q);
     const [mods, perms, roles, items] = (await Promise.all([
-      q.query('SELECT m.module_key, m.title, m.description, m.is_system, m.sort_order, (SELECT COUNT(*) FROM permissions p WHERE p.module_key = m.module_key) AS n FROM system_modules m ORDER BY m.sort_order, m.module_key'),
+      q.query('SELECT m.module_key, m.title, m.description, m.tier, m.is_system, m.sort_order, (SELECT COUNT(*) FROM permissions p WHERE p.module_key = m.module_key) AS n FROM system_modules m ORDER BY m.sort_order, m.module_key'),
       q.query('SELECT permission_key, title, description, module_key, is_system, grantable, step_up FROM permissions ORDER BY permission_key'),
-      q.query('SELECT r.role_key, r.title, r.description, r.undeletable, (SELECT COUNT(*) FROM user_system_roles u WHERE u.role_key = r.role_key) AS holders FROM system_roles r ORDER BY r.undeletable DESC, r.role_key'),
+      q.query('SELECT r.role_key, r.title, r.description, r.tier, r.undeletable, (SELECT COUNT(*) FROM user_system_roles u WHERE u.role_key = r.role_key) AS holders FROM system_roles r ORDER BY r.undeletable DESC, r.role_key'),
       q.query(
         `SELECT 'p' AS t, role_key, permission_key AS k, locked, NULL AS mode FROM role_permissions
          UNION ALL SELECT 'm', role_key, module_key, 0, NULL FROM role_modules
@@ -112,13 +114,13 @@ export class RegistryService {
     const of = (r: string) => per.get(r) ?? per.set(r, { permissions: [], locked: [], modules: [], rules: {} }).get(r)!;
     for (const i of items) {
       const o = of(i.role_key);
-      if (i.t === 'p') (o.permissions.push(i.k), i.locked && o.locked.push(i.k));
+      if (i.t === 'p') (o.permissions.push(i.k), Number(i.locked) === 1 && o.locked.push(i.k)); // UNION در MySQL 8 نوع locked را ممکن است رشته برگرداند ("0" truthy)
       else if (i.t === 'm') o.modules.push(i.k);
       else o.rules[i.k] = i.mode!;
     }
     return {
       version,
-      modules: mods.map((m) => ({ key: m.module_key, title: m.title, description: m.description, isSystem: !!m.is_system, sortOrder: m.sort_order, permissionCount: Number(m.n) })),
+      modules: mods.map((m) => ({ key: m.module_key, title: m.title, description: m.description, tier: m.tier, isSystem: !!m.is_system, sortOrder: m.sort_order, permissionCount: Number(m.n) })),
       permissions: perms.map((p) => ({ key: p.permission_key, title: p.title, description: p.description, moduleKey: p.module_key, isSystem: !!p.is_system, grantable: !!p.grantable, stepUp: p.step_up })),
       roles: roles.map((r) => {
         const o = of(r.role_key);
@@ -128,13 +130,16 @@ export class RegistryService {
           key: r.role_key,
           title: r.title,
           description: r.description,
+          tier: r.tier,
           undeletable: !!r.undeletable,
+          implicit: isImplicitRole(r.role_key),
           permissions,
           modules,
           effectivePermissions: effectiveOfRole(permissions, modules, permsByModule),
           lockedPermissions: [...o.locked].sort(),
           stepUpRules: o.rules,
-          holders: Number(r.holders)
+          // نقش ضمنی دارندهٔ صریح ندارد (همهٔ کاربران/مهمان)
+          holders: isImplicitRole(r.role_key) ? 0 : Number(r.holders)
         };
       })
     };

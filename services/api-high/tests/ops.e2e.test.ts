@@ -79,11 +79,11 @@ describe('ماتریس مجوز endpointهای ۱.۶.۰', () => {
     const u = await mkUser(t, 'هدف');
     const writes: [string, string, string, object?][] = [
       ['system.sessions.manage', 'post', `/system/sessions/${s.id}/members`, { items: [{ user: { userId: u.id } }] }],
-      ['system.sessions.manage', 'put', `/system/sessions/${s.id}/manager`, { userId: u.id }],
+      ['system.sessions.manage', 'put', `/system/sessions/${s.id}/owner`, { userId: u.id }],
       ['system.sessions.manage', 'post', `/system/sessions/${s.id}/members/decide`, { memberIds: [randomUUID()], action: 'approve' }],
       ['system.sessions.manage', 'post', `/system/sessions/${s.id}/attendance/${u.id}/revoke`, { reason: 'اشتباه ثبت شد' }],
       ['system.sessions.manage', 'post', `/system/sessions/${s.id}/evaluations/${randomUUID()}/void`, { reason: 'نمرهٔ اشتباه' }],
-      ['system.sessions.manage', 'patch', `/system/sessions/${s.id}/evaluations/${randomUUID()}`, { voice: 5, reason: 'اصلاح نمره' }],
+      ['system.sessions.manage', 'patch', `/system/sessions/${s.id}/evaluations/${randomUUID()}`, { note: 'اصلاح', reason: 'اصلاح نمره' }],
       ['system.points.manage', 'post', `/system/users/${u.id}/points/adjust`, { delta: 5, reason: 'جبران خطا' }],
       ['system.badges.manage', 'post', '/system/badges', { key: 'perm_test', title: 'نشان آزمون', threshold: 10 }],
       ['system.inbox.send', 'post', '/system/announcements', { audience: { type: 'users', userIds: [u.id] }, title: 'سلام', body: 'پیام آزمون' }]
@@ -134,8 +134,7 @@ describe('H-73 افزودن مستقیم اعضا', () => {
     const u2 = await mkUser(t, 'عضو دو');
     const off = await mkUser(t, 'غیرفعال', [], [], { status: 'disabled' });
     const r = await a.post(`/system/sessions/${s.id}/members`, await dev.step(), {
-      items: [{ user: { phone: u1.phone } }, { user: { userId: u2.id }, roles: ['teacher'] }, { user: { phone: '09130000001' } }, { user: { phone: off.phone } }, { user: { userId: u1.id } }],
-      defaultRoles: ['quran_student']
+      items: [{ user: { phone: u1.phone } }, { user: { userId: u2.id } }, { user: { phone: '09130000001' } }, { user: { phone: off.phone } }, { user: { userId: u1.id } }]
     });
     expect(r.status, JSON.stringify(r.body)).toBe(200);
     check('H-73', r.body);
@@ -146,7 +145,8 @@ describe('H-73 افزودن مستقیم اعضا', () => {
     const calls = midCalls('POST', '/members/add');
     expect(calls).toHaveLength(1); // یک فراخوانی mid
     expect(calls[0]!.body.items.map((i: any) => i.userId)).toEqual([u1.id, u2.id]);
-    expect(calls[0]!.body.items[1].roles).toEqual(['teacher']);
+    expect(calls[0]!.body.items[1].roles).toBeUndefined(); // ۱.۷.۰: فقط عضو
+    expect(calls[0]!.body.onExisting).toBeUndefined();
     expect(calls[0]!.body.actorId).toBe(dev.id);
     expect(JSON.stringify(calls[0]!.body)).not.toMatch(/09\d{9}/);
     expect(t.fake.admin.calls.some((c) => c.path.startsWith('/c/'))).toBe(false); // بدون createMissing ⇒ بدون low
@@ -239,9 +239,10 @@ describe('H-74/H-53/H-75..H-79/H-95/H-96 عبور به mid + audit', () => {
     const off = await mkUser(t, 'غیرفعال', [], [], { status: 'disabled' });
     const step = await dev.step();
     const ev = randomUUID();
-    check('H-74', (await a.put(`/system/sessions/${s.id}/manager`, step, { userId: u.id, previous: 'keep' })).body);
-    expect(midCalls('PUT', '/manager')[0]!.body).toMatchObject({ actorId: dev.id, userId: u.id, previous: 'keep', firstName: 'عضو' });
-    const na = await a.put(`/system/sessions/${s.id}/manager`, step, { userId: off.id });
+    check('H-74', (await a.put(`/system/sessions/${s.id}/owner`, step, { userId: u.id, previousOwner: 'supporter' })).body);
+    expect(midCalls('PUT', '/owner')[0]!.body).toMatchObject({ actorId: dev.id, userId: u.id, previousOwner: 'supporter', firstName: 'عضو' });
+    expect((await a.put(`/system/sessions/${s.id}/manager`, step, { userId: u.id })).status).toBe(404); // مسیر قدیمی حذف شد
+    const na = await a.put(`/system/sessions/${s.id}/owner`, step, { userId: off.id });
     expect([na.status, na.body.error.details.reason]).toEqual([409, 'USER_NOT_ACTIVE']);
     check('H-53', (await a.post(`/system/sessions/${s.id}/members/decide`, step, { memberIds: [m.id, randomUUID()], action: 'approve' })).body);
     check('H-75', (await a.get(`/system/sessions/${s.id}/occurrences`, dev)).body);
@@ -250,15 +251,15 @@ describe('H-74/H-53/H-75..H-79/H-95/H-96 عبور به mid + audit', () => {
     check('H-78', (await a.post(`/system/sessions/${s.id}/queue/next`, step, {})).body);
     check('H-79', (await a.patch(`/system/sessions/${s.id}/queue/${randomUUID()}`, step, { action: 'down', expectPosition: 2 })).body);
     check('H-95', (await a.post(`/system/sessions/${s.id}/evaluations/${ev}/void`, step, { reason: 'ارزیابی تکراری' })).body);
-    check('H-96', (await a.patch(`/system/sessions/${s.id}/evaluations/${ev}`, step, { voice: 6, reason: 'اصلاح نمره' })).body);
+    check('H-96', (await a.patch(`/system/sessions/${s.id}/evaluations/${ev}`, step, { scores: [{ criterionId: '00000000-0000-7000-8000-000000000001', score: 6 }], reason: 'اصلاح نمره' })).body);
     check('H-70', (await a.get(`/system/sessions/${s.id}/attendance?occurrenceId=${randomUUID()}`, dev)).body);
     expect(midCalls('GET', '/attendance')[0]!.query.occurrenceId).toBeTruthy();
-    for (const name of ['session.manager_transfer', 'session.members_decide', 'session.attendance_add', 'session.attendance_revoke', 'session.queue_next', 'session.queue_act', 'session.evaluation_void', 'session.evaluation_patch']) {
+    for (const name of ['session.owner_transfer', 'session.members_decide', 'session.attendance_add', 'session.attendance_revoke', 'session.queue_next', 'session.queue_act', 'session.evaluation_void', 'session.evaluation_patch']) {
       const au = await audits(name);
       expect([name, au.length]).toEqual([name, 1]);
       expect(au[0]).toMatchObject({ target_type: 'session', target_id: s.id });
     }
-    expect((await audits('session.evaluation_patch'))[0].meta).toMatchObject({ evalId: ev, fields: ['voice'], reason: 'اصلاح نمره' });
+    expect((await audits('session.evaluation_patch'))[0].meta).toMatchObject({ evalId: ev, fields: ['scores'], reason: 'اصلاح نمره' });
     const stale = await a.post(`/system/sessions/${s.id}/queue/next`, step, { expectCurrentItemId: 'stale-00' });
     expect([stale.status, stale.body.error.details.reason]).toEqual([409, 'QUEUE_STATE_CHANGED']);
     t.fake.admin.on('POST', '/o/internal/v1/admin/sessions/:id/evaluations/:evalId/void', () => rawReply(502));
@@ -271,8 +272,10 @@ describe('H-74/H-53/H-75..H-79/H-95/H-96 عبور به mid + audit', () => {
     const dev = await mkUser(t, 'توسعه', ['developer']);
     const s = mid.mk();
     const u = await mkUser(t, 'عضو');
-    await a.get(`/system/sessions/${s.id}/members?q=${u.phone}&role=teacher`, dev);
-    expect(midCalls('GET', '/members').at(-1)!.query).toMatchObject({ userId: u.id, role: 'teacher' });
+    await a.get(`/system/sessions/${s.id}/members?q=${u.phone}&status=approved`, dev);
+    expect(midCalls('GET', '/members').at(-1)!.query).toMatchObject({ userId: u.id, status: 'approved' });
+    await a.get(`/system/sessions/${s.id}/members?role=teacher`, dev);
+    expect(midCalls('GET', '/members').at(-1)!.query.role).toBeUndefined(); // ۱.۷.۰: فیلتر role حذف شد (به mid نمی‌رود)
     expect(midCalls('GET', '/members').at(-1)!.query.q).toBeUndefined();
     const n = midCalls('GET', '/members').length;
     expect((await a.get(`/system/sessions/${s.id}/members?q=09139999999`, dev)).body.meta.total).toBe(0);
@@ -398,10 +401,10 @@ describe('پیام همگانی H-41/H-42/H-46', () => {
     const s = mid.mk();
     mid.addMember(s.id);
     mid.addMember(s.id);
-    const r3 = await a.post('/system/announcements', withKey(dev.h, 'ann-key-0001'), { audience: { type: 'session', sessionId: s.id, roles: ['quran_student'] }, title: 'به اعضا', body: 'متن جلسه' });
+    const r3 = await a.post('/system/announcements', withKey(dev.h, 'ann-key-0001'), { audience: { type: 'session', sessionId: s.id, roles: ['member'] }, title: 'به اعضا', body: 'متن جلسه' });
     expect(r3.body.data).toMatchObject({ status: 'done', recipients: 2 });
     const n = t.fake.admin.calls.find((c) => c.path.endsWith('/notify'))!;
-    expect(n.body).toMatchObject({ actorId: dev.id, broadcastId: r3.body.data.id, roles: ['quran_student'], title: 'به اعضا', ref: null });
+    expect(n.body).toMatchObject({ actorId: dev.id, broadcastId: r3.body.data.id, roles: ['member'], title: 'به اعضا', ref: null });
     expect(n.headers['idempotency-key']).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect((await outboxTypes(t)).filter((e) => e.type === 'inbox.broadcast.created')).toHaveLength(2);
     // جلسهٔ ناموجود ⇒ 404 بدون ردیف
@@ -505,14 +508,13 @@ describe('خروجی CSV H-43..H-45', () => {
   });
 });
 
-describe('H-48 ماتریس نقش جلسه', () => {
-  it('از SESSION_ROLE_PERMISSIONS با عنوان فارسی؛ ETag', async () => {
+describe('H-48 کاتالوگ مجوزهای پشتیبان', () => {
+  it('از SESSION_DELEGABLE_PERMISSIONS با عنوان فارسی؛ ETag', async () => {
     const dev = await mkUser(t, 'توسعه', ['developer']);
     const r = await a.get('/system/session-roles', dev);
     check('H-48', r.body);
-    expect(Object.fromEntries(r.body.data.roles.map((x: any) => [x.key, x.permissions]))).toEqual(midTypes.SESSION_ROLE_PERMISSIONS);
+    expect(r.body.data.permissions.map((x: any) => x.key)).toEqual(midTypes.SESSION_DELEGABLE_PERMISSIONS.map((p) => p.key));
     expect(r.body.data.permissions.every((p: any) => /[؀-ۿ]/.test(p.title))).toBe(true);
-    expect(r.body.data.roles.find((x: any) => x.key === 'teacher').title).toBe('معلم');
     expect((await a.get('/system/session-roles', { ...dev.h, 'If-None-Match': r.headers.etag! })).status).toBe(304);
   });
 });

@@ -3,7 +3,12 @@ import type { ErrorCode } from './errors';
 import type { ServiceKey } from './version';
 
 export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
-export type AuthKind = 'none' | 'bearer' | 'refreshCookie' | 'bearerOrCookie';
+/**
+ * `bearerOrSignedUrl`: Bearer یا امضای کوتاه‌عمر در query (`exp` + `sig`) — فقط برای محتوای رسانه
+ * که مرورگر در `<img>`/`<audio>` هدر Authorization نمی‌فرستد. امضا HMAC-SHA256 روی
+ * `METHOD|path|exp|u` با کلید سرور است و userId درون امضا (پارامتر `u`) مقید می‌شود.
+ */
+export type AuthKind = 'none' | 'bearer' | 'refreshCookie' | 'bearerOrCookie' | 'bearerOrSignedUrl';
 
 export interface RateLimit {
   /** حداکثر درخواست در پنجره */
@@ -38,9 +43,23 @@ export interface EndpointDef {
   stepUp?: boolean;
   /** مجوز لازم (کلید permission یا توضیح نقش) — x-isra-permission */
   permission?: string;
+  /**
+   * ۱.۷.۰: مجوزهای جایگزین — داشتن **هر یک** از `permission` یا این‌ها برای عبور از guard کافی است
+   * (مثلاً مدیریت نقش per سطح: `system.role.manage` | `system.roles.mid.manage` | `system.roles.low.manage`).
+   * بررسی دقیق‌تر (مثلاً tier نقش هدف) در سرویس انجام می‌شود. — x-isra-permission-any
+   */
+  permissionAny?: readonly string[];
   params?: z.ZodObject;
   query?: z.ZodObject;
   body?: z.ZodType;
+  /**
+   * ۱.۷.۰: بدنهٔ **خام باینری** (نه JSON) — مثل بارگذاری فایل گالری. با `body` هم‌زمان نمی‌آید.
+   * سرور Content-Type را با `contentTypes` و سپس magic bytes بررسی می‌کند و بدنه را stream می‌کند (هرگز کل فایل در حافظه).
+   * بیش از `maxBytes` ⇒ PAYLOAD_TOO_LARGE؛ نوع دیگر ⇒ UNSUPPORTED_MEDIA_TYPE.
+   */
+  rawBody?: { contentTypes: readonly string[]; maxBytes: number };
+  /** ۱.۷.۰: پاسخ خام از `Range` پشتیبانی می‌کند (206 Partial Content + `Accept-Ranges: bytes`) */
+  rangeRequests?: boolean;
   /** schema فیلد `data` (یا آیتم لیست اگر list=true) */
   response: z.ZodType;
   list?: boolean;

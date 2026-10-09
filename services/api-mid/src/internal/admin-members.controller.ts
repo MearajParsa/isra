@@ -5,6 +5,8 @@ import { HEADERS, high, internal } from '@isra/api-types';
 import { AppError } from '../common/app-error';
 import { Clock } from '../common/clock';
 import { isUuid } from '../common/ids';
+import { MembersAccess } from '../domain/access.service';
+import { SupportersService } from '../domain/supporters.service';
 import { AdminMembersService } from './admin-members.service';
 import { AdminService } from './admin.service';
 import { InternalGuard } from './internal.guard';
@@ -22,8 +24,8 @@ const ok = (data: unknown) => ({ success: true, data });
 const okList = (r: { items: unknown[]; page: number; pageSize: number; total: number }) => ({ success: true, data: r.items, meta: { page: r.page, pageSize: r.pageSize, total: r.total } });
 
 /**
- * MID_ADMIN — عضویت (۱.۶.۰؛ docs-v2/30 §۱.۴): فهرست با فیلتر، تأیید/رد تکی و گروهی، نقش‌ها (با session_manager)، حذف،
- * افزودن مستقیم، مدیر، تاریخچهٔ عضویت کاربر، پیام به اعضای جلسه. فقط api-high.
+ * MID_ADMIN — عضویت/صاحب/پشتیبان (۱.۶.۰ و ۱.۷.۰): فهرست با فیلتر، تأیید/رد تکی و گروهی، حذف،
+ * افزودن مستقیم، صاحب جلسه، پشتیبان‌ها، تاریخچهٔ عضویت کاربر، پیام به اعضای جلسه. فقط api-high.
  */
 @Controller('o/internal/v1')
 @InternalRoute()
@@ -33,7 +35,9 @@ export class AdminMembersController {
     private readonly svc: AdminMembersService,
     private readonly admin: AdminService,
     private readonly ds: DataSource,
-    private readonly clock: Clock
+    private readonly clock: Clock,
+    private readonly supporters: SupportersService,
+    private readonly access: MembersAccess
   ) {}
 
   @InternalCallers('high')
@@ -50,16 +54,6 @@ export class AdminMembersController {
     const { actorId: _a, ...rest } = ActorOpt.parse(raw ?? {});
     const b = internal.MidAdminDecide.parse(rest);
     return ok(await this.svc.decide(id(sid), mid, b.action));
-  }
-
-  /** بدنه: AdminSetMemberRolesBody (+actorId اختیاری؛ schema قرارداد strict است و actorId را جدا می‌خوانیم) */
-  @InternalCallers('high')
-  @Put(R.memberRoles)
-  @HttpCode(200)
-  async setRoles(@Param('id') sid: string, @Param('memberId') mid: string, @Body() raw: unknown) {
-    const { actorId, ...rest } = ActorOpt.parse(raw ?? {});
-    const b = internal.MidAdminSetRoles.parse(rest);
-    return ok(await this.svc.setRoles(id(sid), mid, b.roles, actorId ?? null));
   }
 
   @InternalCallers('high')
@@ -86,14 +80,71 @@ export class AdminMembersController {
     return ok(await this.svc.decideBulk(id(sid), internal.MidAdminDecideBulk.parse(raw)));
   }
 
-  /** H-74: پاسخ AdminSession به‌روز */
+  /** H-74 (۱.۷.۰): تغییر استاد صاحب؛ پاسخ AdminSession به‌روز */
   @InternalCallers('high')
-  @Put(R.manager)
+  @Put(R.owner)
   @HttpCode(200)
-  async manager(@Param('id') sid: string, @Body() raw: unknown) {
-    const b = internal.MidAdminManager.parse(raw);
-    await this.svc.manager(id(sid), b);
+  async owner(@Param('id') sid: string, @Body() raw: unknown) {
+    const b = internal.MidAdminOwner.parse(raw);
+    await this.svc.owner(id(sid), b);
     return ok(await this.admin.one(sid));
+  }
+
+  /** مهاجرت high: صاحبان جلسه (اعطای نقش teacher) */
+  @InternalCallers('high')
+  @Get(R.sessionOwners)
+  async sessionOwners(@Query() raw: unknown) {
+    const q = internal.MidAdminSessionOwnersQuery.parse(raw);
+    return okList(await this.svc.sessionOwners(q.page, q.pageSize));
+  }
+
+  // ───── پشتیبان‌ها (H-104..H-109) ─────
+  @InternalCallers('high')
+  @Get(R.teacherSupporters)
+  async teacherSupporters(@Param('id') uid: string, @Query() raw: unknown) {
+    const q = internal.MidAdminSupportersQuery.parse(raw);
+    return okList(await this.supporters.listTeacher(id(uid), q.page, q.pageSize));
+  }
+
+  @InternalCallers('high')
+  @Put(R.teacherSupporter)
+  @HttpCode(200)
+  async putTeacherSupporter(@Param('id') uid: string, @Param('supporterId') supporterId: string, @Body() raw: unknown) {
+    const b = internal.MidAdminSupporterPut.parse(raw);
+    return ok(await this.supporters.setTeacher(id(uid), { userId: id(supporterId) }, b.permissions, { actorId: b.actorId, mode: 'upsert', names: { firstName: b.firstName, lastName: b.lastName } }));
+  }
+
+  @InternalCallers('high')
+  @Delete(R.teacherSupporter)
+  @HttpCode(200)
+  async removeTeacherSupporter(@Param('id') uid: string, @Param('supporterId') supporterId: string, @Query() raw: unknown) {
+    internal.MidAdminActorQuery.parse(raw);
+    return ok(await this.supporters.removeTeacher(id(uid), supporterId));
+  }
+
+  @InternalCallers('high')
+  @Get(R.supporters)
+  async sessionSupporters(@Param('id') sid: string, @Query() raw: unknown) {
+    const q = internal.MidAdminSupportersQuery.parse(raw);
+    const s = await this.access.session(this.ds, id(sid), false, true);
+    if (!s) throw new AppError('NOT_FOUND', { message: 'جلسه پیدا نشد.' });
+    return okList(await this.supporters.listSessionOf(s, q.page, q.pageSize));
+  }
+
+  @InternalCallers('high')
+  @Put(R.supporter)
+  @HttpCode(200)
+  async putSessionSupporter(@Param('id') sid: string, @Param('userId') userId: string, @Body() raw: unknown) {
+    const b = internal.MidAdminSupporterPut.parse(raw);
+    return ok(await this.supporters.adminPutSession(id(sid), id(userId), b.permissions, b.actorId, { firstName: b.firstName, lastName: b.lastName }));
+  }
+
+  @InternalCallers('high')
+  @Delete(R.supporter)
+  @HttpCode(200)
+  async removeSessionSupporter(@Param('id') sid: string, @Param('userId') userId: string, @Query() raw: unknown) {
+    internal.MidAdminActorQuery.parse(raw);
+    return ok(await this.supporters.removeSession(null, id(sid), userId));
   }
 
   @InternalCallers('high')

@@ -1,25 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Settings, Save, AlertTriangle, CheckCircle2, RotateCcw, Shield } from 'lucide-react';
+import { Settings, Save } from 'lucide-react';
 import { H30_getSettings, H31_updateSettings } from '@/api/endpoints/system';
-import { DonutChart } from '@/components/ui/Charts/DonutChart';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import { Switch } from '@/components/ui/Switch';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/Toast';
 import { toPersianDigits } from '@/lib/format';
-import { SystemSettings } from '@/api/types';
+import type { UpdateSettingsBody } from '@/api/types';
 
 export const SettingsRoute: React.FC = () => {
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useToast();
 
-  const [voice, setVoice] = useState(30);
-  const [tone, setTone] = useState(30);
-  const [tajweed, setTajweed] = useState(40);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [registrationOpen, setRegistrationOpen] = useState(true);
 
@@ -34,24 +29,14 @@ export const SettingsRoute: React.FC = () => {
 
   useEffect(() => {
     if (settings) {
-      setVoice(settings.evalWeights?.voice ?? 30);
-      setTone(settings.evalWeights?.tone ?? 30);
-      setTajweed(settings.evalWeights?.tajweed ?? 40);
       setMaintenanceMode(settings.flags?.maintenance_mode ?? false);
       setRegistrationOpen(settings.flags?.registration_open ?? true);
     }
   }, [settings]);
 
-  const totalWeights = voice + tone + tajweed;
-  const isWeightValid = totalWeights === 100;
-
   const updateMutation = useMutation({
-    mutationFn: (body: {
-      version: number;
-      evalWeights: { voice: number; tone: number; tajweed: number };
-      badgeThresholds: unknown[];
-      flags: { maintenance_mode: boolean; registration_open: boolean };
-    }) => H31_updateSettings(body),
+    // ۱.۷.۰: evalWeights (⇒ معیارهای ارزیابی H-100..H-103) و badgeThresholds (⇒ نشان‌ها) از تنظیمات حذف شدند
+    mutationFn: (body: UpdateSettingsBody) => H31_updateSettings(body),
     onSuccess: (updated) => {
       showSuccess('تنظیمات سراسری سامانه با موفقیت ذخیره شد');
       queryClient.setQueryData(['system', 'settings'], updated);
@@ -68,11 +53,9 @@ export const SettingsRoute: React.FC = () => {
   });
 
   const handleSave = () => {
-    if (!settings || !isWeightValid) return;
+    if (!settings) return;
     updateMutation.mutate({
       version: settings.version,
-      evalWeights: { voice, tone, tajweed },
-      badgeThresholds: settings.badgeThresholds || [],
       flags: {
         maintenance_mode: maintenanceMode,
         registration_open: registrationOpen,
@@ -114,13 +97,13 @@ export const SettingsRoute: React.FC = () => {
             </span>
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            وزن‌دهی معیارهای داوری و ارزیابی قرآن، وضعیت ثبت‌نام و پرچم‌های عملیاتی
+            وضعیت ثبت‌نام و پرچم‌های عملیاتی
           </p>
         </div>
 
         <Button
           size="sm"
-          disabled={!isWeightValid || updateMutation.isPending}
+          disabled={updateMutation.isPending}
           loading={updateMutation.isPending}
           onClick={handleSave}
           icon={<Save className="w-3.5 h-3.5" />}
@@ -130,64 +113,6 @@ export const SettingsRoute: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Card 1: Evaluation Weights */}
-        <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl shadow-xs space-y-6">
-          <div className="space-y-1">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white">ضرایب و وزن‌های ارزیابی تلاوت</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              مجموع اوزان سه معیار صوت، لحن و تجوید باید دقیقاً برابر با ۱۰۰ باشد.
-            </p>
-          </div>
-
-          {/* Interactive Donut Preview */}
-          <div className="p-4 bg-slate-50/70 dark:bg-slate-800/40 rounded-2xl flex items-center justify-center">
-            <DonutChart
-              slices={[
-                { label: 'تجوید', value: tajweed, color: '#6E56CF' },
-                { label: 'صوت', value: voice, color: '#10B981' },
-                { label: 'لحن', value: tone, color: '#F59E0B' },
-              ]}
-              centerLabel="مجموع"
-              centerValue={`${toPersianDigits(totalWeights)}٪`}
-            />
-          </div>
-
-          {/* Weight Inputs */}
-          <div className="grid grid-cols-3 gap-3">
-            <Input
-              label="تجوید (٪)"
-              type="number"
-              value={String(tajweed)}
-              onChange={(e) => setTajweed(Number(e.target.value) || 0)}
-              min={0}
-              max={100}
-            />
-            <Input
-              label="صوت (٪)"
-              type="number"
-              value={String(voice)}
-              onChange={(e) => setVoice(Number(e.target.value) || 0)}
-              min={0}
-              max={100}
-            />
-            <Input
-              label="لحن (٪)"
-              type="number"
-              value={String(tone)}
-              onChange={(e) => setTone(Number(e.target.value) || 0)}
-              min={0}
-              max={100}
-            />
-          </div>
-
-          {!isWeightValid && (
-            <div className="p-3 rounded-xl bg-rose-50 text-rose-700 text-xs font-medium flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0" />
-              <span>مجموع اوزان باید دقیقاً ۱۰۰ باشد (مجموع فعلی: {toPersianDigits(totalWeights)})</span>
-            </div>
-          )}
-        </div>
-
         {/* Card 2: Operational Flags */}
         <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl shadow-xs space-y-6">
           <div className="space-y-1">

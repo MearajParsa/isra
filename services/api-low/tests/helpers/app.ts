@@ -4,6 +4,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { createApp } from '../../src/bootstrap';
+import { BASELINE_SEED } from '../../src/db/migrations/1728800000010-LowV17';
 import { Clock } from '../../src/common/clock';
 import { type Env, loadEnv } from '../../src/config/env';
 import { CapturingSmsProvider } from '../../src/sms/capturing.provider';
@@ -69,6 +70,8 @@ export async function resetDb(ds: DataSource) {
   await ds.query('SET FOREIGN_KEY_CHECKS = 0');
   for (const t of TABLES) await ds.query(`TRUNCATE TABLE ${t}`);
   await ds.query('SET FOREIGN_KEY_CHECKS = 1');
+  // seed migration LowV17 (baseline مهمان/قرآن‌آموز) — TRUNCATE settings_cache آن را پاک می‌کند
+  await ds.query("INSERT INTO settings_cache (setting_key, value, version, updated_at) VALUES ('tier_baseline', ?, 0, NOW(3))", [JSON.stringify(BASELINE_SEED)]);
 }
 
 let ipCounter = 10;

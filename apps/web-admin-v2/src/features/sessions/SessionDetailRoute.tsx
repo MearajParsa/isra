@@ -24,7 +24,6 @@ import {
   H65_deleteSession,
   H66_getSessionMembers,
   H67_decideMember,
-  H68_setMemberRoles,
   H69_deleteMember,
   H70_getSessionAttendance,
   H71_getSessionQueue,
@@ -345,13 +344,6 @@ export const SessionDetailRoute: React.FC = () => {
                         {m.status === 'approved' ? 'عضو تأیید شده' : m.status === 'pending' ? 'در انتظار تأیید' : 'رد شده'}
                       </span>
                     </div>
-                    <div className="flex flex-wrap gap-1 pt-1">
-                      {m.roles.map((r) => (
-                        <span key={r} className="text-[9px] px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700">
-                          {r === 'teacher' ? 'مربی' : r === 'session_supporter' ? 'پشتیبان' : 'قرآن‌آموز'}
-                        </span>
-                      ))}
-                    </div>
                   </div>
 
                   <div className="flex items-center gap-1.5">
@@ -489,11 +481,14 @@ export const SessionDetailRoute: React.FC = () => {
                         نمره: {toPersianDigits(ev.score)} / ۱۰۰
                       </span>
                     </div>
-                    <div className="flex items-center gap-4 text-slate-500 text-[11px]">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-500 text-[11px]">
                       <span>داور: {ev.evaluatorName}</span>
-                      <span>صوت: {toPersianDigits(ev.voice)}</span>
-                      <span>لحن: {toPersianDigits(ev.tone)}</span>
-                      <span>تجوید: {toPersianDigits(ev.tajweed)}</span>
+                      {/* ۱.۷.۰: snapshot معیارهای پویا در لحظهٔ ثبت */}
+                      {ev.criteria.map((c) => (
+                        <span key={c.criterionId}>
+                          {c.title}: {toPersianDigits(c.score)}/{toPersianDigits(c.maxScore)}
+                        </span>
+                      ))}
                       <span>امتیاز اعطا شده: +{toPersianDigits(ev.points)}</span>
                     </div>
                     {ev.note && (

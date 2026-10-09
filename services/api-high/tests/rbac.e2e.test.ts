@@ -257,7 +257,7 @@ describe('ماتریس و دسترسی مؤثر (۵)', () => {
     const r1 = await a.get('/system/rbac/matrix', dev);
     expect(r1.status).toBe(200);
     expect(r1.body.data.modules.length).toBeGreaterThanOrEqual(7);
-    expect(r1.body.data.permissions).toHaveLength(19);
+    expect(r1.body.data.permissions).toHaveLength(32);
     const etag = r1.headers.etag!;
     expect(etag).toBeTruthy();
     const r2 = await a.get('/system/rbac/matrix', { ...dev.h, 'If-None-Match': etag });
@@ -266,7 +266,7 @@ describe('ماتریس و دسترسی مؤثر (۵)', () => {
     const r3 = await a.get('/system/rbac/matrix', { ...dev.h, 'If-None-Match': etag });
     expect(r3.status).toBe(200);
     expect(r3.body.data.version).toBeGreaterThan(r1.body.data.version);
-    expect(r3.body.data.roles.map((r: { key: string }) => r.key)).toEqual(['developer', 'super_admin', 'newrole']);
+    expect(r3.body.data.roles.map((r: { key: string }) => r.key)).toEqual(['developer', 'guest', 'quran_student', 'super_admin', 'teacher', 'newrole']);
   });
 
   it('H-93/H-94: منابع (role/module/grant) و stepUp نهایی', async () => {
@@ -284,7 +284,8 @@ describe('ماتریس و دسترسی مؤثر (۵)', () => {
     expect(by('session.create').sources).toEqual([{ type: 'grant', ref: 'session.create', stepUp: 'none' }]);
     const mine = await a.get('/system/me/access', u);
     expect(mine.status).toBe(200);
-    expect(mine.body.data.permissions.map((p: { key: string }) => p.key)).toEqual(['session.create', 'system.reports.view', 'system.users.view']);
+    // ۱.۷.۰: + baseline ضمنی quran_student (learning)
+    expect(mine.body.data.permissions.map((p: { key: string }) => p.key)).toEqual(['comment.post', 'gallery.view', 'points.view', 'session.browse', 'session.create', 'session.join', 'system.reports.view', 'system.users.view']);
     expect((await a.get(`/system/rbac/effective/${crypto.randomUUID()}`, dev)).status).toBe(404);
     const devAccess = (await a.get('/system/me/access', dev)).body.data;
     expect(devAccess.stepUpExempt).toBe(true);
@@ -295,13 +296,13 @@ describe('ماتریس و دسترسی مؤثر (۵)', () => {
     const dev = await mkUser(t, 'توسعه', ['developer']);
     await mkRole(dev, 'viewer', { permissions: ['system.users.view'] });
     const roles = await a.get('/system/roles?pageSize=10', dev);
-    expect(roles.body.meta.total).toBe(3);
+    expect(roles.body.meta.total).toBe(6);
     expect(roles.body.data[0]).toMatchObject({ key: 'developer', undeletable: true });
     expect(roles.body.data.find((r: { key: string }) => r.key === 'viewer').holders).toBe(0);
     const perms = await a.get('/system/permissions?pageSize=50', dev);
-    expect(perms.body.meta.total).toBe(19);
-    expect(perms.body.data.find((p: { key: string }) => p.key === 'session.create')).toMatchObject({ grantable: true, moduleKey: 'sessions', isSystem: true, stepUp: 'none' });
-    expect((await a.get('/system/modules', dev)).body.meta.total).toBe(10);
+    expect(perms.body.meta.total).toBe(32);
+    expect(perms.body.data.find((p: { key: string }) => p.key === 'session.create')).toMatchObject({ grantable: true, moduleKey: 'teaching', isSystem: true, stepUp: 'none' });
+    expect((await a.get('/system/modules', dev)).body.meta.total).toBe(13);
     // نقش بدون مجوز ⇒ H-14 ممنوع، H-88 مجاز
     await mkRole(dev, 'empty');
     const e = await mkUser(t, 'خالی', ['empty']);
@@ -432,15 +433,15 @@ describe('تست امنیت guard (۸) و مهاجرت (۷)', () => {
 
   it('seed مهاجرت: ۷ ماژول، ۱۴ مجوز، نقش‌های قبلی سالم، سه مجوز تازه فقط developer', async () => {
     const rows = (q: string) => t.ds.query(q) as Promise<Record<string, any>[]>;
-    expect((await rows('SELECT module_key FROM system_modules WHERE is_system = 1')).length).toBe(10);
-    expect((await rows('SELECT permission_key FROM permissions WHERE is_system = 1')).length).toBe(19);
+    expect((await rows('SELECT module_key FROM system_modules WHERE is_system = 1')).length).toBe(13);
+    expect((await rows('SELECT permission_key FROM permissions WHERE is_system = 1')).length).toBe(32);
     const sa = (await rows("SELECT permission_key FROM role_permissions WHERE role_key = 'super_admin'")).map((r) => r.permission_key);
     expect(sa).toHaveLength(9);
-    for (const p of ['system.role.manage', 'system.permission.manage', 'system.stepup.manage', 'system.sessions.moderate', 'system.points.manage', 'system.badges.manage', 'system.inbox.send', 'system.data.export']) {
+    for (const p of ['system.role.manage', 'system.permission.manage', 'system.stepup.manage', 'system.sessions.moderate', 'system.points.manage', 'system.badges.manage', 'system.inbox.send', 'system.data.export', 'system.evaluation.manage', 'system.content.moderate', 'system.roles.mid.manage', 'system.roles.low.manage']) {
       expect(sa).not.toContain(p);
       expect((await rows(`SELECT locked FROM role_permissions WHERE role_key = 'developer' AND permission_key = '${p}'`))[0]!.locked).toBe(1);
     }
-    expect((await rows("SELECT undeletable FROM system_roles ORDER BY role_key")).map((r) => r.undeletable)).toEqual([1, 1]);
+    expect((await rows("SELECT undeletable FROM system_roles ORDER BY role_key")).map((r) => r.undeletable)).toEqual([1, 1, 1, 1, 1]);
     expect(Number((await rows('SELECT version FROM rbac_meta'))[0]!.version)).toBe(1);
   });
 

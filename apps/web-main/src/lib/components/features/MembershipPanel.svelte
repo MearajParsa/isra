@@ -15,26 +15,30 @@
   }
   let { sessionId, status, me, busy = false, onrequest }: Props = $props();
   const m = $derived(me.membership);
-  const staff = $derived(me.permissions.length > 0);
+  /** ۱.۷.۰: صاحب/پشتیبان ردیف عضویت ندارند (membership = null) */
+  const staff = $derived(me.role === 'owner' || me.role === 'supporter');
 </script>
 
-{#if status === 'ended' && m?.status !== 'approved'}
-  <NoticeBanner tone="info">این جلسه پایان یافته است.</NoticeBanner>
-{:else if !m}
-  <p class="muted small">برای حضور در جلسه ابتدا عضو شوید. درخواست شما برای مدیر یا پشتیبان جلسه ارسال می‌شود.</p>
-  <Button full loading={busy} onclick={onrequest}>درخواست عضویت</Button>
-{:else if m.status === 'pending'}
-  <NoticeBanner tone="warning">درخواست عضویت شما ثبت شد و در انتظار تأیید مدیر یا پشتیبان جلسه است.</NoticeBanner>
-{:else if m.status === 'rejected'}
-  <NoticeBanner tone="error">درخواست عضویت شما در این جلسه پذیرفته نشد.</NoticeBanner>
-{:else}
-  <div class="role"><span class="muted small">نقش شما:</span><RoleChips roles={m.roles} /></div>
+{#if staff}
+  <div class="role"><span class="muted small">نقش شما:</span><RoleChips role={me.role} /></div>
   <Button full href={`/sessions/${sessionId}/live`}>
     <Icon name="mic" size={18} />{status === 'started' ? 'ورود به اتاق جلسه' : 'اتاق جلسه'}
   </Button>
-  {#if staff}
-    <Button full variant="secondary" href={`/manage/${sessionId}`}><Icon name="shield" size={18} />پنل مدیریت جلسه</Button>
-  {/if}
+  <Button full variant="secondary" href={`/manage/${sessionId}`}><Icon name="shield" size={18} />پنل مدیریت جلسه</Button>
+{:else if status === 'ended' && m?.status !== 'approved'}
+  <NoticeBanner tone="info">این جلسه پایان یافته است.</NoticeBanner>
+{:else if !m}
+  <p class="muted small">برای حضور در جلسه ابتدا عضو شوید. درخواست شما برای استاد یا پشتیبان جلسه ارسال می‌شود.</p>
+  <Button full loading={busy} onclick={onrequest}>درخواست عضویت</Button>
+{:else if m.status === 'pending'}
+  <NoticeBanner tone="warning">درخواست عضویت شما ثبت شد و در انتظار تأیید استاد یا پشتیبان جلسه است.</NoticeBanner>
+{:else if m.status === 'rejected'}
+  <NoticeBanner tone="error">درخواست عضویت شما در این جلسه پذیرفته نشد.</NoticeBanner>
+{:else}
+  <div class="role"><span class="muted small">نقش شما:</span><RoleChips role="member" /></div>
+  <Button full href={`/sessions/${sessionId}/live`}>
+    <Icon name="mic" size={18} />{status === 'started' ? 'ورود به اتاق جلسه' : 'اتاق جلسه'}
+  </Button>
 {/if}
 
 <style>

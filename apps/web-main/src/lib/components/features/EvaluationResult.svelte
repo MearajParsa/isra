@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Evaluation } from '$lib/api/mid-types';
   import { formatNumber, formatRelative } from '$lib/utils/format';
+  import { weightShare } from '$lib/utils/evaluation';
 
   interface Props {
     evaluation: Evaluation;
@@ -9,11 +10,8 @@
   }
   let { evaluation: e, staff = false }: Props = $props();
 
-  const bars = $derived([
-    { k: 'صوت', v: e.voice, w: e.weights.voice },
-    { k: 'لحن', v: e.tone, w: e.weights.tone },
-    { k: 'تجوید', v: e.tajweed, w: e.weights.tajweed }
-  ]);
+  /** snapshot معیارها در لحظهٔ ثبت (۱.۷.۰؛ تغییر بعدی معیار اثری ندارد) */
+  const bars = $derived(e.criteria.map((c) => ({ id: c.criterionId, k: c.title, v: c.score, max: c.maxScore, w: weightShare(c.weight, e.criteria) })));
 </script>
 
 <article class="card">
@@ -27,11 +25,11 @@
     </div>
   </div>
   <ul class="bars">
-    {#each bars as b (b.k)}
+    {#each bars as b (b.id)}
       <li>
         <span class="k">{b.k} <span class="muted">({formatNumber(b.w)}٪)</span></span>
-        <span class="bar" aria-hidden="true"><span style:width="{b.v * 10}%"></span></span>
-        <span class="v">{formatNumber(b.v)}</span>
+        <span class="bar" aria-hidden="true"><span style:width="{b.max > 0 ? (b.v / b.max) * 100 : 0}%"></span></span>
+        <span class="v" title={`از ${formatNumber(b.max)}`}>{formatNumber(b.v)}</span>
       </li>
     {/each}
   </ul>

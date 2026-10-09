@@ -22,7 +22,12 @@ export interface VerifiedAccess {
   sessionId: string;
   deviceId?: string;
   permVer: number;
+  /** claimهای امضاشدهٔ `roles`/`perms` (مجوز مؤثر نقش‌های اختصاص‌یافته؛ docs-v2/31 §۱) */
+  roles: string[];
+  perms: string[];
 }
+
+const claimList = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
 
 /** صدور و اعتبارسنجی access JWT (RS256 pin‌شده؛ iss/aud/exp/clock-skew) */
 @Injectable()
@@ -60,7 +65,7 @@ export class TokenService {
       });
       // توکن step-up (lvl=stepup) هرگز به‌عنوان access پذیرفته نمی‌شود
       if (typeof payload.sub !== 'string' || typeof payload.sid !== 'string' || payload.lvl !== 'low') throw new AppError('AUTH_TOKEN_INVALID');
-      return { userId: payload.sub, sessionId: payload.sid, deviceId: typeof payload.did === 'string' ? payload.did : undefined, permVer: typeof payload.pv === 'number' ? payload.pv : 1 };
+      return { userId: payload.sub, sessionId: payload.sid, deviceId: typeof payload.did === 'string' ? payload.did : undefined, permVer: typeof payload.pv === 'number' ? payload.pv : 1, roles: claimList(payload.roles), perms: claimList(payload.perms) };
     } catch (e) {
       if (e instanceof AppError) throw e;
       if (e instanceof errors.JWTExpired) throw new AppError('AUTH_TOKEN_EXPIRED');

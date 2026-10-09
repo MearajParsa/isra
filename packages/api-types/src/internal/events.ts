@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { IranMobile, IsoDateTime, Uuid } from '../core/primitives';
-import { SystemRoleKey } from '../high/schemas';
+import { PermissionKey, SystemRoleKey } from '../high/schemas';
 import { AnonPhone, UserStatus } from '../high/schemas';
 
 /**
@@ -66,3 +66,38 @@ export const BadgeCatalogChanged = z.object({
 });
 /** فرستنده: mid ⇒ low. low کش L-21/L-23 همان کاربر را باطل می‌کند */
 export const PointsChanged = z.object({ userId: Uuid, total: z.number().int().min(0) });
+
+// ───────────────────────── ۱.۷.۰ (docs-v2/31) ─────────────────────────
+export const EVENT_TYPES_V17 = ['evaluation.criteria.changed', 'tier.baseline.changed'] as const;
+
+/**
+ * فرستنده: high ⇒ mid. کاتالوگ کامل معیارها (فعال و غیرفعال). mid کش محلی (M-45، اعتبارسنجی M-40) را با `version` بزرگ‌تر جایگزین می‌کند؛
+ * نسخهٔ کوچک‌تر/مساوی ⇒ no-op (ترتیب تحویل outbox تضمین نیست).
+ */
+export const EvaluationCriteriaChanged = z.object({
+  version: z.number().int().min(1),
+  criteria: z
+    .array(
+      z.object({
+        id: Uuid,
+        key: z.string().max(32),
+        title: z.string().max(60),
+        description: z.string().max(300),
+        weight: z.number().int().min(1).max(100),
+        maxScore: z.number().int().min(1).max(100),
+        active: z.boolean(),
+        sortOrder: z.number().int().min(0)
+      })
+    )
+    .min(1)
+    .max(15)
+});
+/**
+ * فرستنده: high ⇒ low و mid. مجوزهای مؤثر نقش‌های ضمنی: `guest` (درخواست بی‌توکن) و `quran_student` (هر کاربر ثبت‌نام‌کرده).
+ * مصرف‌کننده: مجوز مؤثر = baseline ∪ claim JWT؛ کش با `version` (کوچک‌تر/مساوی ⇒ no-op).
+ */
+export const TierBaselineChanged = z.object({
+  version: z.number().int().min(1),
+  guest: z.array(PermissionKey).max(256),
+  quran_student: z.array(PermissionKey).max(256)
+});

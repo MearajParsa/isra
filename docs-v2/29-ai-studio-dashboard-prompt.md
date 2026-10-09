@@ -32,7 +32,8 @@ I attach:
 (3) the font files `YekanBakhFaNum-Regular.woff2` and `YekanBakhFaNum-Bold.woff2` (put them in `public/fonts/`).
 
 ══════════ 0. PRODUCT ══════════
-"Isra" (اسراء) is a Quran-session platform. This dashboard is the SYSTEM ADMIN PANEL for developers and administrators. Everything in the system is a MODULE; access is controlled by dynamic ROLES, PERMISSIONS and MODULES that admins create/edit in this UI. UI is Persian only (fa-IR), RTL, Jalali calendar, Persian digits, time zone Asia/Tehran (UTC+03:30), business week Saturday → Friday. No i18n framework.
+"Isra" (اسراء) is a Quran-session platform. This dashboard is the SYSTEM ADMIN PANEL for developers and administrators. Everything in the system is a MODULE; access is controlled by dynamic ROLES, PERMISSIONS and MODULES that admins create/edit in this UI.
+THREE TIERS (every role and module has `tier`: high | mid | low): HIGH = `developer` (fixed, holds everything, immutable) and `super_admin` (fixed role; its permissions are set by developers) + dynamic admin roles; MID = `teacher` (fixed role, dynamic permissions) + dynamic mid roles; LOW = `guest` (anonymous visitors) and `quran_student` (every registered user implicitly) — fixed roles with dynamic permissions + dynamic low roles. Editing roles of tier mid needs `system.roles.mid.manage`; tier low needs `system.roles.low.manage`. Inside a session there are only three relations: `owner` (the teacher who owns the session; has every in-session permission), `supporter` (optional helper: FIXED = for all sessions of a teacher, or PER-SESSION; holds only the delegated permissions from the H-48 catalog), `member` (quran student). Evaluation criteria are DYNAMIC (H-100..H-103). Each occurrence can have several GALLERIES (image/audio; visibility public/members/staff) and COMMENTS (during a recitation, tied to the reciter and second; session setting commentVisibility public | reciter_only). UI is Persian only (fa-IR), RTL, Jalali calendar, Persian digits, time zone Asia/Tehran (UTC+03:30), business week Saturday → Friday. No i18n framework.
 
 ══════════ 1. STACK (fixed) ══════════
 TypeScript strict (noUncheckedIndexedAccess) · React 19 · Vite (static SPA in `dist/`, no SSR, no server code) · React Router (data router `createBrowserRouter`, `basename = import.meta.env.BASE_URL`) · TanStack Query v5 · react-hook-form + zod · Tailwind CSS v4 with logical properties only (ps/pe/ms/me/start/end — never left/right) · Radix UI primitives (Dialog, DropdownMenu, Tabs, Tooltip, Popover, Select, Switch, Checkbox) · lucide-react (per-icon imports) · hand-written inline-SVG charts (no chart library) · vite-plugin-pwa · Vitest + Testing Library.
@@ -46,7 +47,7 @@ FORBIDDEN: express or any server code, @google/genai or any AI SDK, dotenv, axio
 - `src/api/index.ts`: exports the single `api: AdminApi` instance. During development it is the mock: `export const api: AdminApi = createMockApi()`. In the FINAL step this file will switch to `createHttpApi()` and the whole `src/api/mock/` folder will be deleted — so NOTHING outside `src/api/` may import from `src/api/mock/`, and the UI must never know which implementation it is talking to.
 - `src/api/mock/` = the MOCK BACKEND:
   • `db.ts`: localStorage persistence under keys prefixed `isra.mock.v1.` with a schema version; JSON-serialised tables (users, roles, permissions, modules, roleModules, stepUpRules, sessions, members, attendance, queue, evaluations, auditLogs, settings, devices…). Write-through with debounced saving; tolerate corrupted/blocked storage (reset to seed).
-  • `seed.ts`: deterministic realistic Persian seed: ~120 users (Iranian first/last names, unique `09xxxxxxxxx` phones, mixed status active/disabled/deleted where deleted phones look like `d` + 10 hex), the system roles `developer` and `super_admin`, the modules + system permissions table below, ~40 sessions across all statuses with members (session roles teacher / session_supporter / quran_student / session_manager), attendance, queue items, evaluations, ~300 audit entries spread over the last 90 days, and settings `{ version, evalWeights {voice 40, tone 30, tajweed 30}, badgeThresholds [50,150,300,500], flags {maintenance_mode false, registration_open true} }`.
+  • `seed.ts`: deterministic realistic Persian seed: ~120 users (Iranian first/last names, unique `09xxxxxxxxx` phones, mixed status active/disabled/deleted where deleted phones look like `d` + 10 hex), the system roles `developer` and `super_admin`, the modules + system permissions table below, the fixed roles `teacher` (mid), `guest` and `quran_student` (low) with tiers, ~10 teachers each with 0–2 FIXED supporters, ~40 sessions across all statuses each with an `owner` (teacher), 0–2 per-session supporters (with delegated permission subsets) and members, occurrences, attendance, queue items, 3 evaluation criteria (voice 40/10, tone 30/10, tajweed 30/10) + evaluations storing a per-criterion score snapshot, galleries per occurrence (image+audio, mixed visibility, with tiny generated placeholder SVG/PNG data URLs and a 1-second silent audio data URL) and comments (some tied to a queue item with atSec, some hidden), ~300 audit entries spread over the last 90 days, and settings `{ version, flags {maintenance_mode false, registration_open true} }`.
   • `server.ts`: an in-browser "server" that implements each `AdminApi` method with THE SAME RULES THE REAL SERVER HAS (read them from the reference descriptions): validation with zod mirroring the reference constraints (strict bodies → `VALIDATION_FAILED` with `details.fields`), pagination caps, filters & sorting, permission checks for the current persona (`AUTH_FORBIDDEN`), step-up enforcement (see §3), `CONFLICT` with the right `details.reason` (KEY_TAKEN, SYSTEM_PROTECTED, ROLE_IN_USE, MODULE_NOT_EMPTY, LOCKED_PERMISSION, LAST_HOLDER, PHONE_TAKEN, SELF_PROTECTED, ALREADY_MEMBER, VERSION_MISMATCH, …), `NOT_FOUND`, idempotency (same Idempotency-Key ⇒ same result, no double write), an audit entry for every successful write (action names like `user.create`, `role.permissions.updated`, `session.member.add` …), random latency 150–600 ms, and cancellation via AbortSignal.
   • Reports (H-80..H-84) are COMPUTED from the mock tables (bucketed by day / week starting Saturday / month in Asia/Tehran), never hard-coded numbers.
 - Mock auth: OTP request returns a challenge; the valid OTP code is always `11111` (show it in the dev toolbar); password login accepts any user that has `hasPassword`, password `Passw0rd!`. Access token = random string kept in memory only; the "refresh" works while the tab lives and via a non-secret localStorage hint `isra.admin.session=1`. Tokens are NEVER stored in localStorage — not even in mock mode.
@@ -69,7 +70,7 @@ Sensitive endpoints are "step-up capable" (marked in the reference). The SERVER 
 6. Permission helpers: `can(perm)`, `<Can perm>`, route guards.
 7. Utilities (unit-tested): Jalali ⇄ Gregorian, Persian number/date formatting with `Intl` (`fa-IR-u-ca-persian`, Asia/Tehran), digit normalisation, phone formatting/masking (`0912***1234`), CSV builder with UTF-8 BOM and formula-injection neutralisation.
 8. PWA skeleton: manifest (name «اسراء — پنل مدیریت», short_name «پنل اسراء», lang fa, dir rtl, start_url/scope = BASE_URL, standalone, icons 192/512/maskable), service worker precaching only the app shell, NEVER caching API calls; update-available prompt; install button.
-9. Navigation (Persian labels, in this order; disabled «به‌زودی» until built): داشبورد · کاربران · جلسه‌ها · دسترسی‌ها (ماتریس، نقش‌ها، مجوزها، ماژول‌ها، سیاست تأیید هویت) · نشان‌ها · پیام همگانی · گزارش‌ها · گزارش اقدام‌ها · تنظیمات · حساب من.
+9. Navigation (Persian labels, in this order; disabled «به‌زودی» until built): داشبورد · کاربران · جلسه‌ها · محتوا (گالری‌ها و کامنت‌ها) · دسترسی‌ها (ماتریس، نقش‌ها، مجوزها، ماژول‌ها، سیاست تأیید هویت، مجوزهای پشتیبان) · معیارهای ارزیابی · نشان‌ها · پیام همگانی · گزارش‌ها · گزارش اقدام‌ها · تنظیمات · حساب من.
 10. Pages now: Login, Forced password change, 403, 404, offline, a placeholder Overview ("داشبورد") that only greets the persona. All other menu items disabled «به‌زودی».
 
 ══════════ 5. NON-NEGOTIABLE QUALITY RULES (apply to every later page too) ══════════
@@ -93,12 +94,17 @@ settings: system.settings.view (none), system.settings.edit (required)
 audit: system.audit.view (none)
 sessions_admin: system.sessions.view (none), system.sessions.manage (required)
 reports: system.reports.view (none)
-sessions: session.create (none, grantable)
 sessions_admin (also): system.sessions.moderate (none)
+access (also): system.roles.mid.manage (required), system.roles.low.manage (required)
+evaluation: system.evaluation.manage (required)
+content_admin: system.content.moderate (none)
+teaching [tier mid]: session.create, session.manage_own, supporter.manage_own, evaluation.submit_own, gallery.manage_own (all none)
+learning [tier low]: session.browse, session.join, comment.post, gallery.view, points.view (all none)
+All modules above without a tier mark are tier high.
 gamification: system.points.manage (required), system.badges.manage (required)
 messaging: system.inbox.send (required)
 exports: system.data.export (required)
-Role `developer` holds every permission (locked, read-only). Role `super_admin` holds: system.users.view, system.role.assign, system.permission.edit, system.settings.view, system.settings.edit, system.audit.view, system.sessions.view, system.reports.view, session.create (locked: users.view, role.assign, permission.edit, audit.view).
+Role `developer` holds every permission (locked, read-only). Role `super_admin` holds: system.users.view, system.role.assign, system.permission.edit, system.settings.view, system.settings.edit, system.audit.view, system.sessions.view, system.reports.view, session.create (locked: users.view, role.assign, permission.edit, audit.view). Role `teacher` = whole `teaching` + whole `learning`. `quran_student` = whole `learning`. `guest` = session.browse + gallery.view. Fixed roles cannot be deleted (SYSTEM_PROTECTED).
 ```
 
 ---
@@ -139,16 +145,16 @@ Output only new/changed files + manual test checklist.
 ```text
 PAGE 4 — Access matrix ("/access/matrix"). Keep all FOUNDATION rules. Build ONLY this page.
 Endpoints: H-92 (modules + permissions + roles + step-up rules + version; ETag), H-12 (explicit permissions of a role), H-17 (whole-module grants of a role), H-94 (my effective access — to disable toggles I am not allowed to grant).
-UI: matrix with roles as columns and permissions grouped by module as rows (collapsible module rows with a "grant whole module" toggle per role); cell states: explicit, inherited-from-module (distinct, not removable individually), locked (padlock), developer column read-only; sticky header/first column; on mobile a per-role accordion editor. Unsaved-changes bar with a diff summary; Save calls H-12/H-17 as needed. Proactively disable grants the actor doesn't hold (anti-escalation) but still handle AUTH_FORBIDDEN/LOCKED_PERMISSION from the server.
-Mock: anti-escalation, locked permissions, developer immutable, module grants include future permissions.
+UI: tier filter (همه / بالا / میانی / پایین) on top; matrix with roles as columns and permissions grouped by module as rows (collapsible module rows with a "grant whole module" toggle per role); cell states: explicit, inherited-from-module (distinct, not removable individually), locked (padlock), developer column read-only; sticky header/first column; on mobile a per-role accordion editor. Unsaved-changes bar with a diff summary; Save calls H-12/H-17 as needed. Proactively disable grants the actor doesn't hold (anti-escalation) but still handle AUTH_FORBIDDEN/LOCKED_PERMISSION from the server.
+Mock: anti-escalation, locked permissions, developer immutable, module grants include future permissions; editing a mid-tier role needs system.roles.mid.manage, a low-tier role (guest/quran_student/…) system.roles.low.manage.
 Output only new/changed files + manual test checklist.
 ```
 
 ### صفحهٔ ۵ — دسترسی: نقش‌ها
 ```text
 PAGE 5 — Roles ("/access/roles"). Keep all FOUNDATION rules. Build ONLY this page.
-Endpoints: H-10 list, H-13 create (key ^[a-z][a-z0-9_]{2,31}$, not "none"), H-14 detail, H-15 edit title/description, H-16 delete.
-UI: cards/table with holder counts and "system" badges; create dialog with live key validation; delete blocked with explanation for system roles (SYSTEM_PROTECTED) and roles that still have holders (ROLE_IN_USE → link to /users?role=key). Developer role fully read-only.
+Endpoints: H-10 list (filter tier), H-13 create (key ^[a-z][a-z0-9_]{2,31}$, not "none"; choose tier high/mid/low), H-14 detail, H-15 edit title/description, H-16 delete.
+UI: three sections by tier (سطح بالا / میانی / پایین) with holder counts (guest/quran_student show «ضمنی» instead of a count) and «ثابت» badges for developer/super_admin/teacher/guest/quran_student; create dialog with live key validation; delete blocked with explanation for system roles (SYSTEM_PROTECTED) and roles that still have holders (ROLE_IN_USE → link to /users?role=key). Developer role fully read-only.
 Mock: same conflicts.
 Output only new/changed files + manual test checklist.
 ```
@@ -164,9 +170,9 @@ Output only new/changed files + manual test checklist.
 
 ### صفحهٔ ۷ — دسترسی: سیاست step-up و نقش‌های جلسه
 ```text
-PAGE 7 — Step-up policy ("/access/step-up") + session-roles reference. Keep all FOUNDATION rules. Build ONLY this page.
-Endpoints: H-92 (data), H-18 (per role × permission: inherit / required / none; needs system.stepup.manage), H-48 (read-only matrix of session roles → in-session permissions).
-UI: banner "توسعه‌دهنده برای هیچ اقدامی تأیید هویت مجدد لازم ندارد، جز تغییر رمز خودش"; role selector; per-module groups with tri-state controls showing the permission default and the EFFECTIVE result; bulk set per module; warning when relaxing a sensitive permission; a second tab "نقش‌های جلسه" rendering H-48 as a read-only table.
+PAGE 7 — Step-up policy ("/access/step-up") + supporter permission catalog. Keep all FOUNDATION rules. Build ONLY this page.
+Endpoints: H-92 (data), H-18 (per role × permission: inherit / required / none; needs system.stepup.manage), H-48 (read-only catalog of permissions a teacher can delegate to a supporter, with Persian titles).
+UI: banner "توسعه‌دهنده برای هیچ اقدامی تأیید هویت مجدد لازم ندارد، جز تغییر رمز خودش"; role selector; per-module groups with tri-state controls showing the permission default and the EFFECTIVE result; bulk set per module; warning when relaxing a sensitive permission; a second tab «مجوزهای پشتیبان» rendering H-48 as a read-only list with a note «استاد صاحب جلسه همهٔ این مجوزها را دارد؛ پشتیبان فقط آن‌هایی که استاد یا ادمین داده».
 Mock: same.
 Output only new/changed files + manual test checklist.
 ```
@@ -175,18 +181,19 @@ Output only new/changed files + manual test checklist.
 ```text
 PAGE 8 — Sessions list + create/edit ("/sessions", "/sessions/new", "/sessions/:id/edit"). Keep all FOUNDATION rules. Build ONLY these.
 Endpoints: H-60 list (q, status, creatorId, from/to, includeDeleted, sort), H-62 create (creatorId optional — searchable user picker; Idempotency-Key), H-63 edit (draft/scheduled only), H-64 transition (one step forward; SESSION_INVALID_TRANSITION), H-65 soft delete.
-Form fields per SessionInput: title, description, schedule (once: start/end; recurring: weekdays + time + duration; range: from/to + weekdays + time + duration) with Jalali pickers and Asia/Tehran handling, location label + optional https route URL, joinPolicy (request / open / invite_only), visibility (public / unlisted), capacity (empty = unlimited).
-List shows counts (members, pending, managers — highlight sessions with 0 managers, occurrences), next start, status stepper.
+Form fields per SessionInput: title, description, schedule (once: start/end; recurring: weekdays + time + duration; range: from/to + weekdays + time + duration) with Jalali pickers and Asia/Tehran handling, location label + optional https route URL, joinPolicy (request / open / invite_only), visibility (public / unlisted), capacity (empty = unlimited), commentsEnabled (switch), commentVisibility (public = همه / reciter_only = فقط خواننده، نویسنده و کادر). H-62 `creatorId` = the teacher who will OWN the session (picker limited to users with role teacher or session.create).
+List shows owner (teacher) name, counts (members, pending, supporters, occurrences), next start, status stepper.
 Mock: same rules (once session auto-opens occurrence #1 on started; ended closes it).
 Output only new/changed files + manual test checklist.
 ```
 
-### صفحهٔ ۹ — جزئیات جلسه: اعضا، استاد، پشتیبان، قرآن‌آموز
+### صفحهٔ ۹ — جزئیات جلسه: اطلاعات، استاد صاحب، پشتیبان‌ها، اعضا
 ```text
-PAGE 9 — Session detail: Info + Members ("/sessions/:id", tabs Info and Members). Keep all FOUNDATION rules. Build ONLY these tabs.
-Endpoints: H-61 detail, H-66 members (filters status/role/q/userId), H-73 ADD MEMBERS (bulk up to 200; each item by userId (user picker using H-20) OR phone; roles teacher / session_supporter / quran_student; onExisting skip/merge/replace; createMissing with first/last name requires system.users.manage; per-item outcomes added/approved/merged/replaced/unchanged/created_and_added/not_found/not_active/full/failed), H-53 bulk approve/reject, H-67 approve/reject one, H-68 set roles incl. co-manager (LAST_HOLDER), H-69 remove (SESSION_MANAGER_PROTECTED → offer H-74), H-74 set/transfer session manager (previous: demote/remove/keep, transferCreator).
-UI: role chips (مدیر، پشتیبان، معلم، قرآن‌آموز) with filters; an "افزودن عضو" sheet with two modes: search users, or paste many phone numbers (one per line, Persian digits ok) + role selector + onExisting; a result report table after submit; "تعیین مدیر" dialog; bulk-select pending requests to approve/reject; helper text: «مدیر به‌تنهایی نمی‌تواند ارزیابی کند؛ برای ارزیابی نقش معلم یا پشتیبان هم لازم است».
-Mock: identical outcome semantics, capacity, LAST_HOLDER, inactive users.
+PAGE 9 — Session detail: Info · Owner & supporters · Members ("/sessions/:id"). Keep all FOUNDATION rules. Build ONLY these tabs.
+Endpoints: H-61 detail, H-74 change owner teacher (picker of teachers; previousOwner: supporter = old teacher stays as a per-session supporter with all permissions, remove = no role left), H-107 effective supporters (source: fixed-of-teacher / per-session, with permissions), H-108 add/update a per-session supporter (userId or phone + permissions from H-48), H-109 remove per-session supporter, H-104/H-105/H-106 the owner's FIXED supporters (shown read-only here with a link «مدیریت در صفحهٔ استاد» to /users/:ownerId#supporters), H-66 members (filters status/q/userId), H-73 ADD MEMBERS (bulk up to 200; each item userId (picker via H-20) OR phone; existing approved member ⇒ unchanged, pending/rejected ⇒ approved; createMissing with first/last name requires system.users.manage; per-item outcomes added/approved/unchanged/created_and_added/not_found/not_active/full/failed), H-53 bulk approve/reject, H-67 approve/reject one, H-69 remove member.
+UI: an owner card (teacher name, phone masked, «تغییر استاد» dialog with the previousOwner choice, explaining the old teacher's fixed supporters stop applying to this session); supporters table with source chip (ثابتِ استاد / فقط این جلسه) and permission chips, edit sheet with checkboxes of the H-48 catalog (fixed ones are read-only here); members: «افزودن عضو» sheet (search users, or paste many phones one per line, Persian digits ok) + result report table; bulk-select pending requests to approve/reject.
+Helper text: «ارزیاب = استاد صاحب جلسه یا پشتیبانِ دارای مجوز ثبت ارزیابی».
+Mock: identical outcome semantics, capacity, inactive users, ALREADY_SUPPORTER, owner cannot also be a supporter.
 Output only new/changed files + manual test checklist.
 ```
 
@@ -194,7 +201,7 @@ Output only new/changed files + manual test checklist.
 ```text
 PAGE 10 — Session detail: Occurrences · Attendance · Queue · Evaluations tabs. Keep all FOUNDATION rules. Build ONLY these tabs.
 Endpoints: H-75 occurrences (live/closed, counts), H-70 attendance (occurrenceId, paging), H-76 mark present (bulk, reason; works on closed occurrences too), H-77 revoke attendance (−5 points, reason), H-71 queue (occurrenceId), H-78 next (expectCurrentItemId → QUEUE_STATE_CHANGED), H-79 move up/down/skip/remove (expectPosition; Idempotency-Key), H-72 evaluations (occurrenceId, includeVoid), H-95 void evaluation (reason), H-96 correct scores (reason), H-44 export CSV (members/attendance/evaluations).
-UI: occurrence selector (default live, else latest) shared by the tabs; attendance roster with present/absent, multi-select "ثبت حضور", per-row "لغو حضور"; live queue board (current, waiting with drag-free up/down buttons, done) polling every 5 s while visible; evaluations table (voice/tone/tajweed/score/points, evaluator, void badge) with correct/void dialogs that show the points effect.
+UI: occurrence selector (default live, else latest) shared by the tabs; attendance roster with present/absent, multi-select "ثبت حضور", per-row "لغو حضور"; live queue board (current, waiting with drag-free up/down buttons, done) polling every 5 s while visible; evaluations table with one column per criterion from each evaluation's own SNAPSHOT (criteria may differ between old and new evaluations) + score (0..100) + points + evaluator + void badge; the correct dialog (H-96 `scores[]`) edits the snapshot criteria with each criterion's maxScore and shows the points effect; void dialog with reason.
 Mock: +5 once per (occurrence,user), reversals floor at 0, badge revoke, queue concurrency precondition.
 Output only new/changed files + manual test checklist.
 ```
@@ -237,7 +244,7 @@ Output only new/changed files + manual test checklist.
 ```text
 PAGE 15 — Settings ("/settings"). Keep all FOUNDATION rules. Build ONLY this page.
 Endpoints: H-30, H-31 (optimistic `version`; VERSION_MISMATCH → "reload latest" flow).
-UI: evaluation weights (sum must be exactly 100; live validator + donut preview), feature flags maintenance_mode (strong confirmation) and registration_open. Do NOT show badge thresholds (deprecated; badges page replaces them).
+UI: feature flags maintenance_mode (strong confirmation) and registration_open. Evaluation weights and badge thresholds are NOT settings anymore (pages «معیارهای ارزیابی» and «نشان‌ها» replace them).
 Output only new/changed files + manual test checklist.
 ```
 
@@ -248,6 +255,33 @@ Endpoints: H-02 account, H-03 edit my name, H-04 change my password (ALWAYS step
 Output only new/changed files + manual test checklist.
 ```
 
+
+### صفحهٔ ۱۷ — معیارهای ارزیابی
+```text
+PAGE 17 — Evaluation criteria ("/evaluation-criteria"). Keep all FOUNDATION rules. Build ONLY this page.
+Endpoints: H-100 list (active and inactive), H-101 create (key, title, description, weight 1..100, maxScore 1..100, active, sortOrder; max 15), H-102 edit, H-103 delete (CRITERION_IN_USE ⇒ offer «غیرفعال کن»; LAST_ACTIVE_CRITERION ⇒ explain at least one active criterion is required).
+UI: sortable list (numeric order), active switch, weight share bar (weight / Σ active weights) and a live preview calculator «اگر نمره‌ها … باشد امتیاز = …» using score = Σ(score/max×weight)/Σweight×100 and points = round(score/10). Banner: «تغییر معیارها روی ارزیابی‌های ثبت‌شدهٔ قبلی اثر ندارد».
+Mock: same conflicts; evaluations keep their snapshot.
+Output only new/changed files + manual test checklist.
+```
+
+### صفحهٔ ۱۸ — محتوا: گالری‌ها و کامنت‌های جلسه
+```text
+PAGE 18 — Session content: tabs Galleries and Comments inside "/sessions/:id" plus a global "/content" page with a session picker. Keep all FOUNDATION rules. Build ONLY these.
+Endpoints: H-110 galleries (occurrenceId filter), H-111 create (occurrenceId, title, kind image|audio, visibility public|members|staff), H-112 edit (title, visibility, sortOrder), H-113 delete, H-114 items, H-115 upload (RAW binary body — NOT JSON, NOT multipart — with the file's real Content-Type and `?title=`; image jpeg/png/webp ≤ 5 MB, audio mpeg/mp4/ogg/webm/aac ≤ 50 MB; check type/size in the browser first; show upload progress; GALLERY_KIND_MISMATCH, QUOTA_EXCEEDED, PAYLOAD_TOO_LARGE, UNSUPPORTED_MEDIA_TYPE), H-116 delete item, item content = the item's `url` field (a short-lived signed URL valid ~10 minutes: use it directly as <img src>/<audio src> on the HIGH origin; when it fails with 401 re-fetch H-114 to get fresh URLs; never build content URLs yourself), H-118 comments (filters occurrenceId, queueItemId, authorId; includes hidden), H-119 hide/unhide, H-120 delete.
+UI: occurrence selector; gallery cards with kind icon, visibility chip (عمومی / اعضا / فقط کادر) and item count; image grid with lightbox; audio list with native <audio controls preload="none">; comments list grouped by recitation (reciter name + «ثانیهٔ mm:ss» from atSec) and general comments, hidden ones dimmed with a «پنهان» chip; moderation actions.
+Mock: store uploaded files as object URLs/data URLs in memory+localStorage (small files only); emulate visibility and the signed `url` (expire after 10 minutes).
+Output only new/changed files + manual test checklist.
+```
+
+### صفحهٔ ۱۹ — پشتیبان‌های ثابت استاد (در جزئیات کاربر)
+```text
+PAGE 19 — Add a «پشتیبان‌ها» tab (anchor #supporters) to "/users/:id", visible when the user has role teacher. Keep all FOUNDATION rules. Build ONLY this tab.
+Endpoints: H-104 list fixed supporters of this teacher, H-105 add/update (supporterId via user picker + permissions from H-48), H-106 remove; H-52 shows where this user is owner/supporter/member.
+UI: table (supporter, permission chips, since), edit sheet with H-48 checkboxes; note «پشتیبان ثابت در همهٔ جلسه‌های حال و آیندهٔ این استاد با همین مجوزها فعال است».
+Mock: ALREADY_SUPPORTER, a teacher cannot be their own supporter, inactive users rejected.
+Output only new/changed files + manual test checklist.
+```
 
 ---
 

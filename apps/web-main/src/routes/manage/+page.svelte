@@ -23,7 +23,7 @@
   <meta name="robots" content="noindex" />
 </svelte:head>
 
-<PageHeader title="مدیریت جلسه" subtitle="جلسه‌هایی که مدیر، پشتیبان یا معلم آن هستید.">
+<PageHeader title="مدیریت جلسه" subtitle="جلسه‌هایی که استاد یا پشتیبان آن هستید.">
   {#snippet actions()}
     {#if caps.canCreate}<Button href="/manage/new" size="sm"><Icon name="plus" size={18} />ساخت جلسه</Button>{/if}
   {/snippet}

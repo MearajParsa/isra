@@ -1,7 +1,8 @@
 import { AppError } from '../../common/app-error';
 import { type Q, conflict } from '../db';
+import { type PermissionKey, type Tier, isImplicitRole, tierManagePermission } from '../rules';
 import type { UserAccess } from './policy';
-import { missingForActor } from './policy';
+import { isDeveloper, missingForActor } from './policy';
 
 export const unique = <T>(xs: readonly T[]): T[] => [...new Set(xs)];
 export const ph = (n: number): string => Array.from({ length: n }, () => '?').join(',');
@@ -48,12 +49,37 @@ export interface RoleLock {
   key: string;
   title: string;
   undeletable: boolean;
+  tier: Tier;
 }
 /** قفل ردیف نقش؛ ناموجود ⇒ NOT_FOUND */
 export async function lockRole(m: Q, key: string): Promise<RoleLock> {
-  const r = (await m.query('SELECT role_key, title, undeletable FROM system_roles WHERE role_key = ? FOR UPDATE', [key])) as { role_key: string; title: string; undeletable: number }[];
+  const r = (await m.query('SELECT role_key, title, undeletable, tier FROM system_roles WHERE role_key = ? FOR UPDATE', [key])) as { role_key: string; title: string; undeletable: number; tier: Tier }[];
   if (!r[0]) throw new AppError('NOT_FOUND', { message: 'نقش پیدا نشد.' });
-  return { key: r[0].role_key, title: r[0].title, undeletable: !!r[0].undeletable };
+  return { key: r[0].role_key, title: r[0].title, undeletable: !!r[0].undeletable, tier: r[0].tier };
+}
+
+/**
+ * ۱.۷.۰ (docs-v2/31 §۱): مدیریت نقش per سطح — high ⇒ مجوز خودِ endpoint؛ mid ⇒ system.roles.mid.manage؛ low ⇒ system.roles.low.manage.
+ * guard فقط «یکی از» این مجوزها را بررسی کرده (permissionAny)؛ اینجا مجوز دقیقِ سطح نقش هدف الزامی است (developer معاف).
+ */
+export function requireTierManage(actor: Pick<UserAccess, 'roles' | 'permissions'>, tier: Tier, highPermission: PermissionKey): void {
+  if (isDeveloper(actor)) return;
+  const need = tierManagePermission(tier, highPermission);
+  if (!actor.permissions.includes(need)) throw forbidden(`مدیریت نقش‌های این سطح به «${need}» نیاز دارد.`, { missing: [need] });
+}
+
+/**
+ * نقش‌های ضمنی (guest، quran_student) baseline همهٔ کاربران/مهمان‌اند ⇒ مجوزِ ماژول‌های سطح high (پنل) به آن‌ها داده نمی‌شود
+ * (وگرنه هر کاربر ثبت‌نام‌کرده وارد پنل مدیریت می‌شد). VALIDATION_FAILED با فهرست موارد.
+ */
+export async function requireImplicitSafe(m: Q, role: string, perms: readonly string[], modules: readonly string[]): Promise<void> {
+  if (!isImplicitRole(role)) return;
+  const badPerms = perms.length
+    ? ((await m.query(`SELECT p.permission_key AS k FROM permissions p JOIN system_modules sm ON sm.module_key = p.module_key WHERE sm.tier = 'high' AND p.permission_key IN (${ph(perms.length)})`, [...perms])) as { k: string }[]).map((r) => r.k)
+    : [];
+  const badMods = modules.length ? ((await m.query(`SELECT module_key AS k FROM system_modules WHERE tier = 'high' AND module_key IN (${ph(modules.length)})`, [...modules])) as { k: string }[]).map((r) => r.k) : [];
+  if (badPerms.length || badMods.length)
+    throw new AppError('VALIDATION_FAILED', { message: 'مجوزهای سطح بالا (پنل مدیریت) به نقش ضمنی مهمان/قرآن‌آموز داده نمی‌شود.', details: { fields: { [badMods.length ? 'modules' : 'permissions']: 'مجوز/ماژول سطح بالا مجاز نیست.' }, invalid: [...badPerms, ...badMods].sort() } });
 }
 
 /** مجوزهای مؤثر مجموعه‌ای از نقش‌ها (صریح ∪ ماژول) — برای ضد ارتقا هنگام تخصیص نقش */

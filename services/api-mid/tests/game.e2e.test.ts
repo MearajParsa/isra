@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SettingsService } from '../src/domain/settings.service';
+import { CatalogService } from '../src/domain/catalog.service';
+import { legacyCriterionId } from '../src/domain/refs';
 import { type TestApp, type User, api, creator, join, mkSession, mkUser, startApp } from './helpers/app';
 
 let t: TestApp;
@@ -67,7 +69,7 @@ describe('حضور و امتیاز (+۵ فقط یک‌بار)', () => {
     expect((await a.post(`/sessions/${started}/attendance`, pending)).status).toBe(403);
   });
 
-  it('فهرست حاضرین فقط attendance.view (کادر)', async () => {
+  it('فهرست حاضرین فقط کادر (صاحب/پشتیبان)', async () => {
     const r = await room(2);
     await a.post(`/sessions/${r.id}/attendance`, r.students[0]!);
     await a.post(`/sessions/${r.id}/attendance`, r.students[1]!);
@@ -206,7 +208,7 @@ describe('صف نوبت', () => {
   });
 });
 
-describe('ارزیابی (قفل #15: manager به‌تنهایی نه)', () => {
+describe('ارزیابی (قفل #15 ۱.۷.۰: صاحب یا پشتیبانِ eval.submit)', () => {
   async function current() {
     const r = await room(1);
     const s = r.students[0]!;
@@ -215,34 +217,32 @@ describe('ارزیابی (قفل #15: manager به‌تنهایی نه)', () => 
     const q = (await a.post(`/sessions/${r.id}/queue/next`, r.teacher)).body.data;
     return { ...r, s, itemId: q.current.id as string };
   }
-  const body = (itemId: string, extra: object = {}) => ({ queueItemId: itemId, voice: 8, tone: 6, tajweed: 7, ...extra });
+  const body = (itemId: string, extra: { voice?: number; tone?: number; tajweed?: number; note?: string } = {}) => {
+    const v = { voice: 8, tone: 6, tajweed: 7, ...extra };
+    return { queueItemId: itemId, scores: (['voice', 'tone', 'tajweed'] as const).map((k) => ({ criterionId: legacyCriterionId(k), score: v[k] })), ...(extra.note ? { note: extra.note } : {}) };
+  };
 
-  it('manager تنها ⇒ 403؛ student ⇒ 403؛ teacher و supporter مجاز؛ manager+teacher مجاز', async () => {
+  it('صاحب مجاز؛ قرآن‌آموز 403؛ معلم/پشتیبان با eval.submit مجاز؛ پشتیبان بدون eval.submit 403', async () => {
     const r = await current();
-    expect((await a.post(`/sessions/${r.id}/evaluations`, r.manager, body(r.itemId))).status).toBe(403);
     expect((await a.post(`/sessions/${r.id}/evaluations`, r.s, body(r.itemId))).status).toBe(403);
-    const ok = await a.post(`/sessions/${r.id}/evaluations`, r.teacher, body(r.itemId, { note: 'عالی' }));
+    const noEval = await mkUser(t, 'پشتیبان بی‌ارزیابی');
+    await a.post(`/sessions/${r.id}/supporters`, r.manager, { user: { userId: noEval.id }, permissions: ['queue.manage'] });
+    expect((await a.post(`/sessions/${r.id}/evaluations`, noEval, body(r.itemId))).status).toBe(403);
+    const ok = await a.post(`/sessions/${r.id}/evaluations`, r.manager, body(r.itemId, { note: 'عالی' }));
     expect(ok.status).toBe(200);
-    // اجتماع نقش‌ها: مدیری که معلم هم هست
-    const m2 = await creator(t, 'مدیر معلم');
-    const id2 = await mkSession(t, m2, 'started');
-    const st = await mkUser(t, 'دانش‌آموز');
-    await join(t, id2, m2, st);
-    const mm = (await a.get(`/sessions/${id2}/members?pageSize=100`, m2)).body.data.find((x: any) => x.userId === m2.id).id;
-    void mm;
-    // نقش manager قابل تغییر نیست ⇒ مدیر معلم‌شدن از طریق عضو جداگانه ممکن نیست؛ پس با supporter بررسی می‌شود
-    const sup = await mkUser(t, 'پشتیبان دو');
-    await join(t, id2, m2, sup, ['session_supporter']);
-    await a.post(`/sessions/${id2}/attendance`, st);
-    await a.post(`/sessions/${id2}/queue`, st);
-    const q2 = (await a.post(`/sessions/${id2}/queue/next`, sup)).body.data;
-    expect((await a.post(`/sessions/${id2}/evaluations`, sup, body(q2.current.id))).status).toBe(200);
+    const r2 = await current();
+    expect((await a.post(`/sessions/${r2.id}/evaluations`, r2.supporter, body(r2.itemId))).status).toBe(200);
   });
 
   it('فرمول وزنی، امتیاز ledger و اعلان اینباکس؛ ثبت دوباره 409؛ خودارزیابی 409', async () => {
     const r = await current();
     const ev = await a.post(`/sessions/${r.id}/evaluations`, r.teacher, body(r.itemId, { note: 'ماشاءالله' }));
-    expect(ev.body.data).toMatchObject({ voice: 8, tone: 6, tajweed: 7, score: 71, points: 7, weights: { voice: 40, tone: 30, tajweed: 30 }, userId: r.s.id, userName: 'قرآن‌آموز 1', evaluatorName: 'استاد معلم', note: 'ماشاءالله' });
+    expect(ev.body.data.criteria.map((c: any) => [c.key, c.weight, c.maxScore, c.score])).toEqual([
+      ['voice', 40, 10, 8],
+      ['tone', 30, 10, 6],
+      ['tajweed', 30, 10, 7]
+    ]);
+    expect(ev.body.data).toMatchObject({ score: 71, points: 7, userId: r.s.id, userName: 'قرآن‌آموز 1', evaluatorName: 'استاد معلم', note: 'ماشاءالله' });
     const dup = await a.post(`/sessions/${r.id}/evaluations`, r.supporter, body(r.itemId));
     expect(dup.status).toBe(409);
     expect(dup.body.error.details.reason).toBe('ALREADY_EVALUATED');
@@ -272,6 +272,9 @@ describe('ارزیابی (قفل #15: manager به‌تنهایی نه)', () => 
     expect((await a.post(`/sessions/${r.id}/evaluations`, r.teacher, body('00000000-0000-4000-8000-000000000000'))).status).toBe(404);
     expect((await a.post(`/sessions/${r.id}/evaluations`, r.teacher, body(waiting.id, { voice: 11 }))).status).toBe(400);
     expect((await a.post(`/sessions/${r.id}/evaluations`, r.teacher, body(waiting.id, { tone: 5.5 }))).status).toBe(400);
+    const missing = await a.post(`/sessions/${r.id}/evaluations`, r.teacher, { queueItemId: waiting.id, scores: [{ criterionId: legacyCriterionId('voice'), score: 5 }] });
+    expect(missing.status).toBe(400);
+    expect(missing.body.error.details.fields.scores).toBeTruthy();
   });
 
   it('لیست: کادر همه، قرآن‌آموز فقط خودش؛ غیرعضو 403؛ نوبت جلسهٔ دیگر 404', async () => {
@@ -284,18 +287,41 @@ describe('ارزیابی (قفل #15: manager به‌تنهایی نه)', () => 
     expect((await a.post(`/sessions/${other.id}/evaluations`, other.teacher, body(r.itemId))).status).toBe(404);
   });
 
-  it('وزن‌های جدید فقط برای ارزیابی‌های بعدی (weights لحظهٔ ثبت ذخیره می‌شود)', async () => {
+  it('معیار پویا (evaluation.criteria.changed): ارزیابی قبلی snapshot خودش را نگه می‌دارد؛ معیار غیرفعال پذیرفته نمی‌شود', async () => {
+    const cat = t.app.get(CatalogService);
     const r1 = await current();
     const before = await a.post(`/sessions/${r1.id}/evaluations`, r1.teacher, body(r1.itemId));
-    await t.ds.query("INSERT INTO settings_cache (setting_key, value, version, updated_at) VALUES ('global', ?, 99, NOW(3)) ON DUPLICATE KEY UPDATE value = VALUES(value), version = 99", [JSON.stringify({ evalWeights: { voice: 100, tone: 0, tajweed: 0 }, badgeThresholds: [50, 150, 300, 500] })]);
-    (t.app.get(SettingsService) as unknown as { cached?: unknown }).cached = undefined;
+    const newId = '0190a8e2-2222-7000-8000-000000000001';
+    await cat.applyCriteria(t.ds, {
+      version: 50,
+      criteria: [
+        { id: legacyCriterionId('voice'), key: 'voice', title: 'صوت', description: '', weight: 100, maxScore: 20, active: true, sortOrder: 1 },
+        { id: legacyCriterionId('tone'), key: 'tone', title: 'لحن', description: '', weight: 30, maxScore: 10, active: false, sortOrder: 2 },
+        { id: newId, key: 'waqf', title: 'وقف و ابتدا', description: '', weight: 100, maxScore: 5, active: true, sortOrder: 3 }
+      ]
+    });
+    await cat.applyCriteria(t.ds, { version: 49, criteria: [{ id: newId, key: 'old', title: 'قدیمی', description: '', weight: 1, maxScore: 1, active: true, sortOrder: 1 }] }); // نسخهٔ قدیمی ⇒ بی‌اثر
+    const crit = (await a.get('/evaluation-criteria', r1.teacher)).body.data;
+    expect(crit.version).toBe(50);
+    expect(crit.items.map((c: any) => c.key)).toEqual(['voice', 'waqf']);
     const r2 = await current();
-    const after = await a.post(`/sessions/${r2.id}/evaluations`, r2.teacher, body(r2.itemId));
-    expect(before.body.data.weights.voice).toBe(40);
+    const inactive = await a.post(`/sessions/${r2.id}/evaluations`, r2.teacher, { queueItemId: r2.itemId, scores: [{ criterionId: legacyCriterionId('voice'), score: 20 }, { criterionId: legacyCriterionId('tone'), score: 5 }, { criterionId: newId, score: 5 }] });
+    expect(inactive.status).toBe(400);
+    const tooHigh = await a.post(`/sessions/${r2.id}/evaluations`, r2.teacher, { queueItemId: r2.itemId, scores: [{ criterionId: legacyCriterionId('voice'), score: 21 }, { criterionId: newId, score: 5 }] });
+    expect(tooHigh.status).toBe(400);
+    const after = await a.post(`/sessions/${r2.id}/evaluations`, r2.teacher, { queueItemId: r2.itemId, scores: [{ criterionId: legacyCriterionId('voice'), score: 10 }, { criterionId: newId, score: 5 }] });
+    expect(after.status).toBe(200);
+    expect(after.body.data.score).toBe(75);
+    const old = (await a.get(`/sessions/${r1.id}/evaluations`, r1.manager)).body.data[0];
+    expect(old.score).toBe(71);
+    expect(old.criteria.map((c: any) => c.key)).toEqual(['voice', 'tone', 'tajweed']);
+    expect(old.criteria[0].weight).toBe(40);
     expect(before.body.data.score).toBe(71);
-    expect(after.body.data.weights).toEqual({ voice: 100, tone: 0, tajweed: 0 });
-    expect(after.body.data.score).toBe(80);
+    // ویرایش ارزیابی قدیمی با وزن/سقف snapshot (نه کاتالوگ جدید)
+    const patched = await a.patch(`/sessions/${r1.id}/evaluations/${before.body.data.id}`, r1.teacher, { scores: [{ criterionId: legacyCriterionId('voice'), score: 10 }] });
+    expect(patched.body.data.score).toBe(79);
+    expect((await a.patch(`/sessions/${r1.id}/evaluations/${before.body.data.id}`, r1.teacher, { scores: [{ criterionId: newId, score: 1 }] })).status).toBe(400);
     await t.ds.query('DELETE FROM settings_cache');
-    (t.app.get(SettingsService) as unknown as { cached?: unknown }).cached = undefined;
+    (cat as unknown as { crit?: unknown }).crit = undefined;
   });
 });

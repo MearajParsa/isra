@@ -90,7 +90,8 @@ interface AdminRow extends SessionRow {
   c_pending: string | number;
   c_attendance: string | number;
   c_evaluations: string | number;
-  c_managers: string | number;
+  c_supporters: string | number;
+  owner_name: string | null;
   c_occurrences: string | number;
 }
 
@@ -101,16 +102,17 @@ const SORTS: Record<ListQuery['sort'], string> = {
   nextStart: 's.next_starts_at IS NULL, s.next_starts_at ASC, s.id ASC'
 };
 
-const SELECT_ADMIN = `SELECT s.id, s.title, s.description, s.status, s.schedule, s.location_label, s.location_route_url, s.created_by, s.created_at, s.updated_at, s.deleted_at, s.next_starts_at,
-        s.join_policy, s.visibility, s.capacity,
-        ${nameSql('c')} AS creator_name,
+const SELECT_ADMIN = `SELECT s.id, s.title, s.description, s.status, s.schedule, s.location_label, s.location_route_url, s.created_by, s.owner_id, s.created_at, s.updated_at, s.deleted_at, s.next_starts_at,
+        s.join_policy, s.visibility, s.capacity, s.comments_enabled, s.comment_visibility,
+        ${nameSql('c')} AS creator_name, ${nameSql('o')} AS owner_name,
         (SELECT COUNT(*) FROM session_members x WHERE x.session_id = s.id AND x.status = 'approved') AS c_members,
-        (SELECT COUNT(*) FROM session_members x JOIN session_member_roles xr ON xr.member_id = x.id AND xr.role = 'session_manager' WHERE x.session_id = s.id AND x.status = 'approved') AS c_managers,
+        ((SELECT COUNT(*) FROM session_supporters y WHERE y.session_id = s.id AND y.user_id <> s.owner_id)
+          + (SELECT COUNT(*) FROM teacher_supporters t WHERE t.teacher_id = s.owner_id AND NOT EXISTS (SELECT 1 FROM session_supporters y2 WHERE y2.session_id = s.id AND y2.user_id = t.user_id))) AS c_supporters,
         (SELECT COUNT(*) FROM session_members x WHERE x.session_id = s.id AND x.status = 'pending') AS c_pending,
         (SELECT COUNT(*) FROM attendance_entries x WHERE x.session_id = s.id) AS c_attendance,
         (SELECT COUNT(*) FROM evaluations x WHERE x.session_id = s.id AND x.status = 'active') AS c_evaluations,
         (SELECT COUNT(*) FROM session_occurrences x WHERE x.session_id = s.id) AS c_occurrences
-   FROM sessions s LEFT JOIN user_directory c ON c.user_id = s.created_by`;
+   FROM sessions s LEFT JOIN user_directory c ON c.user_id = s.created_by LEFT JOIN user_directory o ON o.user_id = s.owner_id`;
 
 /**
  * عملیات ادمین روی داده‌های mid (فقط api-high با `@InternalCallers('high')`؛ مجوزسنجی و audit در high).
@@ -129,11 +131,13 @@ export class AdminService {
 
   // ───────────────────────── جلسه ─────────────────────────
   private dto(r: AdminRow) {
-    const base = this.sessions.toDto({ ...r, member_count: r.c_members, id: bufToUuid(r.id as unknown as Buffer), created_by: bufToUuid(r.created_by as unknown as Buffer) });
+    const ownerId = bufToUuid(r.owner_id as unknown as Buffer);
+    const base = this.sessions.toDto({ ...r, member_count: r.c_members, id: bufToUuid(r.id as unknown as Buffer), created_by: bufToUuid(r.created_by as unknown as Buffer), owner_id: ownerId });
     return {
       ...base,
       createdBy: { id: bufToUuid(r.created_by as unknown as Buffer), name: r.creator_name || displayName() },
-      counts: { members: num(r.c_members), pending: num(r.c_pending), attendance: num(r.c_attendance), evaluations: num(r.c_evaluations), managers: num(r.c_managers), occurrences: num(r.c_occurrences) },
+      owner: { id: ownerId, name: r.owner_name || displayName() },
+      counts: { members: num(r.c_members), pending: num(r.c_pending), attendance: num(r.c_attendance), evaluations: num(r.c_evaluations), supporters: num(r.c_supporters), occurrences: num(r.c_occurrences) },
       createdAt: r.created_at.toISOString(),
       updatedAt: r.updated_at.toISOString(),
       deletedAt: r.deleted_at ? r.deleted_at.toISOString() : null
@@ -156,6 +160,10 @@ export class AdminService {
     if (q.creatorId) {
       where.push('s.created_by = ?');
       args.push(uuidToBuf(q.creatorId));
+    }
+    if (q.ownerId) {
+      where.push('s.owner_id = ?');
+      args.push(uuidToBuf(q.ownerId));
     }
     // from/to: تاریخ تقویمی تهران روی next_starts_at
     if (q.from || q.to) {
@@ -193,7 +201,7 @@ export class AdminService {
     return id;
   }
 
-  /** ساخت برای creatorId: draft + سازنده session_manager (همان SessionsService.create)؛ سازنده باید در دایرکتوری و فعال باشد */
+  /** ساخت برای creatorId: draft + سازنده صاحب (owner) (همان SessionsService.create)؛ سازنده باید در دایرکتوری و فعال باشد */
   async create(creatorId: string, input: SessionInput) {
     const d = ((await this.ds.query('SELECT status, deleted FROM user_directory WHERE user_id = ?', [uuidToBuf(creatorId)])) as { status: string; deleted: number }[])[0];
     if (!d) throw new AppError('NOT_FOUND', { message: 'کاربر سازنده پیدا نشد.' });

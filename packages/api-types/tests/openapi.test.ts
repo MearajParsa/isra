@@ -38,7 +38,7 @@ describe.each(services)('OpenAPI %s', (s) => {
   });
 
   it('امنیت: طرح‌ها تعریف شده و endpointهای محافظت‌شده security دارند', () => {
-    expect(Object.keys(doc.components.securitySchemes).sort()).toEqual(['bearerAuth', 'refreshCookie', 'stepUp']);
+    expect(Object.keys(doc.components.securitySchemes).sort()).toEqual(['bearerAuth', 'refreshCookie', 'signedUrl', 'stepUp']);
     for (const p of Object.values(doc.paths as Record<string, Record<string, any>>))
       for (const op of Object.values(p)) {
         if (op['x-isra-step-up']) {
@@ -62,6 +62,23 @@ describe.each(services)('OpenAPI %s', (s) => {
     expect(readFileSync(file(s), 'utf8')).toBe(JSON.stringify(doc, null, 2) + '\n');
   });
 
+  it('۱.۷.۰: بدنهٔ خام باینری و Range مستند شده‌اند', () => {
+    for (const e of ENDPOINTS[s].filter((x) => x.rawBody || x.rangeRequests)) {
+      const full = versionedPrefix(s) + e.path;
+      const op = doc.paths[full][e.method];
+      if (e.rawBody) {
+        expect(Object.keys(op.requestBody.content).sort(), e.id).toEqual([...e.rawBody.contentTypes].sort());
+        expect(op['x-isra-max-body-bytes'], e.id).toBe(e.rawBody.maxBytes);
+        expect(op.responses['413'], e.id).toBeDefined();
+        expect(op.responses['415'], e.id).toBeDefined();
+      }
+      if (e.rangeRequests) {
+        expect(op.responses['206'], e.id).toBeDefined();
+        expect(op.parameters.some((x: { name: string }) => x.name === 'Range'), e.id).toBe(true);
+      }
+    }
+  });
+
   it('درخواست‌های عمومی PII/توکن در example ندارند', () => {
     const text = JSON.stringify(doc);
     expect(text).not.toMatch(/Bearer ey[A-Za-z0-9_-]{10,}/);
@@ -73,7 +90,7 @@ describe('mid: realtime', () => {
   it('رویدادهای Socket.IO مستند شده‌اند', () => {
     const doc = buildOpenApi('mid');
     const events = doc['x-isra-realtime'].serverToClient.map((e: { event: string }) => e.event).sort();
-    expect(events).toEqual(['attendance.updated', 'eval.updated', 'queue.turned', 'queue.updated', 'session.state']);
+    expect(events).toEqual(['attendance.updated', 'comment.created', 'eval.updated', 'queue.turned', 'queue.updated', 'session.state']);
     expect(doc.components.schemas.LiveEvent).toBeDefined();
   });
 });
