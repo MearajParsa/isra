@@ -144,7 +144,11 @@ export class MediaService implements OnModuleInit {
   // ───── ذخیره ─────
   private pathOf(storageKey: string): string {
     if (!KEY_RE.test(storageKey)) throw new AppError('NOT_FOUND');
-    return join(this.requireDir(), ...storageKey.split('/'));
+    // دفاع لایهٔ دوم: مسیر نهایی باید درون MEDIA_DIR بماند (path traversal)
+    const root = resolve(this.requireDir());
+    const full = resolve(root, ...storageKey.split('/'));
+    if (!full.startsWith(root + sep)) throw new AppError('NOT_FOUND');
+    return full;
   }
 
   /**
