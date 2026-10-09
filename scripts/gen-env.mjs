@@ -98,7 +98,11 @@ const files = {
     'JWT_AUDIENCE=isra',
     `INTERNAL_URL_LOW=${hosts.low}/c`,
     `INTERNAL_SECRET_LOW=${pair.lowMid}`,
-    `INTERNAL_SECRET_HIGH=${pair.midHigh}`
+    `INTERNAL_SECRET_HIGH=${pair.midHigh}`,
+    '# مسیر مطلق فایل‌های گالری، بیرون از پوشهٔ اپ (مثل /home/<user>/isra-media)؛ پوشه را خودتان بسازید:',
+    `MEDIA_DIR=${d.media_dir ?? ''}`,
+    'MEDIA_SESSION_QUOTA_MB=2048',
+    `MEDIA_URL_SECRET=${hex(32)}`
   ],
   'api-high': [
     '# api-high — Application URL: ' + hosts.high.replace('https://', '') + '/s',
@@ -110,6 +114,8 @@ const files = {
     `INTERNAL_URL_MID=${hosts.mid}/o`,
     `INTERNAL_SECRET_LOW=${pair.lowHigh}`,
     `INTERNAL_SECRET_MID=${pair.midHigh}`,
+    // مستقل از mid: افشای یکی جعل URL امضاشدهٔ دیگری را ممکن نمی‌کند
+    `MEDIA_URL_SECRET=${hex(32)}`,
     ...(d.BOOTSTRAP_DEVELOPER_PHONE?.length ? [`BOOTSTRAP_DEVELOPER_PHONE=${[].concat(d.BOOTSTRAP_DEVELOPER_PHONE).join(',')}`] : [])
   ]
 };
