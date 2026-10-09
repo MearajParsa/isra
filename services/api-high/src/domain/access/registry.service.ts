@@ -114,7 +114,7 @@ export class RegistryService {
     const of = (r: string) => per.get(r) ?? per.set(r, { permissions: [], locked: [], modules: [], rules: {} }).get(r)!;
     for (const i of items) {
       const o = of(i.role_key);
-      if (i.t === 'p') (o.permissions.push(i.k), i.locked && o.locked.push(i.k));
+      if (i.t === 'p') (o.permissions.push(i.k), Number(i.locked) === 1 && o.locked.push(i.k)); // UNION در MySQL 8 نوع locked را ممکن است رشته برگرداند ("0" truthy)
       else if (i.t === 'm') o.modules.push(i.k);
       else o.rules[i.k] = i.mode!;
     }

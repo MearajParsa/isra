@@ -131,9 +131,11 @@ describe('سطوح و نقش‌های ثابت (docs-v2/31 §۱)', () => {
     expect((await a.put(`/system/users/${u.id}/roles`, h, { roles: [] })).status).toBe(200);
     // claim تازه بدون baseline (low/mid baseline را خودشان اعمال می‌کنند)
     const claims = (await outboxTypes(t)).filter((e) => e.type === 'system.role.changed' && e.payload.userId === u.id);
-    expect(claims[0]!.payload.grants).toEqual(expect.arrayContaining(['session.create', 'session.manage_own']));
-    expect(claims[0]!.payload.grants).not.toContain('session.browse'.replace('browse', 'zz'));
-    expect(claims.at(-1)!.payload.grants).toEqual([]);
+    // ترتیب ردیف‌های outbox با created_at یکسان تضمینی نیست ⇒ بررسی بدون وابستگی به ترتیب
+    const grantSets = claims.map((c) => c.payload.grants as string[]);
+    expect(grantSets).toHaveLength(2);
+    expect(grantSets).toContainEqual(expect.arrayContaining(['session.create', 'session.manage_own']));
+    expect(grantSets).toContainEqual([]);
   });
 });
 
