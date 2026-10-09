@@ -19,7 +19,7 @@ pnpm --filter @isra/api-high dev                                # http://localho
 
 ## تست
 ```bash
-pnpm --filter @isra/api-high test       # ۱۵۶ تست؛ نیاز به MySQL (TEST_DB_* ؛ پیش‌فرض schema_high_test / isra_high)
+pnpm --filter @isra/api-high test       # ۳۰۰ تست؛ نیاز به MySQL (TEST_DB_* ؛ پیش‌فرض schema_high_test / isra_high)
 ```
 پوشش: دسترسی از DB (نه JWT) و جعل JWT، step-up JWT (کاربر/نشست/lvl/انقضا)، D5 قفل آخرین دارنده (حتی با درخواست موازی)، D6 فقط developer، ماتریس مجوز و قفل‌ها، grant، تنظیمات با optimistic concurrency، audit فقط‌الحاق، bootstrap، انطباق پاسخ‌ها با zod، outbox به low/mid، migration/seed.
 
@@ -32,6 +32,13 @@ pnpm --filter @isra/api-high test       # ۱۵۶ تست؛ نیاز به MySQL (T
 - **گزارش‌ها (H-80..84):** H-80 با خرابی هر مبدأ همان بخش را degraded می‌کند؛ H-82..84 پروکسی‌اند (خطا ⇒ 503). تاریخ‌ها Asia/Tehran (offset ثابت +۰۳:۳۰)، هفته از شنبه، حداکثر ۳۶۶ روز.
 - **رویدادهای low:** `user.status.changed` و `user.phone.changed` (`EVENT_ACL`)؛ `deleted` ⇒ شمارهٔ ناشناس، نام خالی، پاک‌شدن نقش/grant؛ رویداد دیررس کاربر حذف‌شده را زنده نمی‌کند.
 - **تست:** fake low/mid در `tests/helpers/{app,fakes}.ts` (`t.fake.admin.on(method, pattern, handler)`).
+
+## قرارداد ۱.۷.۰ (`docs-v2/31`)
+- **سطح‌ها:** `tier` روی نقش/ماژول (migration `TiersTeacherContent`). نقش‌های ثابت: developer/super_admin (high)، teacher (mid)، guest/quran_student (low، **ضمنی**: قابل اختصاص نیستند و مجوز ماژول سطح high نمی‌گیرند). مجوز مؤثر در high = نقش‌ها ∪ grant ∪ baseline quran_student (منبع `baseline`)؛ claim JWT بدون baseline (low/mid آن را از `tier.baseline.changed` اعمال می‌کنند). ورود به پنل = نقش tier=high یا یک مجوز `system.*`. مدیریت نقش per سطح (`system.roles.mid.manage` / `system.roles.low.manage`؛ guard با `permissionAny`). هر نوشتن RBAC در صورت تغییر baseline رویداد `tier.baseline.changed` (low+mid) می‌سازد.
+- **معیارهای ارزیابی (H-100..H-103):** جدول `evaluation_criteria` + `criteria_meta`؛ رویداد `evaluation.criteria.changed` (mid). seed سه معیار با شناسهٔ ثابت `00000000-0000-7000-8000-00000000000{1,2,3}` (voice/tone/tajweed؛ وزن از تنظیمات قبلی). معیاری که فعال منتشر شده «used» است (حذف ⇒ CRITERION_IN_USE؛ فقط غیرفعال).
+- **پشتیبان/گالری/کامنت (H-104..H-120)، H-74 صاحب:** پروکسی MID_ADMIN با audit. بارگذاری H-115 بدنهٔ خام را بدون بافر stream می‌کند؛ H-117 محتوا را با Range stream می‌کند. `url` آیتم‌ها = H-117 با امضای HMAC (`MEDIA_URL_SECRET`، ۶۰۰ ثانیه، auth `bearerOrSignedUrl`؛ مجوز کاربر `u` دوباره از DB).
+- **job یک‌باره:** `TeacherBackfillService` نقش teacher را به صاحبان فعلی جلسه (MID_ADMIN.sessionOwners) می‌دهد؛ وضعیت در `system_jobs`.
+- **env تازه:** `MEDIA_URL_SECRET` (production الزامی)، `MEDIA_PROXY_TIMEOUT_MS` (پیش‌فرض ۱۲۰۰۰۰).
 
 ## معماری و تصمیم‌ها
 - **auth:** access و step-up JWT را محلی با JWKS سرویس low تأیید می‌کند (RS256 pin). step-up یک JWT ۵ دقیقه‌ای متصل به کاربر+نشست با `lvl=stepup` است (low صادر می‌کند؛ بدون hop). **نقش و مجوز هرگز از JWT خوانده نمی‌شود** — منبع حقیقت DB این سرویس است، پس تغییر نقش فوراً اثر می‌کند. همهٔ endpointها دست‌کم یک نقش سیستمی می‌خواهند.

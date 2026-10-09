@@ -47,7 +47,9 @@ describe('جلسه: سیاست پیوستن/نمایش/ظرفیت', () => {
     const r = await a.post('/sessions', m, sessionBody({ joinPolicy: 'open', visibility: 'unlisted', capacity: 12 }));
     expect(r.status).toBe(200);
     const s = MidSession.parse(r.body.data);
-    expect(s).toMatchObject({ joinPolicy: 'open', visibility: 'unlisted', capacity: 12, memberCount: 1 });
+    expect(s).toMatchObject({ joinPolicy: 'open', visibility: 'unlisted', capacity: 12, memberCount: 0, commentsEnabled: true, commentVisibility: 'public' });
+    const c = await a.patch(`/sessions/${s.id}`, m, sessionBody({ commentsEnabled: false, commentVisibility: 'reciter_only' }));
+    expect(c.body.data).toMatchObject({ commentsEnabled: false, commentVisibility: 'reciter_only' });
     const e = await a.patch(`/sessions/${s.id}`, m, sessionBody({ joinPolicy: 'request', visibility: 'public' }));
     expect(e.body.data).toMatchObject({ joinPolicy: 'request', visibility: 'public', capacity: 12 });
     const e2 = await a.patch(`/sessions/${s.id}`, m, sessionBody({ capacity: null }));
@@ -118,8 +120,9 @@ describe('جلسه: سیاست پیوستن/نمایش/ظرفیت', () => {
     await join(t, s3, other, m, ['teacher']);
     const ids = async (qs: string) => ((await a.get(`/me/sessions?${qs}`, m)).body.data as { session: { id: string } }[]).map((x) => x.session.id).sort();
     expect(await ids('status=started')).toEqual([s2, s3].sort());
-    expect(await ids('role=teacher')).toEqual([s3]);
-    expect(await ids('role=session_manager&status=scheduled')).toEqual([s1]);
+    expect(await ids('role=supporter')).toEqual([s3]);
+    expect(await ids('role=owner&status=scheduled')).toEqual([s1]);
+    expect(await ids('scope=staff')).toEqual([s1, s2, s3].sort());
     for (const x of (await a.get('/me/sessions', m)).body.data) mid.MySessionItem.parse(x);
   });
 
@@ -147,8 +150,9 @@ describe('M-10 درخواست عضویت: joinPolicy، ظرفیت، cooldown', (
     const u1 = await mkUser(t, 'باز یک');
     const r = await a.post(`/sessions/${id}/members`, u1);
     expect(r.status).toBe(200);
-    expect(r.body.data).toMatchObject({ status: 'approved', roles: ['quran_student'] });
+    expect(r.body.data).toMatchObject({ status: 'approved' });
     expect((await memberOf(id, u1.id))!.source).toBe('open');
+    await a.post(`/sessions/${id}/members`, await mkUser(t, 'باز یک و نیم'));
     const full = await a.post(`/sessions/${id}/members`, await mkUser(t, 'باز دو'));
     expect(full.status).toBe(409);
     expect(reason(full)).toBe('SESSION_FULL');
@@ -192,13 +196,13 @@ describe('M-10 درخواست عضویت: joinPolicy، ظرفیت، cooldown', (
     expect(again.body.data).toMatchObject({ id: memberId, status: 'pending' });
     await a.patch(`/sessions/${id}/members/${memberId}`, manager, { action: 'reject' });
     const ok = await a.patch(`/sessions/${id}/members/${memberId}`, manager, { action: 'approve' });
-    expect(ok.body.data).toMatchObject({ status: 'approved', roles: ['quran_student'] });
+    expect(ok.body.data).toMatchObject({ status: 'approved' });
     const dup = await a.patch(`/sessions/${id}/members/${memberId}`, manager, { action: 'approve' });
     expect(reason(dup)).toBe('ALREADY_DECIDED');
   });
 
-  it('M-12 ظرفیت: تأیید بیش از ظرفیت ⇒ SESSION_FULL', async () => {
-    const { id, manager } = await room({ capacity: 2 });
+  it('M-12 ظرفیت: تأیید بیش از ظرفیت ⇒ SESSION_FULL (صاحب جزو ظرفیت نیست)', async () => {
+    const { id, manager } = await room({ capacity: 1 });
     const u1 = await mkUser(t, 'ظ۱');
     const u2 = await mkUser(t, 'ظ۲');
     const m1 = (await a.post(`/sessions/${id}/members`, u1)).body.data.id;
@@ -209,58 +213,24 @@ describe('M-10 درخواست عضویت: joinPolicy، ظرفیت، cooldown', (
     expect(reason(f)).toBe('SESSION_FULL');
   });
 
-  it('M-11 فیلترهای role و q', async () => {
+  it('M-11 فقط اعضا (پشتیبان جدا)؛ فیلتر q؛ دارندهٔ membership.approve بدون manage هم می‌بیند', async () => {
     const { id, manager } = await room();
     const tch = await mkUser(t, 'حسین معلمی');
     await join(t, id, manager, tch, ['teacher']);
     await join(t, id, manager, await mkUser(t, 'رضا شاگرد'));
     const names = async (qs: string) => ((await a.get(`/sessions/${id}/members?${qs}`, manager)).body.data as { name: string }[]).map((x) => x.name);
-    expect(await names('role=teacher')).toEqual(['حسین معلمی']);
+    expect(await names('')).toEqual(['رضا شاگرد']);
+    const appr = await mkUser(t, 'فقط تأییدکننده');
+    await a.post(`/sessions/${id}/supporters`, manager, { user: { userId: appr.id }, permissions: ['membership.approve'] });
+    expect((await a.get(`/sessions/${id}/members`, appr)).status).toBe(200);
+    expect((await a.get(`/sessions/${id}/members`, tch)).status).toBe(403);
     expect(await names(`q=${encodeURIComponent('شاگرد')}`)).toEqual(['رضا شاگرد']);
     expect(await names('q=%25')).toEqual([]);
   });
 });
 
-describe('M-13 / M-16 نقش و مدیر', () => {
-  it('M-13 روی مدیر: مدیر حفظ + معلم؛ مدیر به خودش نقش معلم می‌دهد ⇒ می‌تواند ارزیابی کند', async () => {
-    const { id, manager } = await room();
-    const mine = (await a.get(`/sessions/${id}/me`, manager)).body.data;
-    const myMember = ((await a.get(`/sessions/${id}/members?role=session_manager`, manager)).body.data as { id: string }[])[0]!.id;
-    expect(mine.permissions).not.toContain('eval.submit');
-    const r = await a.put(`/sessions/${id}/members/${myMember}/roles`, manager, { roles: ['teacher'] });
-    expect(r.body.data.roles).toEqual(['session_manager', 'teacher']);
-    expect((await a.get(`/sessions/${id}/me`, manager)).body.data.permissions).toContain('eval.submit');
-  });
-
-  it('M-16: اعطا، انتقال اتمیک (stepDown)، سلب آخرین ⇒ LAST_HOLDER؛ غیر approved ⇒ NOT_APPROVED؛ پشتیبان 403', async () => {
-    const { id, manager } = await room();
-    const u = await mkUser(t, 'مدیر بعدی');
-    const uMember = await join(t, id, manager, u);
-    const mgrMember = ((await a.get(`/sessions/${id}/members?role=session_manager`, manager)).body.data as { id: string }[])[0]!.id;
-    const last = await a.put(`/sessions/${id}/members/${mgrMember}/manager`, manager, { manager: false });
-    expect(last.status).toBe(409);
-    expect(reason(last)).toBe('LAST_HOLDER');
-    const pend = (await a.post(`/sessions/${id}/members`, await mkUser(t, 'منتظر'))).body.data.id;
-    expect(reason(await a.put(`/sessions/${id}/members/${pend}/manager`, manager, { manager: true }))).toBe('NOT_APPROVED');
-    const sup = await mkUser(t, 'پشتیبان م۱۶');
-    await join(t, id, manager, sup, ['session_supporter']);
-    expect((await a.put(`/sessions/${id}/members/${uMember}/manager`, sup, { manager: true })).status).toBe(403);
-
-    const tr = await a.put(`/sessions/${id}/members/${uMember}/manager`, manager, { manager: true, stepDown: true });
-    expect(tr.status).toBe(200);
-    expect(tr.body.data.roles).toEqual(['session_manager']);
-    const me = (await a.get(`/sessions/${id}/me`, manager)).body.data;
-    expect(me.membership.roles).toEqual(['quran_student']);
-    expect(me.permissions).not.toContain('membership.roles');
-    expect((await inboxFor(u.id)).some((x) => x.title === 'مدیر جلسه شدید')).toBe(true);
-    // مدیر تازه می‌تواند مدیر قبلی را دوباره هم‌مدیر کند و سپس خودش سلب شود
-    expect((await a.put(`/sessions/${id}/members/${mgrMember}/manager`, u, { manager: true })).body.data.roles).toEqual(['session_manager']);
-    expect((await a.put(`/sessions/${id}/members/${uMember}/manager`, u, { manager: false })).body.data.roles).toEqual(['quran_student']);
-  });
-});
-
 describe('M-14 افزودن مستقیم', () => {
-  it('مدیر با userId و شماره؛ نقش‌ها؛ outcomes؛ شمارهٔ ناشناس/غیرفعال؛ اعلان؛ شماره در لاگ/DB نیست', async () => {
+  it('صاحب با userId و شماره؛ outcomes؛ شمارهٔ ناشناس/غیرفعال؛ اعلان؛ شماره در لاگ/DB نیست', async () => {
     const { id, manager } = await room();
     const byId = await mkUser(t, 'با شناسه');
     const known = uuidv7();
@@ -269,7 +239,7 @@ describe('M-14 افزودن مستقیم', () => {
     const ghost = uuidv7();
     const r = await a.post(`/sessions/${id}/members/add`, manager, {
       items: [
-        { user: { userId: byId.id }, roles: ['teacher'] },
+        { user: { userId: byId.id } },
         { user: { phone: '09120000001' } },
         { user: { phone: '09120000002' } },
         { user: { phone: '09129999999' } },
@@ -279,24 +249,24 @@ describe('M-14 افزودن مستقیم', () => {
     expect(r.status).toBe(200);
     const res = mid.AddMembersResult.parse(r.body.data);
     expect(res.items.map((i) => i.outcome)).toEqual(['added', 'added', 'not_active', 'not_found', 'not_found']);
-    expect(res.items[0]!.member).toMatchObject({ userId: byId.id, status: 'approved', roles: ['teacher'] });
-    expect(res.items[1]!.member).toMatchObject({ userId: known, name: 'شماره دار', roles: ['quran_student'] });
+    expect(res.items[0]!.member).toMatchObject({ userId: byId.id, status: 'approved' });
+    expect(res.items[1]!.member).toMatchObject({ userId: known, name: 'شماره دار' });
     expect(res).toMatchObject({ added: 2, skipped: 3 });
     expect((await memberOf(id, known))!.source).toBe('staff');
     expect((await inboxFor(known)).some((x) => x.kind === 'membership')).toBe(true);
-    // تکرار: skip ⇒ unchanged؛ merge ⇒ اجتماع نقش‌ها
-    const again = await a.post(`/sessions/${id}/members/add`, manager, { items: [{ user: { userId: byId.id }, roles: ['quran_student'] }] });
-    expect(again.body.data.items[0].outcome).toBe('unchanged');
-    const merged = await a.post(`/sessions/${id}/members/add`, manager, { items: [{ user: { userId: byId.id }, roles: ['session_supporter'] }], onExisting: 'merge' });
-    expect(merged.body.data.items[0]).toMatchObject({ outcome: 'merged', member: { roles: ['session_supporter', 'teacher'] } });
-    expect((await a.post(`/sessions/${id}/members/add`, manager, { items: [{ user: { userId: byId.id } }], onExisting: 'replace' })).status).toBe(400);
+    // تکرار ⇒ unchanged؛ صاحب ⇒ unchanged (عضو نمی‌شود)؛ نقش/onExisting دیگر پذیرفته نیست
+    const again = await a.post(`/sessions/${id}/members/add`, manager, { items: [{ user: { userId: byId.id } }, { user: { userId: manager.id } }] });
+    expect(again.body.data.items.map((i: { outcome: string }) => i.outcome)).toEqual(['unchanged', 'unchanged']);
+    expect(await memberOf(id, manager.id)).toBeUndefined();
+    expect((await a.post(`/sessions/${id}/members/add`, manager, { items: [{ user: { userId: byId.id }, roles: ['teacher'] }] })).status).toBe(400);
+    expect((await a.post(`/sessions/${id}/members/add`, manager, { items: [{ user: { userId: byId.id } }], onExisting: 'merge' })).status).toBe(400);
     // شماره هرگز ذخیره نمی‌شود
     const leak = (await t.ds.query("SELECT COUNT(*) AS n FROM outbox_events WHERE payload LIKE '%0912000000%'")) as { n: string }[];
     expect(Number(leak[0]!.n)).toBe(0);
   });
 
   it('pending/rejected ⇒ approved؛ ظرفیت ⇒ full؛ جلسهٔ ended ⇒ SESSION_LOCKED', async () => {
-    const { id, manager } = await room({ capacity: 3 });
+    const { id, manager } = await room({ capacity: 2 });
     const p = await mkUser(t, 'درخواست‌دهنده');
     await a.post(`/sessions/${id}/members`, p);
     const x = await mkUser(t, 'اضافه');
@@ -310,17 +280,15 @@ describe('M-14 افزودن مستقیم', () => {
     expect(reason(locked)).toBe('SESSION_LOCKED');
   });
 
-  it('مجوز: پشتیبان فقط quran_student؛ معلم/قرآن‌آموز 403؛ نقش مدیر از این مسیر 400', async () => {
+  it('مجوز: پشتیبانِ membership.manage مجاز؛ معلم (بدون manage)/قرآن‌آموز 403', async () => {
     const { id, manager } = await room();
     const sup = await mkUser(t, 'پشتیبان افزودن');
     const tch = await mkUser(t, 'معلم افزودن');
     await join(t, id, manager, sup, ['session_supporter']);
     await join(t, id, manager, tch, ['teacher']);
     const u = await mkUser(t, 'هدف');
-    expect((await a.post(`/sessions/${id}/members/add`, sup, { items: [{ user: { userId: u.id }, roles: ['teacher'] }] })).status).toBe(403);
     expect((await a.post(`/sessions/${id}/members/add`, sup, { items: [{ user: { userId: u.id } }] })).body.data.items[0].outcome).toBe('added');
     expect((await a.post(`/sessions/${id}/members/add`, tch, { items: [{ user: { userId: u.id } }] })).status).toBe(403);
-    expect((await a.post(`/sessions/${id}/members/add`, manager, { items: [{ user: { userId: u.id }, roles: ['session_manager'] }] })).status).toBe(400);
     expect((await a.post(`/sessions/${id}/members/add`, manager, { items: [{ user: { userId: u.id, phone: '09120000001' } }] })).status).toBe(400);
   });
 
@@ -357,7 +325,7 @@ describe('M-15 حذف / M-17 ترک: صف پاک، امتیاز می‌ماند'
   const queued = async (sid: string, uid: string) => Number(((await t.ds.query("SELECT COUNT(*) AS n FROM queue_items WHERE session_id = ? AND user_id = ? AND status IN ('waiting','current')", [bin(sid), bin(uid)])) as { n: string }[])[0]!.n);
   const points = async (uid: string) => Number(((await t.ds.query('SELECT COALESCE(SUM(points),0) AS n FROM point_ledger WHERE user_id = ?', [bin(uid)])) as { n: string }[])[0]!.n);
 
-  it('M-15 مدیر: عضو حذف، صف فعال پاک، حضور/امتیاز می‌ماند، اعلان، members.updated؛ مدیر ⇒ SESSION_MANAGER_PROTECTED', async () => {
+  it('M-15 صاحب: عضو حذف، صف فعال پاک، حضور/امتیاز می‌ماند، اعلان، members.updated', async () => {
     const { id, manager } = await room();
     const { u, memberId } = await present(id, manager);
     await a.post(`/sessions/${id}/queue`, u);
@@ -375,24 +343,23 @@ describe('M-15 حذف / M-17 ترک: صف پاک، امتیاز می‌ماند'
     expect(await points(u.id)).toBe(pts);
     expect(Number(((await t.ds.query('SELECT COUNT(*) AS n FROM attendance_entries WHERE session_id = ? AND user_id = ?', [bin(id), bin(u.id)])) as { n: string }[])[0]!.n)).toBe(1);
     expect((await inboxFor(u.id)).some((x) => x.title === 'حذف از جلسه')).toBe(true);
-    const mgrMember = ((await a.get(`/sessions/${id}/members?role=session_manager`, manager)).body.data as { id: string }[])[0]!.id;
-    expect(reason(await a.del(`/sessions/${id}/members/${mgrMember}`, manager))).toBe('SESSION_MANAGER_PROTECTED');
     expect((await a.del(`/sessions/${id}/members/${memberId}`, manager)).status).toBe(404);
   });
 
-  it('M-15 پشتیبان: قرآن‌آموز و درخواست مجاز؛ معلم 403', async () => {
+  it('M-15 پشتیبانِ membership.manage: عضو و درخواست مجاز؛ معلم (بدون manage) 403', async () => {
     const { id, manager } = await room();
     const sup = await mkUser(t, 'پشتیبان حذف');
     await join(t, id, manager, sup, ['session_supporter']);
+    const tchU = await mkUser(t, 'معلم حذف');
+    await join(t, id, manager, tchU, ['teacher']);
     const { memberId: stu } = await present(id, manager);
-    const { memberId: tch } = await present(id, manager, ['teacher']);
     const pend = (await a.post(`/sessions/${id}/members`, await mkUser(t, 'درخواست حذف'))).body.data.id;
-    expect((await a.del(`/sessions/${id}/members/${tch}`, sup)).status).toBe(403);
+    expect((await a.del(`/sessions/${id}/members/${stu}`, tchU)).status).toBe(403);
     expect((await a.del(`/sessions/${id}/members/${stu}`, sup)).status).toBe(200);
     expect((await a.del(`/sessions/${id}/members/${pend}`, sup)).status).toBe(200);
   });
 
-  it('M-17: ترک (صف پاک، امتیاز می‌ماند)؛ لغو درخواست؛ آخرین مدیر LAST_HOLDER؛ غیرعضو 404', async () => {
+  it('M-17: ترک (صف پاک، امتیاز می‌ماند)؛ لغو درخواست؛ صاحب ⇒ SESSION_MANAGER_PROTECTED؛ غیرعضو 404', async () => {
     const { id, manager } = await room();
     const { u } = await present(id, manager);
     await a.post(`/sessions/${id}/queue`, u);
@@ -407,7 +374,7 @@ describe('M-15 حذف / M-17 ترک: صف پاک، امتیاز می‌ماند'
     expect(await memberOf(id, p.id)).toBeUndefined();
     const last = await a.del(`/sessions/${id}/membership`, manager);
     expect(last.status).toBe(409);
-    expect(reason(last)).toBe('LAST_HOLDER');
+    expect(reason(last)).toBe('SESSION_MANAGER_PROTECTED');
     expect((await a.del(`/sessions/${id}/membership`, await mkUser(t, 'غریبه'))).status).toBe(404);
   });
 });
@@ -415,7 +382,8 @@ describe('M-15 حذف / M-17 ترک: صف پاک، امتیاز می‌ماند'
 describe('دعوت M-50..M-53', () => {
   it('ساخت (کد ۲۲ نویسه، فقط hash ذخیره)، فهرست بدون کد، پذیرش، عضو موجود، منقضی/باطل/تمام', async () => {
     const { id, manager } = await room();
-    const c = await a.post(`/sessions/${id}/invites`, manager, { roles: ['teacher'], maxUses: 1, expiresInHours: 1 });
+    expect((await a.post(`/sessions/${id}/invites`, manager, { roles: ['teacher'] })).status).toBe(400); // ۱.۷.۰: بدون نقش
+    const c = await a.post(`/sessions/${id}/invites`, manager, { maxUses: 1, expiresInHours: 1 });
     expect(c.status).toBe(200);
     const inv = mid.CreatedInvite.parse(c.body.data);
     expect(inv.code).toMatch(/^[A-Za-z0-9_-]{22}$/);
@@ -427,7 +395,8 @@ describe('دعوت M-50..M-53', () => {
     const u = await mkUser(t, 'دعوت‌شده');
     const acc = await a.post('/invites/accept', u, { code: inv.code });
     expect(acc.status).toBe(200);
-    expect(acc.body.data).toMatchObject({ status: 'approved', roles: ['teacher'] });
+    expect(acc.body.data).toMatchObject({ status: 'approved' });
+    expect(reason(await a.post('/invites/accept', manager, { code: (await a.post(`/sessions/${id}/invites`, manager, {})).body.data.code }))).toBe('SESSION_MANAGER_PROTECTED');
     expect((await memberOf(id, u.id))!.source).toBe('invite');
     // عضو موجود ⇒ همان عضویت بدون مصرف
     expect((await a.post('/invites/accept', u, { code: inv.code })).body.data.id).toBe(acc.body.data.id);
@@ -448,18 +417,21 @@ describe('دعوت M-50..M-53', () => {
     expect((await a.post('/invites/accept', u, { code: 'short' })).status).toBe(400);
   });
 
-  it('pending ⇒ approved با دعوت؛ مجوز نقش کادر؛ ۲۰ دعوت فعال ⇒ LIMIT_REACHED؛ ظرفیت ⇒ SESSION_FULL', async () => {
-    const { id, manager } = await room({ capacity: 2 });
+  it('pending ⇒ approved با دعوت؛ معلم (بدون membership.manage) 403؛ ۲۰ دعوت فعال ⇒ LIMIT_REACHED؛ ظرفیت ⇒ SESSION_FULL', async () => {
+    const { id, manager } = await room({ capacity: 1 });
     const sup = await mkUser(t, 'پشتیبان دعوت');
     await join(t, id, manager, sup, ['session_supporter']);
-    expect((await a.post(`/sessions/${id}/invites`, sup, { roles: ['teacher'] })).status).toBe(403);
+    const tch = await mkUser(t, 'معلم دعوت');
+    await join(t, id, manager, tch, ['teacher']);
+    expect((await a.post(`/sessions/${id}/invites`, tch, {})).status).toBe(403);
+    await join(t, id, manager, await mkUser(t, 'پرکننده'));
     const code = (await a.post(`/sessions/${id}/invites`, sup, {})).body.data.code as string;
     expect(reason(await a.post('/invites/accept', await mkUser(t, 'پر'), { code }))).toBe('SESSION_FULL');
     const { id: id2, manager: m2 } = await room();
     const p = await mkUser(t, 'منتظر دعوت');
     const pm = (await a.post(`/sessions/${id2}/members`, p)).body.data.id;
     const code2 = (await a.post(`/sessions/${id2}/invites`, m2, {})).body.data.code as string;
-    expect((await a.post('/invites/accept', p, { code: code2 })).body.data).toMatchObject({ id: pm, status: 'approved', roles: ['quran_student'] });
+    expect((await a.post('/invites/accept', p, { code: code2 })).body.data).toMatchObject({ id: pm, status: 'approved' });
     for (let i = 0; i < 19; i++) {
       if (i % 9 === 8) t.clock.advance(61_000); // سقف ۱۰/دقیقهٔ M-50
       expect((await a.post(`/sessions/${id2}/invites`, m2, {})).status).toBe(200);
@@ -569,28 +541,27 @@ describe('Socket.IO: اخراج و حریم queue.turned', () => {
 });
 
 describe('MID_ADMIN عضویت', () => {
-  it('membersAdd: ساخت ردیف دایرکتوری با نام، ended مجاز، replace با حفظ مدیر، Idempotency-Key', async () => {
+  it('membersAdd: ساخت ردیف دایرکتوری با نام، ended مجاز، صاحب ⇒ unchanged، Idempotency-Key', async () => {
     const { id, manager } = await room();
     await a.post(`/sessions/${id}/transition`, manager, { to: 'ended' });
     const actor = randomUUID();
     const fresh = uuidv7();
-    const body = { actorId: actor, items: [{ userId: fresh, roles: ['teacher'], firstName: 'تازه', lastName: 'وارد' }, { userId: manager.id, roles: ['teacher'] }], onExisting: 'replace' };
+    const body = { actorId: actor, items: [{ userId: fresh, firstName: 'تازه', lastName: 'وارد' }, { userId: manager.id }] };
     const key = `k-${randomUUID()}`;
     const r = await ad.post(`/admin/sessions/${id}/members/add`, body, { 'Idempotency-Key': key });
     expect(r.status).toBe(200);
     const res = internal.MidAdminAddMembersResult.parse(r.body.data);
-    expect(res.items.map((i) => i.outcome)).toEqual(['added', 'replaced']);
-    expect(res.items[0]!.member).toMatchObject({ name: 'تازه وارد', phone: null, roles: ['teacher'] });
-    expect(res.items[1]!.member!.roles).toEqual(['session_manager', 'teacher']);
+    expect(res.items.map((i) => i.outcome)).toEqual(['added', 'unchanged']);
+    expect(res.items[0]!.member).toMatchObject({ name: 'تازه وارد', phone: null });
     expect((await memberOf(id, fresh))!.source).toBe('admin');
     const again = await ad.post(`/admin/sessions/${id}/members/add`, body, { 'Idempotency-Key': key });
     expect(again.body.data).toEqual(r.body.data);
-    expect(reason(await ad.post(`/admin/sessions/${id}/members/add`, { ...body, onExisting: 'skip' }, { 'Idempotency-Key': key }))).toBe('IDEMPOTENCY_KEY_REUSED');
+    expect(reason(await ad.post(`/admin/sessions/${id}/members/add`, { ...body, notify: false }, { 'Idempotency-Key': key }))).toBe('IDEMPOTENCY_KEY_REUSED');
     expect((await ad.post(`/admin/sessions/${randomUUID()}/members/add`, body)).status).toBe(404);
   });
 
-  it('membersDecide گروهی با ظرفیت؛ members فیلتر role/q/userId', async () => {
-    const { id, manager } = await room({ capacity: 3 });
+  it('membersDecide گروهی با ظرفیت؛ members فیلتر q/userId', async () => {
+    const { id, manager } = await room({ capacity: 2 });
     const us = await Promise.all([1, 2, 3].map((i) => mkUser(t, `گروهی ${i}`)));
     const ids = [] as string[];
     for (const u of us) ids.push((await a.post(`/sessions/${id}/members`, u)).body.data.id);
@@ -601,33 +572,39 @@ describe('MID_ADMIN عضویت', () => {
     expect(rej.body.data.items.map((i: { outcome: string }) => i.outcome)).toEqual(['skipped', 'rejected']);
     const byUser = await ad.get(`/admin/sessions/${id}/members?userId=${us[1]!.id}`);
     expect(byUser.body.data.map((x: { userId: string }) => x.userId)).toEqual([us[1]!.id]);
-    expect((await ad.get(`/admin/sessions/${id}/members?role=session_manager`)).body.data.map((x: { userId: string }) => x.userId)).toEqual([manager.id]);
+    void manager;
     expect((await ad.get(`/admin/sessions/${id}/members?q=${encodeURIComponent('گروهی 3')}`)).body.meta.total).toBe(1);
     for (const x of (await ad.get(`/admin/sessions/${id}/members`)).body.data) high.AdminMember.parse(x);
   });
 
-  it('manager (H-74): انتقال با demote/remove، کاربر تازه، transferCreator؛ غیرفعال ⇒ USER_NOT_ACTIVE', async () => {
+  it('owner (H-74): صاحب تازه (عضو/پشتیبانِ قبلی پاک)، صاحب قبلی ⇒ پشتیبان همه‌مجوز یا remove؛ غیرفعال ⇒ USER_NOT_ACTIVE', async () => {
     const { id, manager } = await room();
-    const co = await mkUser(t, 'هم‌مدیر');
-    const coMember = await join(t, id, manager, co);
-    await a.put(`/sessions/${id}/members/${coMember}/manager`, manager, { manager: true });
-    const next = uuidv7();
-    const r = await ad.put(`/admin/sessions/${id}/manager`, { actorId: randomUUID(), userId: next, previous: 'demote', previousRoles: ['teacher'], transferCreator: true, firstName: 'مدیر', lastName: 'نو' });
+    const mem = await mkUser(t, 'عضو صاحب‌شونده');
+    await join(t, id, manager, mem);
+    const r = await ad.put(`/admin/sessions/${id}/owner`, { actorId: randomUUID(), userId: mem.id });
     expect(r.status).toBe(200);
     const s = high.AdminSession.parse(r.body.data);
-    expect(s.createdBy).toEqual({ id: next, name: 'مدیر نو' });
-    expect(s.counts.managers).toBe(1);
-    const roles = async (uid: string) => ((await ad.get(`/admin/sessions/${id}/members?userId=${uid}`)).body.data[0]?.roles ?? null) as string[] | null;
-    expect(await roles(manager.id)).toEqual(['teacher']);
-    expect(await roles(co.id)).toEqual(['teacher']);
-    expect(await roles(next)).toEqual(['session_manager']);
-    const r2 = await ad.put(`/admin/sessions/${id}/manager`, { actorId: randomUUID(), userId: co.id, previous: 'remove' });
-    expect(r2.status).toBe(200);
-    expect(await roles(next)).toBeNull();
-    expect(await roles(co.id)).toEqual(['session_manager', 'teacher']);
-    const dis = await mkUser(t, 'غیرفعال مدیر');
+    expect(s.owner).toEqual({ id: mem.id, name: 'عضو صاحب‌شونده' });
+    expect(s.createdBy.id).toBe(manager.id);
+    expect(s.counts.supporters).toBe(1);
+    expect(await memberOf(id, mem.id)).toBeUndefined();
+    const prev = (await a.get(`/sessions/${id}/me`, manager)).body.data;
+    expect(prev.role).toBe('supporter');
+    expect(prev.permissions).toHaveLength(9);
+    expect((await a.get(`/sessions/${id}/me`, mem)).body.data.role).toBe('owner');
+    const next = uuidv7();
+    const r2 = await ad.put(`/admin/sessions/${id}/owner`, { actorId: randomUUID(), userId: next, previousOwner: 'remove', firstName: 'استاد', lastName: 'نو' });
+    expect(high.AdminSession.parse(r2.body.data).owner).toEqual({ id: next, name: 'استاد نو' });
+    expect((await a.get(`/sessions/${id}/me`, mem)).body.data.role).toBeNull();
+    // همان صاحب ⇒ بدون تغییر
+    expect((await ad.put(`/admin/sessions/${id}/owner`, { actorId: randomUUID(), userId: next })).status).toBe(200);
+    const dis = await mkUser(t, 'غیرفعال صاحب');
     await t.ds.query("UPDATE user_directory SET status = 'disabled' WHERE user_id = ?", [bin(dis.id)]);
-    expect(reason(await ad.put(`/admin/sessions/${id}/manager`, { actorId: randomUUID(), userId: dis.id }))).toBe('USER_NOT_ACTIVE');
+    expect(reason(await ad.put(`/admin/sessions/${id}/owner`, { actorId: randomUUID(), userId: dis.id }))).toBe('USER_NOT_ACTIVE');
+    const owners = await ad.get('/admin/session-owners?pageSize=100');
+    expect(owners.status).toBe(200);
+    for (const o of owners.body.data) internal.MidAdminSessionOwner.parse(o);
+    expect(owners.body.data.map((o: { userId: string }) => o.userId)).toContain(next);
   });
 
   it('userMemberships و notify (فیلتر نقش، idempotent per broadcastId، ref نامعتبر 400)', async () => {
@@ -640,11 +617,14 @@ describe('MID_ADMIN عضویت', () => {
     const um = await ad.get(`/admin/users/${stu.id}/memberships`);
     expect(um.status).toBe(200);
     const item = internal.MidAdminUserMembership.parse(um.body.data[0]);
-    expect(item).toMatchObject({ attendanceCount: 1, points: 5, status: 'approved', roles: ['quran_student'] });
+    expect(item).toMatchObject({ attendanceCount: 1, points: 5, status: 'approved', role: 'member' });
     expect(item.session.id).toBe(id);
-    expect((await ad.get(`/admin/users/${stu.id}/memberships?role=teacher`)).body.meta.total).toBe(0);
+    expect((await ad.get(`/admin/users/${stu.id}/memberships?role=supporter`)).body.meta.total).toBe(0);
+    const tm = internal.MidAdminUserMembership.parse((await ad.get(`/admin/users/${tch.id}/memberships?role=supporter`)).body.data[0]);
+    expect(tm).toMatchObject({ role: 'supporter', memberId: null, status: null });
+    expect(internal.MidAdminUserMembership.parse((await ad.get(`/admin/users/${manager.id}/memberships`)).body.data[0]).role).toBe('owner');
     const bid = randomUUID();
-    const body = { actorId: randomUUID(), broadcastId: bid, roles: ['teacher'], title: 'اطلاعیه', body: 'متن اطلاعیه', ref: `announcement:${bid}` };
+    const body = { actorId: randomUUID(), broadcastId: bid, roles: ['supporter'], title: 'اطلاعیه', body: 'متن اطلاعیه', ref: `announcement:${bid}` };
     const n = await ad.post(`/admin/sessions/${id}/notify`, body);
     expect(n.body.data).toEqual({ recipients: 1 });
     expect((await ad.post(`/admin/sessions/${id}/notify`, body)).body.data).toEqual({ recipients: 1 });

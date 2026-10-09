@@ -10,8 +10,9 @@ import { Clock } from '../../src/common/clock';
 import { uuidv7 } from '../../src/common/ids';
 import { type Env, loadEnv } from '../../src/config/env';
 import { SEED_MODULES, SEED_PERMISSIONS, seedRbac } from '../../src/db/rbac-seed';
-import { RbacService } from '../../src/domain/rbac.service';
-import { DEFAULT_FLAGS, DEFAULT_THRESHOLDS, DEFAULT_WEIGHTS } from '../../src/domain/rules';
+import { RbacService, syncBaseline } from '../../src/domain/rbac.service';
+import { SEED_CRITERIA, TEACHER_BACKFILL_JOB } from '../../src/db/migrations/1728700000000-TiersTeacherContent';
+import { DEFAULT_FLAGS } from '../../src/domain/rules';
 
 export class TestClock extends Clock {
   private t = Date.now();
@@ -58,6 +59,8 @@ export const okReply = (data: unknown, meta?: Record<string, unknown>) => ({ __r
 /** پاسخ خطای مبدأ با envelope استاندارد */
 export const failReply = (status: number, code: string, message = 'خطا', details?: Record<string, unknown>) => ({ __reply: true as const, status, body: { success: false, error: { code, message, ...(details ? { details } : {}) } } });
 export const rawReply = (status: number, body: unknown = {}, delayMs?: number) => ({ __reply: true as const, status, body, delayMs });
+/** پاسخ باینری خام (محتوای گالری) */
+export const binReply = (status: number, headers: Record<string, string>, body: Buffer) => ({ __raw: true as const, status, headers, body });
 
 export async function startFake(clock: Clock): Promise<FakeLow> {
   const { privateKey, publicKey } = await generateKeyPair('RS256', { extractable: true });
@@ -98,11 +101,13 @@ export async function startFake(clock: Clock): Promise<FakeLow> {
   const server: Server = createServer((req, res) => {
     const rawUrl = req.url ?? '';
     if (/^\/(c|o)\/internal\/v1\/admin\//.test(rawUrl)) {
-      let b = '';
-      req.on('data', (c) => (b += c));
+      const parts: Buffer[] = [];
+      req.on('data', (c: Buffer) => parts.push(c));
       req.on('end', async () => {
         const u = new URL(rawUrl, 'http://x');
-        const call: AdminCall = { method: req.method ?? 'GET', path: u.pathname, query: Object.fromEntries(u.searchParams), body: b ? JSON.parse(b) : undefined, headers: req.headers };
+        const buf = Buffer.concat(parts);
+        const isJson = !req.headers['content-type'] || String(req.headers['content-type']).startsWith('application/json');
+        const call: AdminCall = { method: req.method ?? 'GET', path: u.pathname, query: Object.fromEntries(u.searchParams), body: buf.length ? (isJson ? JSON.parse(buf.toString('utf8')) : buf) : undefined, headers: req.headers };
         f.admin.calls.push(call);
         const r = routes.find((x) => x.method === call.method && x.re.test(call.path));
         const send = (status: number, body: unknown) => {
@@ -115,6 +120,11 @@ export async function startFake(clock: Clock): Promise<FakeLow> {
         const params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1]!)]));
         const out = r.h(call, params) as { __reply?: boolean; status?: number; body?: unknown; delayMs?: number } | unknown;
         const rep = out as { __reply?: boolean; status?: number; body?: unknown; delayMs?: number };
+        if (rep && (rep as { __raw?: boolean }).__raw) {
+          const rr = rep as unknown as { status: number; headers: Record<string, string>; body: Buffer };
+          res.writeHead(rr.status, rr.headers);
+          return res.end(rr.body);
+        }
         if (rep && rep.__reply) {
           if (rep.delayMs) await new Promise((x) => setTimeout(x, rep.delayMs));
           return send(rep.status ?? 200, rep.body);
@@ -203,12 +213,21 @@ export async function resetDb(ds: DataSource, app?: NestExpressApplication) {
   // seed ویرایش مالک را overwrite نمی‌کند (۱.۶.۰) ⇒ تست متادیتای سیستمی را صریحاً به پیش‌فرض برمی‌گرداند
   for (const p of SEED_PERMISSIONS) await ds.query('UPDATE permissions SET title = ?, description = ?, module_key = ?, grantable = ?, step_up = ? WHERE permission_key = ?', [p.title, p.description, p.module, p.grantable ? 1 : 0, p.stepUp, p.key]);
   for (const m of SEED_MODULES) await ds.query('UPDATE system_modules SET title = ?, description = ?, sort_order = ? WHERE module_key = ?', [m.title, m.description, m.sortOrder, m.key]);
-  await seedRbac(ds, new Date());
+  await seedRbac(ds, new Date(), { restoreDefaults: true });
   await resetBadges(ds);
-  await ds.query('UPDATE rbac_meta SET version = 1');
+  // baseline منتشرشده = وضعیت seed (هش درست) ⇒ نوشتن RBAC بی‌اثر روی guest/quran_student رویداد baseline نمی‌سازد
+  await syncBaseline(ds, new Date(), true);
+  await ds.query('UPDATE rbac_meta SET version = 1, baseline_version = 1');
+  await ds.query('DELETE FROM outbox_events');
+  // معیارهای ارزیابی ⇒ seed مهاجرت (سه معیار، نسخهٔ ۱)
+  await ds.query('DELETE FROM evaluation_criteria');
+  for (const c of SEED_CRITERIA)
+    await ds.query("INSERT INTO evaluation_criteria (id, criterion_key, title, description, weight, max_score, active, sort_order, used, created_at, updated_at) VALUES (UNHEX(?), ?, ?, '', ?, 10, 1, ?, 1, NOW(3), NOW(3))", [c.id.replace(/-/g, ''), c.key, c.title, { voice: 40, tone: 30, tajweed: 30 }[c.weightKey], c.sortOrder]);
+  await ds.query('UPDATE criteria_meta SET version = 1');
+  await ds.query("UPDATE system_jobs SET status = 'pending', cursor_page = 1, attempts = 0, lease_until = NULL, meta = NULL, done_at = NULL WHERE job_key = ?", [TEACHER_BACKFILL_JOB]);
   // نقش‌های حذف‌شدهٔ پویا ردی در user_system_roles ندارند (جدول بالا truncate شده)
   app?.get(RbacService).invalidate();
-  await ds.query("UPDATE system_settings SET version = 1, eval_weights = ?, badge_thresholds = ?, flags = ?, updated_by = 'سیستم' WHERE setting_key = 'global'", [JSON.stringify(DEFAULT_WEIGHTS), JSON.stringify(DEFAULT_THRESHOLDS), JSON.stringify(DEFAULT_FLAGS)]);
+  await ds.query("UPDATE system_settings SET version = 1, flags = ?, updated_by = 'سیستم' WHERE setting_key = 'global'", [JSON.stringify(DEFAULT_FLAGS)]);
 }
 
 export interface User {

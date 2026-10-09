@@ -62,8 +62,8 @@ export class RbacController {
   }
 
   @Route('H-88')
-  async listModules(@In() { query }: { query: Page }) {
-    const all = (await this.registry.snapshot()).modules;
+  async listModules(@In() { query }: { query: B<'ModulesQuery'> }) {
+    const all = (await this.registry.snapshot()).modules.filter((m) => !query.tier || m.tier === query.tier);
     return { items: all.slice((query.page - 1) * query.pageSize, query.page * query.pageSize), page: query.page, pageSize: query.pageSize, total: all.length };
   }
   @Route('H-89')

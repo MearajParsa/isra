@@ -17,7 +17,6 @@ type Session = z.infer<typeof internal.MidAdminSession>;
 type SessionInput = z.infer<typeof internal.MidAdminPatchSession>;
 type AddBody = z.infer<typeof high.AdminAddMembersBody>;
 type Outcome = z.infer<typeof midTypes.AddMemberOutcome>;
-type StaffRole = z.infer<typeof midTypes.StaffAssignableRole>;
 const REAL_PHONE = /^09\d{9}$/;
 const OUTCOMES = midTypes.AddMemberOutcome.options;
 
@@ -58,7 +57,8 @@ export class SessionsAdminService {
     return s;
   }
 
-  private ref(id: string): { id: string; title: string } {
+  /** برچسب audit جلسه از کش عنوان‌ها (بدون GET اضافه) */
+  ref(id: string): { id: string; title: string } {
     return { id, title: this.titles.get(id) ?? 'جلسه' };
   }
 
@@ -72,7 +72,7 @@ export class SessionsAdminService {
     return this.remember(await this.mid.getSession(id));
   }
 
-  private async log(actorId: string, action: string, s: { id: string; title: string }, summary: string, meta: Record<string, unknown> = {}) {
+  async log(actorId: string, action: string, s: { id: string; title: string }, summary: string, meta: Record<string, unknown> = {}) {
     await this.audit.write(this.ds, { actor: await this.audit.actorOf(actorId), action, target: { type: 'session', id: s.id, label: s.title }, summary: `${summary} «${s.title}»`, meta });
   }
 
@@ -152,13 +152,6 @@ export class SessionsAdminService {
     return this.one(m);
   }
 
-  /** H-68 (۱.۶.۰): session_manager هم مجاز (هم‌مدیر)؛ آخرین مدیر ⇒ LAST_HOLDER از mid */
-  async setRoles(actorId: string, id: string, memberId: string, roles: z.infer<typeof internal.MidAdminSetRoles>['roles']) {
-    const m = await this.mid.setMemberRoles(id, memberId, { roles, actorId });
-    await this.log(actorId, 'session.member_roles', this.ref(id), 'نقش‌های عضو تغییر کرد در', { memberId, userId: m.userId, roles });
-    return this.one(m);
-  }
-
   async removeMember(actorId: string, id: string, memberId: string): Promise<void> {
     const removed = await this.mid.removeMember(id, memberId);
     await this.log(actorId, 'session.member_remove', this.ref(id), 'عضو حذف شد از', { memberId, userId: removed?.userId ?? null });
@@ -218,7 +211,7 @@ export class SessionsAdminService {
     }
 
     // آیتم‌ها ⇒ userId (تکراری: اولین آیتم تعیین‌کننده است)
-    const send = new Map<string, { userId: string; roles: StaffRole[]; firstName?: string; lastName?: string }>();
+    const send = new Map<string, { userId: string; firstName?: string; lastName?: string }>();
     const idxOf = new Map<string, number[]>();
     body.items.forEach((it, i) => {
       const row = it.user.phone ? byPhone.get(it.user.phone) : byId.get(it.user.userId!.toLowerCase());
@@ -233,11 +226,11 @@ export class SessionsAdminService {
         return;
       }
       idxOf.set(userId, [...(idxOf.get(userId) ?? []), i]);
-      if (!send.has(userId)) send.set(userId, { userId, roles: (it.roles ?? body.defaultRoles) as StaffRole[], ...(row ? { firstName: row.first_name, lastName: row.last_name } : {}) });
+      if (!send.has(userId)) send.set(userId, { userId, ...(row ? { firstName: row.first_name, lastName: row.last_name } : {}) });
     });
 
     if (send.size) {
-      const res = await this.mid.membersAdd(id, { actorId: actor.id, items: [...send.values()], onExisting: body.onExisting, notify: body.notify }, keys.mid);
+      const res = await this.mid.membersAdd(id, { actorId: actor.id, items: [...send.values()], notify: body.notify }, keys.mid);
       const members = await this.withPhones(res.items.flatMap((r) => (r.member ? [r.member] : [])));
       const memberOf = new Map(members.map((m) => [m.userId.toLowerCase(), m]));
       for (const r of res.items) {
@@ -254,22 +247,24 @@ export class SessionsAdminService {
     for (const o of out) counts[o.outcome]++;
     const s = this.ref(id);
     await this.log(actor.id, 'session.members_add', s, `${n} عضو بررسی شد برای`, {
-      items: out.map((o) => ({ userId: o.userId, outcome: o.outcome, roles: o.userId ? (send.get(o.userId)?.roles ?? null) : null })),
-      onExisting: body.onExisting,
+      items: out.map((o) => ({ userId: o.userId, outcome: o.outcome })),
       createdUserIds: [...created],
       counts
     });
     return { items: out, counts };
   }
 
-  /** H-74 انتقال/تعیین مدیر: کاربر باید در دایرکتوری و فعال باشد (نام برای ساخت ردیف دایرکتوری mid) */
-  async transferManager(actorId: string, id: string, body: z.infer<typeof high.TransferManagerBody>) {
+  /**
+   * H-74 (۱.۷.۰) تغییر استاد صاحب: کاربر باید در دایرکتوری و فعال باشد (نام برای ساخت ردیف دایرکتوری mid).
+   * صاحب قبلی طبق `previousOwner` (پشتیبان per جلسه با همهٔ مجوزها یا حذف)؛ پشتیبان‌های ثابت صاحب قبلی/جدید را mid اعمال می‌کند.
+   */
+  async transferOwner(actorId: string, id: string, body: z.infer<typeof high.TransferOwnerBody>) {
     const rows = isUuid(body.userId) ? ((await this.ds.query('SELECT first_name, last_name, status FROM user_directory WHERE user_id = ?', [uuidToBuf(body.userId)])) as { first_name: string; last_name: string; status: string }[]) : [];
     const u = rows[0];
     if (!u) throw new AppError('NOT_FOUND', { message: 'کاربر پیدا نشد.' });
     if (u.status !== 'active') throw conflict('USER_NOT_ACTIVE', 'کاربر فعال نیست.');
-    const s = this.remember(await this.mid.manager(id, { actorId, ...body, firstName: u.first_name, lastName: u.last_name }));
-    await this.log(actorId, 'session.manager_transfer', s, 'مدیر جلسه تعیین شد:', { userId: body.userId, previous: body.previous, transferCreator: body.transferCreator });
+    const s = this.remember(await this.mid.owner(id, { actorId, userId: body.userId, previousOwner: body.previousOwner, notify: body.notify, firstName: u.first_name, lastName: u.last_name }));
+    await this.log(actorId, 'session.owner_transfer', s, 'استاد صاحب جلسه تغییر کرد:', { userId: body.userId, previousOwner: body.previousOwner });
     return s;
   }
 
@@ -337,7 +332,7 @@ export class SessionsAdminService {
 /** diff فیلدهای جلسه برای audit (بدون PII؛ متن‌های بلند فقط «تغییر کرد») */
 export function sessionDiff(before: Session, after: Session): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  const scalar = ['title', 'joinPolicy', 'visibility', 'capacity'] as const;
+  const scalar = ['title', 'joinPolicy', 'visibility', 'capacity', 'commentsEnabled', 'commentVisibility'] as const;
   for (const k of scalar) if (before[k] !== after[k]) out[k] = { from: before[k] ?? null, to: after[k] ?? null };
   for (const k of ['description', 'schedule', 'location'] as const) if (JSON.stringify(before[k]) !== JSON.stringify(after[k])) out[k] = 'changed';
   return out;

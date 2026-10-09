@@ -19,7 +19,7 @@
     {#if caps.canManage}
       {@render children()}
     {:else}
-      <EmptyState icon="lock" title="به بخش مدیریت دسترسی ندارید" message="این بخش فقط برای مدیر، پشتیبان و معلم جلسه‌هاست.">
+      <EmptyState icon="lock" title="به بخش مدیریت دسترسی ندارید" message="این بخش فقط برای استاد و پشتیبان جلسه‌هاست.">
         {#snippet action()}<Button href="/my-sessions">جلسه‌های من</Button>{/snippet}
       </EmptyState>
     {/if}

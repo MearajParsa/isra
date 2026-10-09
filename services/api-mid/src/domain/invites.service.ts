@@ -7,16 +7,14 @@ import { sha256 } from '../common/crypto';
 import { bufToUuid, isUuid, uuidToBuf, uuidv7 } from '../common/ids';
 import { RateLimitService } from '../common/rate-limit/rate-limit.service';
 import { LiveService } from '../live/live.service';
-import { MembersAccess, approvedCount, sortRoles } from './access.service';
+import { MembersAccess, approvedCount } from './access.service';
 import { NAME_SQL, conflict, displayName } from './db';
 import { MembersService, memberDto } from './members.service';
-import type { SessionRole } from './rules';
 
 const MAX_ACTIVE = 20;
 
 interface InviteRow {
   id: Buffer;
-  roles: string;
   max_uses: number | null;
   uses: number;
   expires_at: Date;
@@ -26,12 +24,11 @@ interface InviteRow {
   creator_name: string | null;
 }
 
-const SELECT = `SELECT i.id, i.roles, i.max_uses, i.uses, i.expires_at, i.revoked_at, i.created_at, i.created_by, ${NAME_SQL} AS creator_name
+const SELECT = `SELECT i.id, i.max_uses, i.uses, i.expires_at, i.revoked_at, i.created_at, i.created_by, ${NAME_SQL} AS creator_name
                   FROM session_invites i LEFT JOIN user_directory d ON d.user_id = i.created_by`;
 
 const dto = (r: InviteRow) => ({
   id: bufToUuid(r.id),
-  roles: sortRoles(r.roles.split(',')) as Exclude<SessionRole, 'session_manager'>[],
   maxUses: r.max_uses,
   uses: r.uses,
   expiresAt: r.expires_at.toISOString(),
@@ -57,23 +54,20 @@ export class InvitesService {
     private readonly live: LiveService
   ) {}
 
-  /** M-50: دعوت با نقش کادر نیازمند membership.roles */
-  async create(userId: string, sessionId: string, b: { roles: SessionRole[]; maxUses: number | null; expiresInHours: number }) {
-    const roles = sortRoles(b.roles);
+  /** M-50 (membership.manage): ۱.۷.۰ دعوت فقط برای عضویت (بدون نقش) */
+  async create(userId: string, sessionId: string, b: { maxUses: number | null; expiresInHours: number }) {
     const code = randomBytes(16).toString('base64url');
     const id = uuidv7(this.clock.now().getTime());
     await this.ds.transaction(async (m) => {
-      const { session, permissions } = await this.access.load(m, sessionId, userId, 'membership.approve', true);
-      if (roles.some((r) => r !== 'quran_student') && !permissions.includes('membership.roles')) throw new AppError('AUTH_FORBIDDEN', { message: 'دعوت با نقش کادر فقط برای مدیر جلسه مجاز است.' });
+      const { session } = await this.access.load(m, sessionId, userId, 'membership.manage', true);
       if (session.status === 'ended') throw conflict('SESSION_LOCKED', 'این جلسه پایان یافته است.');
       const now = this.clock.now();
       const act = (await m.query('SELECT COUNT(*) AS n FROM session_invites WHERE session_id = ? AND revoked_at IS NULL AND expires_at > ? AND (max_uses IS NULL OR uses < max_uses)', [uuidToBuf(sessionId), now])) as { n: string | number }[];
       if (Number(act[0]?.n ?? 0) >= MAX_ACTIVE) throw conflict('LIMIT_REACHED', 'حداکثر ۲۰ دعوت فعال برای هر جلسه مجاز است.');
-      await m.query('INSERT INTO session_invites (id, session_id, code_hash, roles, max_uses, uses, expires_at, created_by, created_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)', [
+      await m.query('INSERT INTO session_invites (id, session_id, code_hash, max_uses, uses, expires_at, created_by, created_at) VALUES (?, ?, ?, ?, 0, ?, ?, ?)', [
         uuidToBuf(id),
         uuidToBuf(sessionId),
         sha256(code),
-        roles.join(','),
         b.maxUses,
         new Date(now.getTime() + b.expiresInHours * 3_600_000),
         uuidToBuf(userId),
@@ -85,7 +79,7 @@ export class InvitesService {
   }
 
   async list(userId: string, sessionId: string, page: number, pageSize: number) {
-    await this.access.load(this.ds, sessionId, userId, 'membership.approve');
+    await this.access.load(this.ds, sessionId, userId, 'membership.manage');
     const sid = uuidToBuf(sessionId);
     const [rows, cnt] = await Promise.all([
       this.ds.query(`${SELECT} WHERE i.session_id = ? ORDER BY i.created_at DESC, i.id DESC LIMIT ? OFFSET ?`, [sid, pageSize, (page - 1) * pageSize]) as Promise<InviteRow[]>,
@@ -96,7 +90,7 @@ export class InvitesService {
 
   /** M-52: idempotent */
   async revoke(userId: string, sessionId: string, inviteId: string): Promise<Record<string, never>> {
-    await this.access.load(this.ds, sessionId, userId, 'membership.approve');
+    await this.access.load(this.ds, sessionId, userId, 'membership.manage');
     if (!isUuid(inviteId)) throw notFound();
     const r = (await this.ds.query('SELECT 1 AS x FROM session_invites WHERE id = ? AND session_id = ?', [uuidToBuf(inviteId), uuidToBuf(sessionId)])) as unknown[];
     if (!r.length) throw notFound();
@@ -106,7 +100,7 @@ export class InvitesService {
 
   /**
    * M-53: سقف durable per کاربر (۱۰/دقیقه) و IP (۳۰/دقیقه). زیر قفل ردیف جلسه: ended ⇒ SESSION_LOCKED؛ عضو تأییدشده ⇒ همان عضویت
-   * (بدون مصرف)؛ ظرفیت ⇒ SESSION_FULL؛ سپس مصرف اتمیک (منقضی/باطل ⇒ INVITE_EXPIRED، تمام ⇒ INVITE_EXHAUSTED) و approve با نقش‌های دعوت.
+   * (بدون مصرف)؛ ظرفیت ⇒ SESSION_FULL؛ سپس مصرف اتمیک (منقضی/باطل ⇒ INVITE_EXPIRED، تمام ⇒ INVITE_EXHAUSTED) و approve.
    */
   async accept(userId: string, ip: string, code: string) {
     for (const [key, limit] of [[`m53:u:${userId}`, 10], [`m53:ip:${ip}`, 30]] as const) {
@@ -122,8 +116,9 @@ export class InvitesService {
     await this.ds.transaction(async (m) => {
       const session = await this.access.session(m, sessionId, true);
       if (!session) throw notFound();
-      const inv = ((await m.query('SELECT id, roles, max_uses, uses, expires_at, revoked_at FROM session_invites WHERE code_hash = ? FOR UPDATE', [hash])) as { id: Buffer; roles: string; max_uses: number | null; uses: number; expires_at: Date; revoked_at: Date | null }[])[0];
+      const inv = ((await m.query('SELECT id, max_uses, uses, expires_at, revoked_at FROM session_invites WHERE code_hash = ? FOR UPDATE', [hash])) as { id: Buffer; max_uses: number | null; uses: number; expires_at: Date; revoked_at: Date | null }[])[0];
       if (!inv) throw notFound();
+      if (session.owner_id === userId) throw conflict('SESSION_MANAGER_PROTECTED', 'شما صاحب این جلسه هستید.');
       const ms = await this.access.membership(m, sessionId, userId);
       if (ms?.status === 'approved') {
         memberId = ms.memberId;
@@ -136,16 +131,13 @@ export class InvitesService {
       if (session.capacity !== null && (await approvedCount(m, sessionId)) >= session.capacity) throw conflict('SESSION_FULL', 'ظرفیت این جلسه تکمیل است.');
       const u = (await m.query('UPDATE session_invites SET uses = uses + 1 WHERE id = ? AND revoked_at IS NULL AND expires_at > ? AND (max_uses IS NULL OR uses < max_uses)', [inv.id, now])) as { affectedRows?: number };
       if (!u.affectedRows) throw conflict('INVITE_EXHAUSTED', 'ظرفیت استفاده از این دعوت تمام شده است.');
-      const roles = sortRoles(inv.roles.split(','));
       if (ms) {
         memberId = ms.memberId;
         await m.query("UPDATE session_members SET status = 'approved', decided_by = NULL, decided_at = ?, source = 'invite' WHERE id = ?", [now, uuidToBuf(memberId)]);
-        await m.query('DELETE FROM session_member_roles WHERE member_id = ?', [uuidToBuf(memberId)]);
       } else {
         memberId = uuidv7(now.getTime());
         await m.query("INSERT INTO session_members (id, session_id, user_id, status, requested_at, decided_at, source) VALUES (?, ?, ?, 'approved', ?, ?, 'invite')", [uuidToBuf(memberId), uuidToBuf(sessionId), uuidToBuf(userId), now, now]);
       }
-      await m.query(`INSERT INTO session_member_roles (member_id, role) VALUES ${roles.map(() => '(?, ?)').join(',')}`, roles.flatMap((r) => [uuidToBuf(memberId), r]));
       changed = true;
     });
     if (changed) this.live.emit(sessionId, 'members.updated');

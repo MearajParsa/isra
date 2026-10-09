@@ -38,7 +38,7 @@ export class HighController {
     const d = rows[0];
     // کاربری که هنوز در دایرکتوری نیست نقش هم ندارد و در guard رد شده؛ اینجا همیشه هست
     const access = await this.rbac.access(uid(r));
-    return { user: { id: uid(r), name: displayName(d?.first_name, d?.last_name), phone: d?.phone ?? '' }, roles: access.roles, permissions: access.permissions, ...(await this.accessQ.me(access)) };
+    return { user: { id: uid(r), name: displayName(d?.first_name, d?.last_name), phone: d?.phone ?? '' }, roles: access.roles, tiers: access.tiers, permissions: access.permissions, ...(await this.accessQ.me(access)) };
   }
 
   @Route('H-01')
@@ -47,8 +47,8 @@ export class HighController {
   }
 
   @Route('H-10')
-  listRoles(@In() { query }: { query: Page }) {
-    return this.roles.list(query.page, query.pageSize);
+  listRoles(@In() { query }: { query: z.infer<typeof high.RolesQuery> }) {
+    return this.roles.list(query.page, query.pageSize, query.tier);
   }
 
   @Route('H-11')

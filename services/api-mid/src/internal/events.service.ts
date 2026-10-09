@@ -8,6 +8,7 @@ import { bufToUuid, uuidToBuf } from '../common/ids';
 import { LiveService } from '../live/live.service';
 import { BadgesService } from '../domain/badges.service';
 import { SettingsChanged, SettingsService } from '../domain/settings.service';
+import { CatalogService } from '../domain/catalog.service';
 
 export interface InboundEvent {
   eventId: string;
@@ -35,7 +36,8 @@ export class EventsService {
     private readonly settings: SettingsService,
     private readonly revocation: RevocationService,
     private readonly live: LiveService,
-    private readonly badges: BadgesService
+    private readonly badges: BadgesService,
+    private readonly catalog: CatalogService
   ) {}
 
   async handle(e: InboundEvent): Promise<void> {
@@ -94,6 +96,12 @@ export class EventsService {
       } else if (e.type === 'badge.catalog.changed') {
         // ۱.۶.۰: جایگزینی کامل کاتالوگ اگر version بزرگ‌تر؛ job بازمحاسبه پس از commit (BadgesService)
         await this.badges.applyCatalog(m, internal.BadgeCatalogChanged.parse(e.payload));
+      } else if (e.type === 'evaluation.criteria.changed') {
+        // ۱.۷.۰: کش معیارهای ارزیابی (M-45، اعتبارسنجی M-40)؛ فقط version بزرگ‌تر
+        await this.catalog.applyCriteria(m, internal.EvaluationCriteriaChanged.parse(e.payload));
+      } else if (e.type === 'tier.baseline.changed') {
+        // ۱.۷.۰: مجوزهای نقش‌های ضمنی guest/quran_student
+        await this.catalog.applyBaseline(m, internal.TierBaselineChanged.parse(e.payload));
       } else {
         this.log.debug({ type: e.type }, 'نوع رویداد ناشناخته؛ نادیده');
       }

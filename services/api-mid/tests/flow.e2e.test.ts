@@ -21,11 +21,12 @@ describe('جلسه: ساخت، دیده‌شدن و چرخهٔ حیات', () => 
     expect(r.status).toBe(200);
     expect(r.body.data).toMatchObject({ status: 'draft', title: 'جلسهٔ آزمایشی قرآن', location: { label: 'مسجد نمونه' } });
     expect(r.body.data.nextStartsAt).toBe('2030-01-04T18:00:00+03:30');
-    // سازنده خودکار manager
+    // ۱.۷.۰: سازنده صاحب (owner) با همهٔ مجوزها؛ عضو نیست
     const me = await a.get(`/sessions/${r.body.data.id}/me`, m);
-    expect(me.body.data.membership).toEqual({ status: 'approved', roles: ['session_manager'] });
-    expect(me.body.data.permissions).toEqual(expect.arrayContaining(['session.edit', 'session.transition']));
-    expect(me.body.data.permissions).not.toContain('eval.submit');
+    expect(me.body.data.role).toBe('owner');
+    expect(me.body.data.membership).toBeNull();
+    expect(me.body.data.permissions).toEqual(expect.arrayContaining(['session.edit', 'eval.submit', 'gallery.manage', 'comment.moderate']));
+    expect(me.body.data.session).toMatchObject({ commentsEnabled: true, commentVisibility: 'public' });
   });
 
   it('لینک مسیریابی اختیاری: فقط https، ذخیره و قابل ویرایش/حذف', async () => {
@@ -102,9 +103,9 @@ describe('جلسه: ساخت، دیده‌شدن و چرخهٔ حیات', () => 
     expect((await a.get('/me', m)).body.data.hasStaffRole).toBe(true);
     await a.post(`/sessions/${id}/members`, stu);
     const mine = await a.get('/me/sessions?scope=staff', m);
-    expect(mine.body.data.find((x: any) => x.session.id === id)).toMatchObject({ roles: ['session_manager'], membership: 'approved', pendingCount: 1 });
+    expect(mine.body.data.find((x: any) => x.session.id === id)).toMatchObject({ role: 'owner', membership: null, pendingCount: 1 });
     const stuList = await a.get('/me/sessions', stu);
-    expect(stuList.body.data[0]).toMatchObject({ membership: 'pending', roles: [] });
+    expect(stuList.body.data[0]).toMatchObject({ membership: 'pending', role: 'member' });
     expect(stuList.body.data[0].pendingCount).toBeUndefined();
     expect((await a.get('/me/sessions?scope=staff', stu)).body.data).toHaveLength(0);
   });
@@ -122,7 +123,10 @@ describe('عضویت', () => {
     const u = await mkUser(t, 'علی رضایی');
     const r = await a.post(`/sessions/${id}/members`, u);
     expect(r.status).toBe(200);
-    expect(r.body.data).toMatchObject({ userId: u.id, name: 'علی رضایی', status: 'pending', roles: [] });
+    expect(r.body.data).toMatchObject({ userId: u.id, name: 'علی رضایی', status: 'pending' });
+    expect(r.body.data.roles).toBeUndefined();
+    // صاحب جلسه عضو نمی‌شود
+    expect((await a.post(`/sessions/${id}/members`, m)).body.error.details.reason).toBe('SESSION_MANAGER_PROTECTED');
     const dup = await a.post(`/sessions/${id}/members`, u);
     expect(dup.status).toBe(409);
     expect(dup.body.error.details.reason).toBe('ALREADY_MEMBER');
@@ -152,31 +156,19 @@ describe('عضویت', () => {
     expect((await a.patch(`/sessions/${id}/members/${mid}`, teach, { action: 'approve' })).status).toBe(403);
     const ok = await a.patch(`/sessions/${id}/members/${mid}`, sup, { action: 'approve' });
     expect(ok.status).toBe(200);
-    expect(ok.body.data).toMatchObject({ status: 'approved', roles: ['quran_student'] });
+    expect(ok.body.data).toMatchObject({ status: 'approved' });
     expect((await a.patch(`/sessions/${id}/members/${mid}`, sup, { action: 'reject' })).body.error.details.reason).toBe('ALREADY_DECIDED');
     const list = await a.get(`/sessions/${id}/members?status=approved&pageSize=50`, m);
-    expect(list.body.meta.total).toBeGreaterThanOrEqual(4);
+    // ۱.۷.۰: فقط اعضا (پشتیبان‌ها جدا)
+    expect(list.body.meta.total).toBe(2);
   });
 
-  it('رد ⇒ rejected؛ نقش‌ها: فقط manager، نقش مدیر ثابت، خالی = فقط قرآن‌آموز', async () => {
+  it('رد ⇒ rejected؛ مسیر قدیم نقش‌ها (M-13) و مدیر (M-16) حذف شده‌اند', async () => {
     const u = await mkUser(t, 'رد شده');
-    const sup = await mkUser(t, 'پ');
-    await join(t, id, m, sup, ['session_supporter']);
     const mid = (await a.post(`/sessions/${id}/members`, u)).body.data.id;
     expect((await a.patch(`/sessions/${id}/members/${mid}`, m, { action: 'reject' })).body.data.status).toBe('rejected');
-    expect((await a.put(`/sessions/${id}/members/${mid}/roles`, m, { roles: ['teacher'] })).body.error.details.reason).toBe('NOT_APPROVED');
-
-    const x = await mkUser(t, 'ایکس');
-    const xm = await join(t, id, m, x);
-    expect((await a.put(`/sessions/${id}/members/${xm}/roles`, sup, { roles: ['teacher'] })).status).toBe(403);
-    expect((await a.put(`/sessions/${id}/members/${xm}/roles`, m, { roles: ['session_manager'] })).status).toBe(400);
-    const set = await a.put(`/sessions/${id}/members/${xm}/roles`, m, { roles: ['teacher', 'session_supporter'] });
-    expect(set.body.data.roles).toEqual(['session_supporter', 'teacher']);
-    expect((await a.put(`/sessions/${id}/members/${xm}/roles`, m, { roles: [] })).body.data.roles).toEqual(['quran_student']);
-    // ۱.۶.۰: روی عضو مدیر مجاز است؛ مدیر حفظ و نقش‌های داده‌شده کنارش (مدیر+معلم؛ قفل #15)
-    const mgrMember = (await a.get(`/sessions/${id}/members?pageSize=100`, m)).body.data.find((x: any) => x.roles.includes('session_manager')).id;
-    expect((await a.put(`/sessions/${id}/members/${mgrMember}/roles`, m, { roles: ['teacher'] })).body.data.roles).toEqual(['session_manager', 'teacher']);
-    expect((await a.put(`/sessions/${id}/members/${mgrMember}/roles`, m, { roles: [] })).body.data.roles).toEqual(['session_manager']);
+    expect((await a.put(`/sessions/${id}/members/${mid}/roles`, m, { roles: ['teacher'] })).status).toBe(404);
+    expect((await a.put(`/sessions/${id}/members/${mid}/manager`, m, { manager: true })).status).toBe(404);
   });
 
   it('عضو جلسهٔ دیگر مجوز ندارد (مرز جلسه‌ها)', async () => {

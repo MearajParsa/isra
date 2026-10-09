@@ -20,7 +20,7 @@
     if (auth.status === 'member') void load();
   });
 
-  const isStaff = (i: MySessionItem) => i.membership === 'approved' && i.roles.some((r) => r !== 'quran_student');
+  const isStaff = (i: MySessionItem) => i.role !== 'member';
   const shown = $derived(
     (list.data ?? []).filter((i) => (filter === 'all' ? true : filter === 'staff' ? isStaff(i) : !isStaff(i)))
   );

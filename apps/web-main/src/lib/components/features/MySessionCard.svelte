@@ -13,8 +13,9 @@
   }
   let { item, manage = false }: Props = $props();
   const s = $derived(item.session);
-  const approved = $derived(item.membership === 'approved');
-  const isStaff = $derived(item.roles.some((r) => r !== 'quran_student'));
+  const isStaff = $derived(item.role !== 'member');
+  /** صاحب/پشتیبان ردیف عضویت ندارند ولی به اتاق جلسه دسترسی دارند */
+  const approved = $derived(isStaff || item.membership === 'approved');
   const when = $derived(
     s.status === 'started'
       ? 'اکنون در حال برگزاری است'
@@ -27,7 +28,7 @@
 <article class="card" class:live={s.status === 'started' && approved}>
   <div class="top">
     <StatusChip status={s.status} />
-    <RoleChips roles={item.roles} membership={item.membership} />
+    <RoleChips role={item.role} membership={item.membership} />
     {#if item.pendingCount}
       <span class="pend" title="درخواست‌های عضویت در انتظار">
         {formatNumber(item.pendingCount)} درخواست جدید

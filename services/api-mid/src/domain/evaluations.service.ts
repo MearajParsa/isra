@@ -13,14 +13,12 @@ import { OccurrencesService } from './occurrences.service';
 import { emitInbox } from './outbox.writer';
 import { PointsService } from './points.service';
 import { PostCommit } from './post-commit';
-import { SettingsService } from './settings.service';
-import { type Weights, computeScore, evalPoints } from './rules';
+import { CatalogService, type Criterion } from './catalog.service';
+import { type CriterionSnapshot, computeScore, evalPoints } from './rules';
 
 type Body = z.infer<typeof mid.EvaluationBody>;
 export interface EvalPatch {
-  voice?: number;
-  tone?: number;
-  tajweed?: number;
+  scores?: { criterionId: string; score: number }[];
   note?: string;
 }
 
@@ -31,10 +29,7 @@ interface Row {
   queue_item_id: Buffer;
   user_id: Buffer;
   evaluator_id: Buffer;
-  voice: number;
-  tone: number;
-  tajweed: number;
-  weights: unknown;
+  criteria: unknown;
   score: number;
   points: number;
   note: string;
@@ -47,10 +42,15 @@ interface Row {
 
 const EDIT_WINDOW_MS = 24 * 3_600_000;
 
-const SELECT = `SELECT e.id, e.session_id, e.occurrence_id, e.queue_item_id, e.user_id, e.evaluator_id, e.voice, e.tone, e.tajweed, e.weights, e.score, e.points, e.note, e.status, e.created_at, e.updated_at,
+const SELECT = `SELECT e.id, e.session_id, e.occurrence_id, e.queue_item_id, e.user_id, e.evaluator_id, e.criteria, e.score, e.points, e.note, e.status, e.created_at, e.updated_at,
                        ${nameSql('u')} AS user_name,
                        ${nameSql('v')} AS evaluator_name
                   FROM evaluations e LEFT JOIN user_directory u ON u.user_id = e.user_id LEFT JOIN user_directory v ON v.user_id = e.evaluator_id`;
+
+const snapshotOf = (r: Row): CriterionSnapshot[] => {
+  const v = parseJson<unknown>(r.criteria);
+  return Array.isArray(v) ? (v as CriterionSnapshot[]) : [];
+};
 
 const dto = (r: Row) => ({
   id: bufToUuid(r.id),
@@ -59,10 +59,7 @@ const dto = (r: Row) => ({
   userId: bufToUuid(r.user_id),
   userName: r.user_name || displayName(),
   evaluatorName: r.evaluator_name || displayName(),
-  voice: r.voice,
-  tone: r.tone,
-  tajweed: r.tajweed,
-  weights: parseJson<Weights>(r.weights),
+  criteria: snapshotOf(r).map((c) => ({ criterionId: c.criterionId, key: c.key, title: c.title, weight: c.weight, maxScore: c.maxScore, score: c.score })),
   score: r.score,
   points: r.points,
   note: r.note,
@@ -71,6 +68,39 @@ const dto = (r: Row) => ({
   status: r.status,
   updatedAt: r.updated_at ? r.updated_at.toISOString() : null
 });
+
+const invalidScores = (message: string) => new AppError('VALIDATION_FAILED', { message, details: { fields: { scores: message } } });
+
+/**
+ * M-40: `scores` باید دقیقاً همهٔ معیارهای فعال را پوشش دهد (کم/زیاد/غیرفعال ⇒ VALIDATION_FAILED با fields.scores) و
+ * هر نمره ≤ maxScore همان معیار. خروجی snapshot (کلید/عنوان/وزن/سقف لحظهٔ ثبت).
+ */
+export function buildSnapshot(active: readonly Criterion[], scores: readonly { criterionId: string; score: number }[]): CriterionSnapshot[] {
+  const byId = new Map(scores.map((s) => [s.criterionId, s.score]));
+  if (byId.size !== scores.length) throw invalidScores('معیار تکراری است.');
+  const activeIds = new Set(active.map((c) => c.id));
+  if (scores.some((s) => !activeIds.has(s.criterionId))) throw invalidScores('نمره برای معیار ناشناخته یا غیرفعال است.');
+  if (active.some((c) => !byId.has(c.id))) throw invalidScores('نمرهٔ همهٔ معیارهای فعال لازم است.');
+  return active.map((c) => {
+    const score = byId.get(c.id)!;
+    if (!Number.isInteger(score) || score < 0 || score > c.maxScore) throw invalidScores(`نمرهٔ «${c.title}» باید بین ۰ و ${c.maxScore} باشد.`);
+    return { criterionId: c.id, key: c.key, title: c.title, weight: c.weight, maxScore: c.maxScore, score };
+  });
+}
+
+/** M-43/H-96: فقط معیارهای همان snapshot (وزن/سقف ذخیره‌شده)؛ معیارِ نیامده بدون تغییر */
+export function patchSnapshot(snap: readonly CriterionSnapshot[], scores: readonly { criterionId: string; score: number }[]): CriterionSnapshot[] {
+  const byId = new Map(scores.map((s) => [s.criterionId, s.score]));
+  if (byId.size !== scores.length) throw invalidScores('معیار تکراری است.');
+  const ids = new Set(snap.map((c) => c.criterionId));
+  if (scores.some((s) => !ids.has(s.criterionId))) throw invalidScores('این معیار در این ارزیابی نیست.');
+  return snap.map((c) => {
+    if (!byId.has(c.criterionId)) return c;
+    const score = byId.get(c.criterionId)!;
+    if (!Number.isInteger(score) || score < 0 || score > c.maxScore) throw invalidScores(`نمرهٔ «${c.title}» باید بین ۰ و ${c.maxScore} باشد.`);
+    return { ...c, score };
+  });
+}
 
 export interface ListQuery {
   occurrenceId?: string;
@@ -85,7 +115,7 @@ export class EvaluationsService {
     private readonly ds: DataSource,
     private readonly clock: Clock,
     private readonly access: MembersAccess,
-    private readonly settings: SettingsService,
+    private readonly catalog: CatalogService,
     private readonly points: PointsService,
     private readonly occurrences: OccurrencesService,
     private readonly live: LiveService,
@@ -98,11 +128,14 @@ export class EvaluationsService {
   }
 
   /**
-   * ثبت ارزیابی: فقط `eval.submit` (قفل #15). روی آیتم صفِ نوبت live؛ ارزیابی‌شونده هنوز عضو تأییدشده.
-   * یک ارزیابی per آیتم صف (UNIQUE queue_item_id)؛ وزن‌های لحظهٔ ثبت ذخیره می‌شود.
+   * ثبت ارزیابی (قفل #15، ۱.۷.۰): فقط `eval.submit` (صاحب یا پشتیبانِ دارای مجوز). روی آیتم صفِ نوبت live؛
+   * ارزیابی‌شونده هنوز عضو تأییدشده. یک ارزیابی per آیتم صف (UNIQUE queue_item_id)؛ snapshot معیارهای فعال ذخیره می‌شود.
    */
   async submit(userId: string, sessionId: string, b: Body) {
-    const [{ weights }, cat] = await Promise.all([this.settings.get(), this.points.catalog()]);
+    const [{ items: active }, cat] = await Promise.all([this.catalog.activeCriteria(), this.points.catalog()]);
+    const snap = buildSnapshot(active, b.scores);
+    const score = computeScore(snap);
+    const pts = evalPoints(score);
     let evalId = '';
     await withRetry(() =>
       this.ds.transaction(async (m) => {
@@ -117,20 +150,15 @@ export class EvaluationsService {
         if (occ.status !== 'live') throw conflict('OCCURRENCE_CLOSED', 'نوبت برگزاری بسته است.');
         if ((await this.access.membership(m, sessionId, student))?.status !== 'approved') throw conflict('NOT_APPROVED', 'ارزیابی‌شونده دیگر عضو تأییدشدهٔ جلسه نیست.');
         const now = this.clock.now();
-        const score = computeScore(b, weights);
-        const pts = evalPoints(score);
         evalId = uuidv7(now.getTime());
-        const r = (await m.query('INSERT IGNORE INTO evaluations (id, session_id, occurrence_id, queue_item_id, user_id, evaluator_id, voice, tone, tajweed, weights, score, points, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+        const r = (await m.query('INSERT IGNORE INTO evaluations (id, session_id, occurrence_id, queue_item_id, user_id, evaluator_id, criteria, score, points, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
           uuidToBuf(evalId),
           uuidToBuf(sessionId),
           item.occurrence_id,
           uuidToBuf(b.queueItemId),
           item.user_id,
           uuidToBuf(userId),
-          b.voice,
-          b.tone,
-          b.tajweed,
-          JSON.stringify(weights),
+          JSON.stringify(snap),
           score,
           pts,
           b.note ?? '',
@@ -166,11 +194,11 @@ export class EvaluationsService {
     return { items: rows.map(dto), page: q.page, pageSize: q.pageSize, total: Number(cnt[0]?.n ?? 0) };
   }
 
-  /** M-41: کادر (eval.submit/queue.manage) همه؛ سایرین فقط خودشان؛ باطل‌شده فقط کادر با includeVoid */
+  /** M-41: صاحب/پشتیبان همه؛ عضو تأییدشده فقط خودش؛ باطل‌شده فقط کادر با includeVoid */
   async list(userId: string, sessionId: string, q: ListQuery) {
-    const { membership, permissions } = await this.access.load(this.ds, sessionId, userId);
-    if (membership?.status !== 'approved') throw new AppError('AUTH_FORBIDDEN');
-    const staff = permissions.includes('eval.submit') || permissions.includes('queue.manage');
+    const { role } = await this.access.load(this.ds, sessionId, userId);
+    if (!role) throw new AppError('AUTH_FORBIDDEN');
+    const staff = role === 'owner' || role === 'supporter';
     return this.page(sessionId, q, staff ? null : userId, staff);
   }
 
@@ -188,14 +216,14 @@ export class EvaluationsService {
     return rows[0];
   }
 
-  /** ویرایش داخل تراکنش: بازمحاسبه با وزن‌های ذخیره‌شده؛ تفاضل امتیاز ⇒ evaluation_adjust */
+  /** ویرایش داخل تراکنش: بازمحاسبه با وزن/سقف snapshot؛ تفاضل امتیاز ⇒ evaluation_adjust */
   async patchIn(m: Q, sessionId: string, title: string, r: Row, p: EvalPatch, actorId: string, note: string | null, cat: Catalog): Promise<void> {
     if (r.status === 'void') throw conflict('EVALUATION_VOIDED', 'این ارزیابی باطل شده است.');
-    const next = { voice: p.voice ?? r.voice, tone: p.tone ?? r.tone, tajweed: p.tajweed ?? r.tajweed };
-    const score = computeScore(next, parseJson<Weights>(r.weights));
+    const snap = p.scores ? patchSnapshot(snapshotOf(r), p.scores) : snapshotOf(r);
+    const score = p.scores ? computeScore(snap) : r.score;
     const pts = evalPoints(score);
     const now = this.clock.now();
-    await m.query('UPDATE evaluations SET voice = ?, tone = ?, tajweed = ?, note = ?, score = ?, points = ?, updated_at = ? WHERE id = ?', [next.voice, next.tone, next.tajweed, p.note ?? r.note, score, pts, now, r.id]);
+    await m.query('UPDATE evaluations SET criteria = ?, note = ?, score = ?, points = ?, updated_at = ? WHERE id = ?', [JSON.stringify(snap), p.note ?? r.note, score, pts, now, r.id]);
     const diff = pts - r.points;
     if (diff !== 0) await this.points.apply(m, [{ userId: bufToUuid(r.user_id), points: diff, reason: 'evaluation_adjust', refId: uuidv7(now.getTime()), sessionId, note, actorId }], cat);
     if (score !== r.score) await emitInbox(m, now, bufToUuid(r.user_id), 'evaluation', 'ارزیابی شما ویرایش شد', `نتیجهٔ ارزیابی شما در «${title}»: ${score} از ۱۰۰`, `session:${sessionId}`);
@@ -212,14 +240,14 @@ export class EvaluationsService {
     this.post.after(m, () => this.live.emit(sessionId, 'eval.updated'));
   }
 
-  /** M-43: فقط ارزیاب اصلی و تا ۲۴ ساعت */
+  /** M-43: ارزیاب اصلی (با eval.submit) یا صاحب جلسه، تا ۲۴ ساعت */
   async patch(userId: string, sessionId: string, evalId: string, p: EvalPatch) {
     const cat = await this.points.catalog();
     await withRetry(() =>
       this.ds.transaction(async (m) => {
-        const { session } = await this.access.load(m, sessionId, userId, 'eval.submit');
+        const { session, role } = await this.access.load(m, sessionId, userId, 'eval.submit');
         const r = await this.lockEval(m, sessionId, evalId);
-        if (bufToUuid(r.evaluator_id) !== userId) throw new AppError('AUTH_FORBIDDEN', { message: 'فقط ارزیاب همین ارزیابی می‌تواند آن را ویرایش کند.' });
+        if (role !== 'owner' && bufToUuid(r.evaluator_id) !== userId) throw new AppError('AUTH_FORBIDDEN', { message: 'فقط ارزیاب همین ارزیابی یا صاحب جلسه می‌تواند آن را ویرایش کند.' });
         if (r.status !== 'void' && this.clock.now().getTime() - r.created_at.getTime() > EDIT_WINDOW_MS) throw new AppError('AUTH_FORBIDDEN', { message: 'مهلت ۲۴ ساعتهٔ ویرایش گذشته است.' });
         await this.patchIn(m, sessionId, session.title, r, p, userId, null, cat);
       })
@@ -227,16 +255,14 @@ export class EvaluationsService {
     return this.one(this.ds, evalId);
   }
 
-  /** M-44: ارزیاب اصلی یا مدیر جلسه */
+  /** M-44: ارزیاب اصلی (با eval.submit) یا صاحب جلسه */
   async void(userId: string, sessionId: string, evalId: string, reason: string) {
     const cat = await this.points.catalog();
     await withRetry(() =>
       this.ds.transaction(async (m) => {
-        const { session, membership, permissions } = await this.access.load(m, sessionId, userId);
-        const isManager = !!membership?.roles.includes('session_manager') && membership.status === 'approved';
-        if (!isManager && !permissions.includes('eval.submit')) throw new AppError('AUTH_FORBIDDEN');
+        const { session, role } = await this.access.load(m, sessionId, userId, 'eval.submit');
         const r = await this.lockEval(m, sessionId, evalId);
-        if (!isManager && bufToUuid(r.evaluator_id) !== userId) throw new AppError('AUTH_FORBIDDEN', { message: 'فقط ارزیاب همین ارزیابی یا مدیر جلسه می‌تواند آن را باطل کند.' });
+        if (role !== 'owner' && bufToUuid(r.evaluator_id) !== userId) throw new AppError('AUTH_FORBIDDEN', { message: 'فقط ارزیاب همین ارزیابی یا صاحب جلسه می‌تواند آن را باطل کند.' });
         await this.voidIn(m, sessionId, session.title, r, userId, reason, cat);
       })
     );

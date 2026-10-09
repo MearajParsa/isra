@@ -27,7 +27,7 @@ const audits = async (action?: string) => {
 const lastMid = (method: string, suffix: string) => [...t.fake.admin.calls].reverse().find((c) => c.method === method && c.path.startsWith('/o/') && c.path.endsWith(suffix));
 const input = { title: 'جلسهٔ تازه قرآن', description: 'توضیح جلسهٔ تازه برای تست', schedule: { type: 'once', startsAt: '2026-11-10T10:00:00+03:30', endsAt: '2026-11-10T12:00:00+03:30' }, location: { label: 'مسجد جامع' } };
 /** بدنه پس از اعتبارسنجی قرارداد ۱.۶.۰ (defaultهای joinPolicy/visibility) */
-const sent = { ...input, joinPolicy: 'request', visibility: 'public' };
+const sent = { ...input, joinPolicy: 'request', visibility: 'public', commentsEnabled: true, commentVisibility: 'public' };
 const call = (m: string, p: string, h: Record<string, string>, b?: object) => (a as any)[m === 'delete' ? 'del' : m](p, h, b);
 
 describe('ماتریس مجوز', () => {
@@ -52,7 +52,7 @@ describe('ماتریس مجوز', () => {
       ['post', `/system/sessions/${s.id}/transition`, { to: 'scheduled' }],
       ['delete', `/system/sessions/${s.id}`],
       ['patch', `/system/sessions/${s.id}/members/${m.id}`, { action: 'approve' }],
-      ['put', `/system/sessions/${s.id}/members/${m.id}/roles`, { roles: ['teacher'] }],
+      ['put', `/system/sessions/${s.id}/owner`, { userId: m.userId }],
       ['delete', `/system/sessions/${s.id}/members/${m.id}`]
     ];
     t.fake.admin.calls.length = 0;
@@ -200,19 +200,8 @@ describe('H-66..H-72 اعضا و نمای فقط‌خواندنی', () => {
     await a.get(`/system/sessions/${s.id}`, dev); // عنوان در کش
     expect(ad.meta).toMatchObject({ memberId: m.id, action: 'approve' });
     expect((await a.patch(`/system/sessions/${s.id}/members/${m.id}`, await dev.step(), { action: 'maybe' })).status).toBe(400);
-    const ro = await a.put(`/system/sessions/${s.id}/members/${m.id}/roles`, await dev.step(), { roles: ['teacher', 'session_supporter'] });
-    expect(ro.status).toBe(200);
-    expect(ro.body.data.phone).toBe(u.phone);
-    const ar = (await audits('session.member_roles'))[0];
-    expect(ar.meta).toMatchObject({ memberId: m.id, userId: u.id, roles: ['teacher', 'session_supporter'] });
-    expect(ar.target_label).toBe('جلسهٔ عضویت');
-    // ۱.۶.۰: session_manager هم مجاز (هم‌مدیر)؛ نقش ناشناخته ⇒ 400
-    expect((await a.put(`/system/sessions/${s.id}/members/${m.id}/roles`, await dev.step(), { roles: ['session_manager'] })).status).toBe(200);
-    await a.put(`/system/sessions/${s.id}/members/${m.id}/roles`, await dev.step(), { roles: ['teacher'] });
-    expect((await a.put(`/system/sessions/${s.id}/members/${m.id}/roles`, await dev.step(), { roles: ['boss'] })).status).toBe(400);
-    const mgr = mid.addMember(s.id, { roles: ['session_manager'], status: 'approved' });
-    const bad = await a.del(`/system/sessions/${s.id}/members/${mgr.id}`, await dev.step());
-    expect(bad.status).toBe(409);
+    // ۱.۷.۰: H-68 حذف شد ⇒ مسیر وجود ندارد
+    expect((await a.put(`/system/sessions/${s.id}/members/${m.id}/roles`, await dev.step(), { roles: ['teacher'] })).status).toBe(404);
     expect(await audits('session.member_remove')).toHaveLength(0);
     expect((await a.del(`/system/sessions/${s.id}/members/${m.id}`, await dev.step())).status).toBe(200);
     const rm = (await audits('session.member_remove'))[0];

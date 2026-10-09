@@ -2,9 +2,9 @@
   "openapi": "3.1.0",
   "info": {
     "title": "اسراء — api-low (حساب، auth، پروفایل، اینباکس، محتوای عمومی)",
-    "version": "1.6.0",
+    "version": "1.7.0",
     "summary": "قرارداد api-low — نسخهٔ مسیر v1",
-    "description": "قرارداد REST سرویس **api-low** (پیشوند `/c/v1`). تولیدشده از schemaهای zod در `@isra/api-types`؛ **دستی ویرایش نکنید**.\n\n- قالب پاسخ: `{ success, data, meta.requestId }`؛ خطا: `{ success:false, error:{code,message,details}, meta }`. `message` فارسی، `code` پایدار.\n- زمان‌ها ISO-8601 با offset؛ منطق کسب‌وکار `Asia/Tehran`؛ هفته شنبه–جمعه.\n- امنیت: JWT RS256 (TTL access/refresh از پیکربندی سرور؛ پیش‌فرض ۱۵ دقیقه / ۱۴ روز)، refresh با rotation؛ اقدام حساس ⇒ `X-Step-Up-Token`.\n- محدودیت‌ها: بدنهٔ JSON حداکثر ۱۶KB؛ `pageSize` ≤ سقف هر endpoint؛ بدنه‌های `strict` (فیلد ناشناخته ⇒ `VALIDATION_FAILED`).\n- نسخه‌بندی: تغییر ناسازگار فقط با نسخهٔ جدید مسیر (`v2`)؛ سیاست deprecation: هدرهای `Deprecation` و `Sunset` (حداقل ۱۸۰ روز).",
+    "description": "قرارداد REST سرویس **api-low** (پیشوند `/c/v1`). تولیدشده از schemaهای zod در `@isra/api-types`؛ **دستی ویرایش نکنید**.\n\n- قالب پاسخ: `{ success, data, meta.requestId }`؛ خطا: `{ success:false, error:{code,message,details}, meta }`. `message` فارسی، `code` پایدار.\n- زمان‌ها ISO-8601 با offset؛ منطق کسب‌وکار `Asia/Tehran`؛ هفته شنبه–جمعه.\n- امنیت: JWT RS256 (TTL access/refresh از پیکربندی سرور؛ پیش‌فرض ۱۵ دقیقه / ۱۴ روز)، refresh با rotation؛ اقدام حساس ⇒ `X-Step-Up-Token`.\n- محدودیت‌ها: بدنهٔ JSON حداکثر ۱۶KB (بارگذاری خام فایل: سقف per endpoint در `x-isra-max-body-bytes`)؛ `pageSize` ≤ سقف هر endpoint؛ بدنه‌های `strict` (فیلد ناشناخته ⇒ `VALIDATION_FAILED`).\n- نسخه‌بندی: تغییر ناسازگار فقط با نسخهٔ جدید مسیر (`v2`)؛ سیاست deprecation: هدرهای `Deprecation` و `Sunset` (حداقل ۱۸۰ روز).",
     "license": {
       "name": "Proprietary",
       "identifier": "LicenseRef-Isra-Proprietary"
@@ -6010,7 +6010,7 @@
         "tags": [
           "محتوای عمومی"
         ],
-        "description": "بدون نیاز به توکن؛ جلسهٔ `draft` هرگز نمی‌آید. قابل cache در CDN و مرورگر با ETag.",
+        "description": "بدون نیاز به توکن؛ جلسهٔ `draft` هرگز نمی‌آید. قابل cache در CDN و مرورگر با ETag. ۱.۷.۰: نیازمند `session.browse` مؤثر (baseline مهمان/قرآن‌آموز از رویداد `tier.baseline.changed`؛ نبود ⇒ AUTH_FORBIDDEN).",
         "parameters": [
           {
             "name": "page",
@@ -6135,6 +6135,35 @@
               }
             }
           },
+          "403": {
+            "description": "AUTH_FORBIDDEN",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_FORBIDDEN": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_FORBIDDEN",
+                        "message": "برای این کار مجوز ندارید."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
           "429": {
             "description": "RATE_LIMITED",
             "headers": {
@@ -6238,6 +6267,7 @@
         "x-isra-id": "L-30",
         "x-isra-since": "1.0.0",
         "x-isra-slo-p95-ms": 60,
+        "x-isra-permission": "session.browse",
         "x-isra-rate-limit": [
           "120 درخواست / 60ث per ip"
         ]
@@ -6250,6 +6280,7 @@
         "tags": [
           "محتوای عمومی"
         ],
+        "description": "۱.۷.۰: نیازمند `session.browse` مؤثر (baseline مهمان/قرآن‌آموز؛ نبود ⇒ AUTH_FORBIDDEN).",
         "parameters": [
           {
             "name": "id",
@@ -6342,6 +6373,35 @@
                       "error": {
                         "code": "VALIDATION_FAILED",
                         "message": "اطلاعات واردشده معتبر نیست."
+                      },
+                      "meta": {
+                        "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "AUTH_FORBIDDEN",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                },
+                "examples": {
+                  "AUTH_FORBIDDEN": {
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AUTH_FORBIDDEN",
+                        "message": "برای این کار مجوز ندارید."
                       },
                       "meta": {
                         "requestId": "8f14e45f-ceea-467a-9a36-3f1a2b4c5d6e"
@@ -6484,6 +6544,7 @@
         "x-isra-id": "L-31",
         "x-isra-since": "1.0.0",
         "x-isra-slo-p95-ms": 50,
+        "x-isra-permission": "session.browse",
         "x-isra-rate-limit": [
           "120 درخواست / 60ث per ip"
         ]
@@ -6503,6 +6564,12 @@
         "in": "cookie",
         "name": "isra_rt",
         "description": "فقط وب‌اپ: HttpOnly; Secure; SameSite=Lax؛ CSRF: Origin allowlist + هدر X-Isra-Client"
+      },
+      "signedUrl": {
+        "type": "apiKey",
+        "in": "query",
+        "name": "sig",
+        "description": "URL امضاشدهٔ کوتاه‌عمر (۱۰ دقیقه) که سرور در فیلد `url` آیتم رسانه برمی‌گرداند؛ همراه `exp` و `u`. مقید به مسیر و کاربر؛ قابل جعل/تمدید نیست."
       },
       "stepUp": {
         "type": "apiKey",

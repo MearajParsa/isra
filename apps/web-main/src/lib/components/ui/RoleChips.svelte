@@ -2,16 +2,16 @@
   import type { MembershipStatus, SessionRole } from '$lib/api/mid-types';
 
   interface Props {
-    roles?: SessionRole[];
-    membership?: MembershipStatus;
+    /** ۱.۷.۰: نقش من در جلسه (owner/supporter/member) */
+    role?: SessionRole | null;
+    membership?: MembershipStatus | null;
   }
-  let { roles = [], membership }: Props = $props();
+  let { role = null, membership = null }: Props = $props();
 
   const roleLabel: Record<SessionRole, string> = {
-    session_manager: 'مدیر جلسه',
-    session_supporter: 'پشتیبان',
-    teacher: 'معلم',
-    quran_student: 'قرآن‌آموز'
+    owner: 'استاد جلسه',
+    supporter: 'پشتیبان',
+    member: 'قرآن‌آموز'
   };
   const memLabel: Record<MembershipStatus, string> = {
     pending: 'در انتظار تأیید',
@@ -23,10 +23,8 @@
 <span class="chips">
   {#if membership && membership !== 'approved'}
     <span class="chip m-{membership}">{memLabel[membership]}</span>
-  {:else}
-    {#each roles as r (r)}
-      <span class="chip r-{r}">{roleLabel[r]}</span>
-    {/each}
+  {:else if role}
+    <span class="chip r-{role}">{roleLabel[role]}</span>
   {/if}
 </span>
 
@@ -46,12 +44,11 @@
     background: var(--color-secondary);
     color: var(--color-primary);
   }
-  .r-session_manager {
+  .r-owner {
     background: var(--color-primary);
     color: var(--color-on-primary);
   }
-  .r-session_supporter,
-  .r-teacher {
+  .r-supporter {
     background: var(--color-accent);
     color: var(--color-on-accent);
   }

@@ -70,7 +70,7 @@ export class OpsExpansion1728600000000 implements MigrationInterface {
     const now = raw instanceof Date ? raw : new Date(`${raw}Z`);
 
     // مجوزها/ماژول‌های تازه (idempotent؛ ردیف موجود overwrite نمی‌شود) + claim تازهٔ دارندگان developer
-    await seedRbac(q, now);
+    await seedRbac(q, now, { upTo: 'v16' });
     await q.query('UPDATE rbac_meta SET version = version + 1 WHERE id = 1');
     const devs = (await q.query("SELECT DISTINCT user_id FROM user_system_roles WHERE role_key = 'developer'")) as { user_id: Buffer }[];
     await publishClaims(

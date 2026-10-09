@@ -4,14 +4,14 @@ import { AppError } from '../common/app-error';
 import { Clock } from '../common/clock';
 import { bufToUuid, uuidToBuf, uuidv7 } from '../common/ids';
 import { LiveService } from '../live/live.service';
-import { MembersAccess, sortRoles } from './access.service';
+import { MembersAccess } from './access.service';
 import type { Catalog } from './badges.service';
 import { NAME_SQL, conflict, displayName, withRetry, type Q } from './db';
 import { OccurrencesService, type OccRow } from './occurrences.service';
 import { PointsService } from './points.service';
 import { PostCommit } from './post-commit';
 import { attendanceRef } from './refs';
-import { ATTENDANCE_POINTS, type SessionRole } from './rules';
+import { ATTENDANCE_POINTS } from './rules';
 
 export type AttendanceSource = 'self' | 'staff' | 'admin';
 export type MarkOutcome = 'marked' | 'already' | 'not_member';
@@ -191,10 +191,10 @@ export class AttendanceService {
     );
   }
 
-  /** M-23: لغو حضور (مدیر جلسه یا ثبت‌کنندهٔ همان حضور)؛ فقط نوبت باز */
+  /** M-23: لغو حضور (صاحب جلسه یا ثبت‌کنندهٔ همان حضور، با attendance.manage)؛ فقط نوبت باز */
   async revoke(actorId: string, sessionId: string, userId: string, occurrenceId: string | undefined, reason: string) {
-    const { membership } = await this.access.load(this.ds, sessionId, actorId, 'attendance.manage');
-    const isManager = !!membership?.roles.includes('session_manager');
+    const { role } = await this.access.load(this.ds, sessionId, actorId, 'attendance.manage');
+    const isManager = role === 'owner';
     const cat = await this.points.catalog();
     return withRetry(() =>
       this.ds.transaction(async (m) => {
@@ -202,7 +202,7 @@ export class AttendanceService {
         if (!occ) throw new AppError('NOT_FOUND', { message: 'نوبت برگزاری پیدا نشد.' });
         if (occ.status !== 'live') throw conflict('OCCURRENCE_CLOSED', 'نوبت برگزاری بسته است.');
         return this.revokeIn(m, sessionId, occ, userId, actorId, reason, cat, (markedBy) => {
-          if (!isManager && markedBy !== actorId) throw new AppError('AUTH_FORBIDDEN', { message: 'فقط مدیر جلسه یا ثبت‌کنندهٔ همین حضور می‌تواند آن را لغو کند.' });
+          if (!isManager && markedBy !== actorId) throw new AppError('AUTH_FORBIDDEN', { message: 'فقط صاحب جلسه یا ثبت‌کنندهٔ همین حضور می‌تواند آن را لغو کند.' });
         });
       })
     );
@@ -224,7 +224,7 @@ export class AttendanceService {
 
   /** M-21 */
   async list(userId: string, sessionId: string, q: { occurrenceId?: string; page: number; pageSize: number }) {
-    await this.access.load(this.ds, sessionId, userId, 'attendance.view');
+    await this.access.load(this.ds, sessionId, userId, 'staff');
     return this.page(await this.occurrences.resolve(this.ds, sessionId, q.occurrenceId), q.page, q.pageSize);
   }
 
@@ -234,18 +234,14 @@ export class AttendanceService {
   }
 
   /** M-18: اعضای تأییدشده با حضور/غیاب و وضعیت صف در یک نوبت */
-  async roster(userId: string, sessionId: string, q: { occurrenceId?: string; present?: 'true' | 'false'; role?: SessionRole; q?: string; page: number; pageSize: number }) {
-    await this.access.load(this.ds, sessionId, userId, 'attendance.view');
+  async roster(userId: string, sessionId: string, q: { occurrenceId?: string; present?: 'true' | 'false'; q?: string; page: number; pageSize: number }) {
+    await this.access.load(this.ds, sessionId, userId, 'staff');
     const occ = await this.occurrences.resolve(this.ds, sessionId, q.occurrenceId);
     const oid = occ ? uuidToBuf(occ.id) : NIL;
     const where = ["m.session_id = ?", "m.status = 'approved'"];
     const args: unknown[] = [uuidToBuf(sessionId)];
     if (q.present === 'true') where.push('a.id IS NOT NULL');
     if (q.present === 'false') where.push('a.id IS NULL');
-    if (q.role) {
-      where.push('EXISTS (SELECT 1 FROM session_member_roles r WHERE r.member_id = m.id AND r.role = ?)');
-      args.push(q.role);
-    }
     if (q.q) {
       where.push("CONCAT(COALESCE(d.first_name,''), ' ', COALESCE(d.last_name,'')) LIKE ?");
       args.push(`%${q.q.replace(/[\\%_]/g, '\\$&')}%`);
@@ -253,11 +249,11 @@ export class AttendanceService {
     const from = `FROM session_members m LEFT JOIN user_directory d ON d.user_id = m.user_id LEFT JOIN attendance_entries a ON a.occurrence_id = ? AND a.user_id = m.user_id WHERE ${where.join(' AND ')}`;
     const [rows, cnt] = await Promise.all([
       this.ds.query(
-        `SELECT m.id, m.user_id, ${NAME_SQL} AS name, (SELECT GROUP_CONCAT(r.role) FROM session_member_roles r WHERE r.member_id = m.id) AS roles, a.entered_at, a.source,
+        `SELECT m.id, m.user_id, ${NAME_SQL} AS name, a.entered_at, a.source,
                 (SELECT x.status FROM queue_items x WHERE x.occurrence_id = ? AND x.user_id = m.user_id ORDER BY FIELD(x.status, 'current', 'waiting', 'done'), x.joined_at DESC LIMIT 1) AS queue_status
            ${from} ORDER BY name ASC, m.id ASC LIMIT ? OFFSET ?`,
         [oid, oid, ...args, q.pageSize, (q.page - 1) * q.pageSize]
-      ) as Promise<{ id: Buffer; user_id: Buffer; name: string; roles: string | null; entered_at: Date | null; source: AttendanceSource | null; queue_status: 'waiting' | 'current' | 'done' | null }[]>,
+      ) as Promise<{ id: Buffer; user_id: Buffer; name: string; entered_at: Date | null; source: AttendanceSource | null; queue_status: 'waiting' | 'current' | 'done' | null }[]>,
       this.ds.query(`SELECT COUNT(*) AS n ${from}`, [oid, ...args]) as Promise<{ n: string | number }[]>
     ]);
     return {
@@ -265,7 +261,6 @@ export class AttendanceService {
         memberId: bufToUuid(r.id),
         userId: bufToUuid(r.user_id),
         name: r.name || displayName(),
-        roles: sortRoles(r.roles?.split(',') ?? []),
         enteredAt: r.entered_at ? r.entered_at.toISOString() : null,
         attendanceSource: r.entered_at ? (r.source ?? 'self') : null,
         queueStatus: r.queue_status ?? null

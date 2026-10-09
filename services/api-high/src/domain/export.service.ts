@@ -181,17 +181,17 @@ export class ExportService {
     let cur = await fetchPage(page);
     const out = new CsvStream(res, `session-${q.kind}-${this.stamp()}.csv`);
     const headers: Record<typeof q.kind, string[]> = {
-      members: ['memberId', 'userId', 'name', 'phone', 'roles', 'status', 'requestedAt', 'decidedAt'],
+      members: ['memberId', 'userId', 'name', 'phone', 'status', 'requestedAt', 'decidedAt'],
       attendance: ['userId', 'name', 'enteredAt', 'source', 'occurrenceId'],
-      evaluations: ['id', 'userId', 'userName', 'evaluatorName', 'voice', 'tone', 'tajweed', 'score', 'points', 'note', 'status', 'occurrenceId', 'createdAt']
+      evaluations: ['id', 'userId', 'userName', 'evaluatorName', 'criteria', 'score', 'points', 'note', 'status', 'occurrenceId', 'createdAt']
     };
     await out.header(headers[q.kind]);
     for (;;) {
       for (const it of cur.items as Record<string, unknown>[]) {
         if (out.rows >= MAX_SESSION_ROWS || out.closed) break;
-        if (q.kind === 'members') await out.row([it.id, it.userId, it.name, it.phone, (it.roles as string[]).join(' '), it.status, it.requestedAt, it.decidedAt]);
+        if (q.kind === 'members') await out.row([it.id, it.userId, it.name, it.phone, it.status, it.requestedAt, it.decidedAt]);
         else if (q.kind === 'attendance') await out.row([it.userId, it.name, it.enteredAt, it.source, it.occurrenceId]);
-        else await out.row([it.id, it.userId, it.userName, it.evaluatorName, it.voice, it.tone, it.tajweed, it.score, it.points, it.note, it.status, it.occurrenceId, it.createdAt]);
+        else await out.row([it.id, it.userId, it.userName, it.evaluatorName, criteriaCell(it.criteria), it.score, it.points, it.note, it.status, it.occurrenceId, it.createdAt]);
       }
       if (out.rows >= MAX_SESSION_ROWS || out.closed || cur.items.length < MID_PAGE || page * MID_PAGE >= cur.total) break;
       try {
@@ -205,4 +205,10 @@ export class ExportService {
     await this.logExport(actor.id, 'export.session', `خروجی ${q.kind} جلسه (${out.rows} ردیف) گرفته شد:`, { kind: q.kind, occurrenceId: q.occurrenceId ?? null, rows: out.rows }, { type: 'session', id, label: s.title });
     out.end(); // audit پیش از پایان پاسخ (کلاینتی که فایل را گرفته، audit آن ثبت‌شده است)
   }
+}
+
+/** ۱.۷.۰: snapshot معیارهای ارزیابی در یک خانه: `key:score/max` با فاصله */
+export function criteriaCell(c: unknown): string {
+  if (!Array.isArray(c)) return '';
+  return (c as { key?: unknown; score?: unknown; maxScore?: unknown }[]).map((x) => `${String(x.key)}:${String(x.score)}/${String(x.maxScore)}`).join(' ');
 }

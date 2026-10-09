@@ -5,17 +5,20 @@ import { AppError } from '../common/app-error';
 import { Clock } from '../common/clock';
 import { uuidToBuf } from '../common/ids';
 import { RegistryService } from './access/registry.service';
-import { developerImmutable, forbidden, invalid, isDupKey, keyTaken, lockRole, permissionsOfModules, ph, requireHeld, requireModules, requirePermissions, systemProtected, unique } from './access/write-helpers';
+import { developerImmutable, invalid, isDupKey, keyTaken, lockRole, permissionsOfModules, ph, requireHeld, requireImplicitSafe, requireModules, requirePermissions, requireTierManage, systemProtected, unique } from './access/write-helpers';
 import { AuditService } from './audit.service';
 import { ClaimsService } from './claims.service';
 import { type Q, conflict } from './db';
 import { emit } from './outbox.writer';
 import { RbacService } from './rbac.service';
-import { DEVELOPER, type PermissionKey, RESERVED_ROLE_KEYS, type StepUpMode, type SystemRoleKey, missingLocked, sameSet } from './rules';
+import { DEVELOPER, type PermissionKey, RESERVED_ROLE_KEYS, type StepUpMode, type SystemRoleKey, type Tier, missingLocked, sameSet } from './rules';
 
 type Body<K extends keyof typeof high> = (typeof high)[K] extends z.ZodType ? z.infer<(typeof high)[K]> : never;
 
-/** مدیریت نقش‌ها (H-10..H-18): ساخت/ویرایش/حذف، مجوز صریح، ماژول و قواعد step-up. قواعد E2–E6 در docs-v2/27 §3. */
+/**
+ * مدیریت نقش‌ها (H-10..H-18): ساخت/ویرایش/حذف، مجوز صریح، ماژول و قواعد step-up. قواعد E2–E6 در docs-v2/27 §3.
+ * ۱.۷.۰ (docs-v2/31 §۱): مجوز لازم per سطح نقش هدف (`requireTierManage`)؛ developer ثابت؛ نقش‌های ضمنی مجوز سطح high نمی‌گیرند.
+ */
 @Injectable()
 export class RolesService {
   constructor(
@@ -26,8 +29,8 @@ export class RolesService {
     private readonly claims: ClaimsService
   ) {}
 
-  async list(page: number, pageSize: number) {
-    const all = (await this.registry.snapshot()).roles;
+  async list(page: number, pageSize: number, tier?: Tier) {
+    const all = (await this.registry.snapshot()).roles.filter((r) => !tier || r.tier === tier);
     return { items: all.slice((page - 1) * pageSize, page * pageSize), page, pageSize, total: all.length };
   }
 
@@ -51,12 +54,13 @@ export class RolesService {
     const modules = unique(body.modules);
     await this.rbac.write(async (m) => {
       const actor = await this.rbac.access(actorId, m);
+      requireTierManage(actor, body.tier, 'system.role.manage');
       await requireModules(m, modules);
       await requirePermissions(m, explicit);
       requireHeld(actor, [...explicit, ...(await permissionsOfModules(m, modules))], 'این نقش');
       const now = this.clock.now();
       try {
-        await m.query('INSERT INTO system_roles (role_key, title, description, undeletable, created_at, updated_at, created_by) VALUES (?, ?, ?, 0, ?, ?, ?)', [body.key, body.title, body.description, now, now, uuidToBuf(actorId)]);
+        await m.query('INSERT INTO system_roles (role_key, title, description, undeletable, tier, created_at, updated_at, created_by) VALUES (?, ?, ?, 0, ?, ?, ?, ?)', [body.key, body.title, body.description, body.tier, now, now, uuidToBuf(actorId)]);
       } catch (e) {
         if (isDupKey(e)) throw keyTaken('نقش');
         throw e;
@@ -64,7 +68,7 @@ export class RolesService {
       for (const p of explicit) await m.query('INSERT INTO role_permissions (role_key, permission_key, locked) VALUES (?, ?, 0)', [body.key, p]);
       for (const mod of modules) await m.query('INSERT INTO role_modules (role_key, module_key) VALUES (?, ?)', [body.key, mod]);
       await this.rbac.bump(m);
-      await this.log(m, actorId, 'role.create', body, `نقش «${body.title}» ساخته شد.`, { permissions: explicit, modules });
+      await this.log(m, actorId, 'role.create', body, `نقش «${body.title}» ساخته شد.`, { tier: body.tier, permissions: explicit, modules });
     });
     return this.registry.role(body.key);
   }
@@ -74,6 +78,7 @@ export class RolesService {
     await this.rbac.write(async (m) => {
       const role = await lockRole(m, key);
       if (key === DEVELOPER) throw developerImmutable();
+      requireTierManage(await this.rbac.access(actorId, m), role.tier, 'system.role.manage');
       const title = body.title ?? role.title;
       const cur = (await m.query('SELECT description FROM system_roles WHERE role_key = ?', [key])) as { description: string }[];
       const description = body.description ?? cur[0]!.description;
@@ -91,6 +96,7 @@ export class RolesService {
     await this.rbac.write(async (m) => {
       const role = await lockRole(m, key);
       if (key === DEVELOPER) throw developerImmutable();
+      requireTierManage(await this.rbac.access(actorId, m), role.tier, 'system.role.manage');
       if (role.undeletable) throw systemProtected('این نقش');
       const holders = (await m.query('SELECT COUNT(*) AS n FROM (SELECT user_id FROM user_system_roles WHERE role_key = ? FOR UPDATE) h', [key])) as { n: string | number }[];
       const n = Number(holders[0]?.n ?? 0);
@@ -117,13 +123,16 @@ export class RolesService {
     await this.rbac.write(async (m) => {
       const role = await lockRole(m, key);
       if (key === DEVELOPER) throw developerImmutable();
+      const actor = await this.rbac.access(actorId, m);
+      requireTierManage(actor, role.tier, 'system.permission.edit');
       const cur = (await m.query('SELECT permission_key, locked FROM role_permissions WHERE role_key = ? FOR UPDATE', [key])) as { permission_key: PermissionKey; locked: number }[];
       const before = cur.map((c) => c.permission_key).sort();
       const missing = missingLocked(cur.filter((c) => c.locked).map((c) => c.permission_key), next);
       if (missing.length) throw conflict('LOCKED_PERMISSION', 'مجوزهای قفل‌شدهٔ این نقش قابل حذف نیستند.', { missing });
       await requirePermissions(m, next);
       const added = next.filter((p) => !before.includes(p));
-      requireHeld(await this.rbac.access(actorId, m), added, 'افزودن این مجوزها');
+      await requireImplicitSafe(m, key, added, []);
+      requireHeld(actor, added, 'افزودن این مجوزها');
       if (sameSet(before, next)) return;
       const removed = before.filter((p) => !next.includes(p));
       if (removed.length) await m.query(`DELETE FROM role_permissions WHERE role_key = ? AND permission_key IN (${ph(removed.length)})`, [key, ...removed]);
@@ -142,11 +151,14 @@ export class RolesService {
     await this.rbac.write(async (m) => {
       const role = await lockRole(m, key);
       if (key === DEVELOPER) throw developerImmutable();
+      const actor = await this.rbac.access(actorId, m);
+      requireTierManage(actor, role.tier, 'system.role.manage');
       await requireModules(m, next);
       const cur = (await m.query('SELECT module_key FROM role_modules WHERE role_key = ? FOR UPDATE', [key])) as { module_key: string }[];
       const before = cur.map((c) => c.module_key).sort();
       const added = next.filter((x) => !before.includes(x));
-      requireHeld(await this.rbac.access(actorId, m), await permissionsOfModules(m, added), 'افزودن این ماژول‌ها');
+      await requireImplicitSafe(m, key, [], added);
+      requireHeld(actor, await permissionsOfModules(m, added), 'افزودن این ماژول‌ها');
       if (sameSet(before, next)) return;
       const removed = before.filter((x) => !next.includes(x));
       if (removed.length) await m.query(`DELETE FROM role_modules WHERE role_key = ? AND module_key IN (${ph(removed.length)})`, [key, ...removed]);
@@ -168,6 +180,7 @@ export class RolesService {
     await this.rbac.write(async (m) => {
       const role = await lockRole(m, key);
       if (key === DEVELOPER) throw developerImmutable();
+      requireTierManage(await this.rbac.access(actorId, m), role.tier, 'system.stepup.manage');
       await requirePermissions(m, rules.map((r) => r.permission));
       const cur = (await m.query('SELECT permission_key, mode FROM role_step_up WHERE role_key = ? FOR UPDATE', [key])) as { permission_key: string; mode: StepUpMode }[];
       const before = new Map(cur.map((c) => [c.permission_key, c.mode]));

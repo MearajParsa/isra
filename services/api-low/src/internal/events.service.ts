@@ -7,6 +7,7 @@ import { Clock } from '../common/clock';
 import { uuidToBuf, uuidv7 } from '../common/ids';
 import { MidClient } from '../mid/mid.client';
 import { BroadcastService } from '../messaging/broadcast.service';
+import { BASELINE_KEY, TierBaselineService } from '../system/baseline.service';
 import { FlagsService } from '../system/flags.service';
 import type { Peer } from './internal-auth';
 
@@ -52,7 +53,8 @@ export class EventsService {
     private readonly flags: FlagsService,
     private readonly badges: BadgesService,
     private readonly mid: MidClient,
-    private readonly broadcasts: BroadcastService
+    private readonly broadcasts: BroadcastService,
+    private readonly baseline: TierBaselineService
   ) {}
 
   async handle(e: InboundEvent, caller: Peer): Promise<{ deadLettered: boolean }> {
@@ -146,6 +148,20 @@ export class EventsService {
               [JSON.stringify({ flags: p.flags }), p.version, now]
             )),
           after: () => this.flags.invalidate()
+        };
+      }
+      case 'tier.baseline.changed': {
+        // docs-v2/31 §۱: مجوزهای نقش‌های ضمنی guest/quran_student؛ فقط نسخهٔ بزرگ‌تر جایگزین می‌شود (ترتیب تحویل تضمین نیست)
+        const p = internal.TierBaselineChanged.parse(e.payload);
+        const value = JSON.stringify({ guest: [...new Set(p.guest)], quran_student: [...new Set(p.quran_student)] });
+        return {
+          run: async (m, now) =>
+            void (await m.query(
+              `INSERT INTO settings_cache (setting_key, value, version, updated_at) VALUES (?, ?, ?, ?)
+               ON DUPLICATE KEY UPDATE value = IF(VALUES(version) > version, VALUES(value), value), updated_at = IF(VALUES(version) > version, VALUES(updated_at), updated_at), version = GREATEST(version, VALUES(version))`,
+              [BASELINE_KEY, value, p.version, now]
+            )),
+          after: () => this.baseline.invalidate()
         };
       }
       case 'system.permission.changed':

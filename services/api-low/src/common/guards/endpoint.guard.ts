@@ -6,8 +6,9 @@ import { AuthService } from '../../auth/auth.service';
 import { readRefreshCookie } from '../../auth/cookie';
 import { SessionService } from '../../auth/session.service';
 import { SessionStatusCache } from '../../auth/session-status.cache';
+import { TierBaselineService } from '../../system/baseline.service';
 import { FlagsService } from '../../system/flags.service';
-import { TokenService } from '../../auth/token.service';
+import { TokenService, type VerifiedAccess } from '../../auth/token.service';
 import { ENV, type Env } from '../../config/env';
 import { INTERNAL_KEY } from '../../internal/internal-auth';
 import { AppError } from '../app-error';
@@ -26,7 +27,7 @@ const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH']);
 
 /**
  * یک guard سراسری، تنها نقطهٔ سیاست امنیتی هر endpoint از روی تعریف قرارداد:
- *   CSRF (cookie) → احراز (Bearer/JWT RS256 + نشست فعال) → step-up → rate-limit → اعتبارسنجی zod (body/query/params)
+ *   CSRF (cookie) → احراز (Bearer/JWT RS256 + نشست فعال) → step-up → مجوز (permission/permissionAny) → rate-limit → اعتبارسنجی zod (body/query/params)
  * خروجی اعتبارسنجی در `req.input`.
  */
 @Injectable()
@@ -39,6 +40,7 @@ export class EndpointGuard implements CanActivate {
     private readonly auth: AuthService,
     private readonly limiter: RateLimitService,
     private readonly flags: FlagsService,
+    private readonly baseline: TierBaselineService,
     @Inject(ENV) private readonly env: Env
   ) {}
 
@@ -58,7 +60,8 @@ export class EndpointGuard implements CanActivate {
     await this.maintenance(def);
     this.checkContentType(def, req);
     this.checkCsrf(def, req);
-    await this.authenticate(def, req);
+    const access = await this.authenticate(def, req);
+    await this.authorize(def, req, access);
     await this.rateLimit(def, req, res);
     this.validate(def, req);
     return true;
@@ -81,8 +84,8 @@ export class EndpointGuard implements CanActivate {
     if (!isWebClient(req.ctx.client) || !origin || !this.env.CORS_ORIGINS.includes(origin)) throw new AppError('AUTH_FORBIDDEN', { message: 'درخواست از مبدأ مجاز نیست.' });
   }
 
-  private async authenticate(def: EndpointDef, req: IsraRequest) {
-    if (def.auth === 'none' || def.auth === 'refreshCookie') return;
+  private async authenticate(def: EndpointDef, req: IsraRequest): Promise<VerifiedAccess | undefined> {
+    if (def.auth === 'none' || def.auth === 'refreshCookie') return undefined;
     const header = req.header('authorization');
     const bearer = header?.startsWith('Bearer ') ? header.slice(7).trim() : undefined;
     const optional = def.auth === 'bearerOrCookie';
@@ -122,6 +125,40 @@ export class EndpointGuard implements CanActivate {
     // استثنای step-up فقط برای L-13 در حالت رمز موقت با currentPassword؛ MeService خودش رمز را تطبیق می‌دهد و وضعیت را از DB بازبینی می‌کند
     const currentPwMode = def.id === 'L-13' && st.mustChange && typeof (req.body as { currentPassword?: unknown } | undefined)?.currentPassword === 'string';
     if (def.stepUp && !currentPwMode) await this.auth.assertStepUp(v.sessionId, st, req.header(HEADERS.stepUp));
+    return v;
+  }
+
+  /**
+   * مجوز endpoint (docs-v2/31 §۱): عبور اگر مجوز مؤثر شامل `permission` یا **هر یک** از `permissionAny` باشد. fail-closed:
+   * هر endpoint دارای این فیلدها بدون مجوز مؤثر ⇒ AUTH_FORBIDDEN.
+   * مجوز مؤثر = baseline نقش ضمنی (`quran_student` برای کاربر احرازشده، `guest` برای بی‌توکن) ∪ claim امضاشدهٔ `perms`.
+   * در مسیر `auth: none` توکن اختیاری است: Bearer معتبر با نشست فعال ⇒ کاربر؛ نبود/نامعتبر ⇒ مهمان (مسیر عمومی 401 نمی‌دهد).
+   */
+  private async authorize(def: EndpointDef, req: IsraRequest, access: VerifiedAccess | undefined) {
+    const required = [...(def.permission ? [def.permission] : []), ...(def.permissionAny ?? [])];
+    if (!required.length) {
+      if (def.permissionAny) throw new AppError('AUTH_FORBIDDEN'); // permissionAny خالی ⇒ تعریف معیوب، fail-closed
+      return;
+    }
+    const user = access ?? (def.auth === 'none' ? await this.optionalAccess(req) : undefined);
+    const base = await this.baseline.get();
+    const has = (p: string) => (user ? base.quranStudent.has(p) || user.perms.includes(p) : base.guest.has(p));
+    if (!required.some(has)) throw new AppError('AUTH_FORBIDDEN');
+  }
+
+  /** Bearer اختیاری در مسیر عمومی: فقط توکن معتبرِ نشست فعال و حساب active؛ هر خطا ⇒ مهمان */
+  private async optionalAccess(req: IsraRequest): Promise<VerifiedAccess | undefined> {
+    const header = req.header('authorization');
+    const bearer = header?.startsWith('Bearer ') ? header.slice(7).trim() : undefined;
+    if (!bearer || bearer.length > 4096) return undefined;
+    try {
+      const v = await this.tokens.verifyAccess(bearer);
+      const st = await this.status.get(v.sessionId);
+      if (!st || st.userId !== v.userId || st.userStatus !== 'active' || st.revoked) return undefined;
+      return v;
+    } catch {
+      return undefined;
+    }
   }
 
   private keyOf(kind: RateLimit['key'], req: IsraRequest): string | null {

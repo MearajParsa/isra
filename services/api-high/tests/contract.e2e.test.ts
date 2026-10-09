@@ -65,7 +65,7 @@ describe('انطباق پاسخ‌ها با schemaهای قرارداد', () => 
     check(def('H-12'), (await a.put('/system/roles/super_admin/permissions', await dev.step(), { permissions: ['system.users.view', 'system.role.assign', 'system.permission.edit', 'system.audit.view', 'session.create'] })).body);
     const s = await a.get('/system/settings', dev);
     check(def('H-30'), s.body);
-    check(def('H-31'), (await a.put('/system/settings', await dev.step(), { version: s.body.data.version, evalWeights: { voice: 34, tone: 33, tajweed: 33 }, badgeThresholds: [1, 2, 3, 4], flags: { maintenance_mode: false, registration_open: false } })).body);
+    check(def('H-31'), (await a.put('/system/settings', await dev.step(), { version: s.body.data.version, flags: { maintenance_mode: false, registration_open: false } })).body);
     check(def('H-40'), (await a.get('/system/audit', dev)).body);
   });
 

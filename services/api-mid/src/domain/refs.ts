@@ -22,3 +22,24 @@ export const attendanceRef = (occurrenceId: string, userId: string, n = 1): stri
 
 /** شناسهٔ نشان‌های قدیمی (fallback پیش از رسیدن کاتالوگ high) از کلید — قطعی تا مهاجرت/نگاشت دوباره ممکن باشد */
 export const legacyBadgeId = (key: string): string => uuidv5(`badge:${key}`);
+
+/**
+ * ۱.۷.۰ (docs-v2/31 §۳): معیارهای ثابت قبلی (صوت/لحن/تجوید، سقف ۱۰) با شناسه‌های **ثابت seed high**
+ * (هماهنگ با api-high: کاتالوگ نسخهٔ ۱). snapshot ارزیابی‌های قدیمی و کاتالوگ پیش‌فرض mid (پیش از نخستین رویداد
+ * evaluation.criteria.changed) همین شناسه‌ها را دارند.
+ */
+const LEGACY_CRITERION_IDS: Readonly<Record<string, string>> = {
+  voice: '00000000-0000-7000-8000-000000000001',
+  tone: '00000000-0000-7000-8000-000000000002',
+  tajweed: '00000000-0000-7000-8000-000000000003'
+};
+export const legacyCriterionId = (key: string): string => {
+  const id = LEGACY_CRITERION_IDS[key];
+  if (!id) throw new Error(`legacy criterion ${key} ناشناخته است`);
+  return id;
+};
+export const LEGACY_CRITERIA = [
+  { key: 'voice', title: 'صوت', weight: 40, maxScore: 10, sortOrder: 10 },
+  { key: 'tone', title: 'لحن', weight: 30, maxScore: 10, sortOrder: 20 },
+  { key: 'tajweed', title: 'تجوید', weight: 30, maxScore: 10, sortOrder: 30 }
+] as const;

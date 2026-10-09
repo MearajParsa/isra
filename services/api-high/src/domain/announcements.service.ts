@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import type { z } from 'zod';
 import type { high } from '@isra/api-types';
+import { isImplicitRole } from './rules';
 import { AppError } from '../common/app-error';
 import { Clock } from '../common/clock';
 import { RateLimitService } from '../common/rate-limit/rate-limit.service';
@@ -84,6 +85,8 @@ export class AnnouncementsService {
     if (a.type === 'users' && a.userIds.some((u) => !isUuid(u))) throw new AppError('VALIDATION_FAILED', { details: { fields: { 'audience.userIds': 'شناسهٔ کاربر نامعتبر است.' } } });
     if (a.type === 'session' && !isUuid(a.sessionId)) throw new AppError('NOT_FOUND', { message: 'جلسه پیدا نشد.' });
     if (a.type === 'role') {
+      // ۱.۷.۰: نقش ضمنی دارندهٔ صریح ندارد (quran_student = همه ⇒ audience `all`؛ guest = بی‌حساب)
+      if (isImplicitRole(a.role)) throw new AppError('VALIDATION_FAILED', { message: 'برای همهٔ کاربران مخاطب «همه» را انتخاب کنید؛ نقش ضمنی مخاطب نمی‌شود.', details: { fields: { 'audience.role': 'نقش ضمنی مجاز نیست.' } } });
       const r = (await this.ds.query('SELECT 1 AS x FROM system_roles WHERE role_key = ?', [a.role])) as unknown[];
       if (!r.length) throw new AppError('NOT_FOUND', { message: 'نقش پیدا نشد.' });
     }

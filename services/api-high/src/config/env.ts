@@ -51,6 +51,14 @@ export const EnvSchema = z
     OUTBOX_ENABLED: bool.default(true),
     MAINTENANCE_ENABLED: bool.default(true),
 
+    /**
+     * ۱.۷.۰ (docs-v2/31 §۴): کلید HMAC-SHA256 برای URL امضاشدهٔ محتوای گالری (H-117)؛ مستقل از mid (هر سرویس مقدار جدا).
+     * production ⇒ الزامی (≥۳۲ نویسهٔ تصادفی)؛ توسعه/تست بدون آن ⇒ کلید تصادفی per فرایند (URLها با restart باطل می‌شوند).
+     */
+    MEDIA_URL_SECRET: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(32).optional()),
+    /** ۱.۷.۰: مهلت بیکاری socket برای stream بارگذاری/محتوای گالری به/از mid (H-115، H-117) */
+    MEDIA_PROXY_TIMEOUT_MS: z.coerce.number().int().min(1000).max(600_000).default(120_000),
+
     /** شمارهٔ اولین developer: وقتی این کاربر در سیستم ثبت‌نام کرد و هنوز هیچ developer وجود ندارد، خودکار developer می‌شود */
     BOOTSTRAP_DEVELOPER_PHONE: z.string().regex(/^09\d{9}(\s*,\s*09\d{9})*$/, 'یک یا چند شمارهٔ 09xxxxxxxxx با کاما').optional()
   })
@@ -69,6 +77,9 @@ export const EnvSchema = z
     need(e.INTERNAL_SECRET_LOW === e.INTERNAL_SECRET_MID, 'INTERNAL_SECRET_MID', 'secret هر جفت‌سرویس باید مستقل باشد.');
     for (const k of ['INTERNAL_SECRET_LOW', 'INTERNAL_SECRET_MID'] as const) need(prod && isWeakSecret(e[k]), k, 'در production مقدار نمونه/ضعیف مجاز نیست؛ ۳۲+ نویسهٔ تصادفی بسازید.');
     need(prod && e.SWAGGER_ENABLED, 'SWAGGER_ENABLED', 'در production خاموش بماند.');
+    need(prod && !e.MEDIA_URL_SECRET, 'MEDIA_URL_SECRET', 'در production الزامی است (۳۲+ نویسهٔ تصادفی؛ جدا از mid).');
+    need(prod && !!e.MEDIA_URL_SECRET && isWeakSecret(e.MEDIA_URL_SECRET), 'MEDIA_URL_SECRET', 'در production مقدار نمونه/ضعیف مجاز نیست؛ ۳۲+ نویسهٔ تصادفی بسازید.');
+    need(!!e.MEDIA_URL_SECRET && (e.MEDIA_URL_SECRET === e.INTERNAL_SECRET_LOW || e.MEDIA_URL_SECRET === e.INTERNAL_SECRET_MID), 'MEDIA_URL_SECRET', 'باید از secretهای internal مستقل باشد.');
   });
 
 export type Env = z.infer<typeof EnvSchema>;

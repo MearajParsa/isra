@@ -1,6 +1,6 @@
 import { io, type Socket } from 'socket.io-client';
 import type { Http } from './http';
-import type { AttendanceEntry, AttendanceResult, Evaluation, EvaluationInput, LiveEvent, Member, MembershipStatus, MidApi, MidMe, MidSession, MySessionItem, QueueItem, QueueState, SessionInput, SessionMe, SessionRole } from './mid-types';
+import type { ActiveCriteria, AttendanceEntry, AttendanceResult, Evaluation, EvaluationInput, LiveEvent, Member, MembershipStatus, MidApi, MidMe, MidSession, MySessionItem, QueueItem, QueueState, SessionInput, SessionMe } from './mid-types';
 import type { Page } from './types';
 
 const LIVE_TYPES = new Set(['attendance.updated', 'queue.updated', 'queue.turned', 'eval.updated', 'session.state']);
@@ -25,8 +25,7 @@ export function createMidApi(http: Http, opts: { baseUrl: string; socketPath?: s
     members: {
       request: (t, id) => http.call<Member>(`${s(id)}/members`, { method: 'POST', ...a(t) }),
       list: (t, id, status?: MembershipStatus) => http.listAll<Member>(`${s(id)}/members`, { query: { status }, ...a(t) }, 100),
-      decide: (t, id, memberId, action) => http.call<Member>(`${s(id)}/members/${encodeURIComponent(memberId)}`, { method: 'PATCH', body: { action }, ...a(t) }),
-      setRoles: (t, id, memberId, roles: SessionRole[]) => http.call<Member>(`${s(id)}/members/${encodeURIComponent(memberId)}/roles`, { method: 'PUT', body: { roles }, ...a(t) })
+      decide: (t, id, memberId, action) => http.call<Member>(`${s(id)}/members/${encodeURIComponent(memberId)}`, { method: 'PATCH', body: { action }, ...a(t) })
     },
     attendance: {
       checkIn: (t, id) => http.call<AttendanceResult>(`${s(id)}/attendance`, { method: 'POST', ...a(t) }),
@@ -42,6 +41,7 @@ export function createMidApi(http: Http, opts: { baseUrl: string; socketPath?: s
       act: (t, id, itemId, action) => http.call<QueueState>(`${s(id)}/queue/${encodeURIComponent(itemId)}`, { method: 'PATCH', body: { action }, ...a(t) })
     },
     evaluations: {
+      criteria: (t) => http.call<ActiveCriteria>(`${B}/evaluation-criteria`, a(t)),
       submit: (t, id, input: EvaluationInput) => http.call<Evaluation>(`${s(id)}/evaluations`, { method: 'POST', body: input, idempotencyKey: true, ...a(t) }),
       list: (t, id): Promise<Page<Evaluation>> => http.list<Evaluation>(`${s(id)}/evaluations`, { query: { pageSize: 100 }, ...a(t) })
     },

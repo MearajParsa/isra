@@ -17,7 +17,7 @@ const services: ServiceKey[] = ['low', 'mid', 'high'];
 
 function show(path: string): string | null {
   try {
-    return execFileSync('git', ['show', `${ref}:packages/api-types/${path}`], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    return execFileSync('git', ['show', `${ref}:packages/api-types/${path}`], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 });
   } catch {
     return null;
   }
@@ -45,6 +45,15 @@ for (const s of services) {
   d.breaking.forEach((b) => console.log(`   ✗ ${b}`));
   d.additions.slice(0, 20).forEach((b) => console.log(`   + ${b}`));
   breaking += d.breaking.length;
+}
+// تأیید صریح مالک برای تغییر ناسازگارِ هماهنگ (همهٔ کلاینت‌ها در همین monorepo و هم‌زمان مستقر می‌شوند).
+// فقط وقتی معتبر است که نسخهٔ قرارداد نسبت به ref عوض شده باشد؛ پس با نسخهٔ قبلی تکرار نمی‌شود.
+const acks = JSON.parse(readFileSync(resolve(root, 'breaking-acks.json'), 'utf8')) as Record<string, { approvedBy: string; date: string; reason: string }>;
+const prevVersion = prevPkg ? (JSON.parse(prevPkg).version as string) : null;
+const ack = prevVersion !== CONTRACT_VERSION ? acks[CONTRACT_VERSION] : undefined;
+if (breaking && !majorBumped && ack) {
+  console.log(`\n⚠ ${breaking} تغییر ناسازگار با تأیید ${ack.approvedBy} (${ack.date}): ${ack.reason}`);
+  process.exit(0);
 }
 if (breaking && !majorBumped) {
   console.error(`\n✗ ${breaking} تغییر ناسازگار بدون افزایش major. یا سازگار کنید یا نسخهٔ مسیر جدید (v2) و major جدید بسازید (docs-v2/22 §۵).`);

@@ -6,6 +6,8 @@ import { RateLimitService } from '../common/rate-limit/rate-limit.service';
 import { ENV, type Env } from '../config/env';
 import { BadgesService } from '../domain/badges.service';
 import { SessionsService } from '../domain/sessions.service';
+import { GalleriesService } from '../domain/galleries.service';
+import { MediaService } from '../media/media.service';
 
 const DAY = 86_400_000;
 
@@ -22,6 +24,8 @@ export class MaintenanceService implements OnApplicationBootstrap, OnApplication
     private readonly revocation: RevocationService,
     private readonly sessions: SessionsService,
     private readonly badges: BadgesService,
+    private readonly galleries: GalleriesService,
+    private readonly media: MediaService,
     @Inject(ENV) private readonly env: Env
   ) {}
 
@@ -48,6 +52,8 @@ export class MaintenanceService implements OnApplicationBootstrap, OnApplication
       out.counters = await this.limiter.purgeOlderThan(ago(2 * DAY));
       if (this.env.SCHEDULER_ENABLED) out.snapshots = await this.sessions.refreshSnapshots();
       out.badgeRecompute = await this.badges.runRecompute(); // ادامهٔ job ناتمام تغییر کاتالوگ (idempotent)
+      out.mediaPurged = await this.galleries.purgeDeleted(); // ۱.۷.۰: فایل آیتم‌های حذف نرم
+      out.mediaTemp = await this.media.cleanupTemp(DAY / 4); // فایل موقت بارگذاری رهاشده
     } catch (e) {
       this.log.error({ err: e instanceof Error ? e.message : 'unknown' }, 'maintenance failed');
     }

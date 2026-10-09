@@ -55,7 +55,7 @@
 {:else if me.status !== 'ready' || !s}
   <Skeleton h="320px" radius="var(--radius-lg)" />
 {:else if !editable}
-  <EmptyState icon="lock" title="این جلسه قابل ویرایش نیست" message="فقط مدیر جلسه، و فقط تا پیش از شروع جلسه می‌تواند آن را ویرایش کند.">
+  <EmptyState icon="lock" title="این جلسه قابل ویرایش نیست" message="فقط استاد جلسه (یا پشتیبانِ دارای مجوز ویرایش)، و فقط تا پیش از شروع جلسه می‌تواند آن را ویرایش کند.">
     {#snippet action()}<Button href={`/manage/${id}`}>بازگشت</Button>{/snippet}
   </EmptyState>
 {:else}

@@ -1,19 +1,23 @@
 /** نوع‌های کلاینت برای api-mid (قرارداد: packages/api-types؛ docs-v2/18) */
 import type { Page, PublicSession, SessionSchedule } from './types';
 
-export type SessionRole = 'session_manager' | 'session_supporter' | 'teacher' | 'quran_student';
+/** ۱.۷.۰ (docs-v2/31 §۲): نقش من در جلسه */
+export type SessionRole = 'owner' | 'supporter' | 'member';
 export type MembershipStatus = 'pending' | 'approved' | 'rejected';
 /** چرخهٔ حیات قفل‌شده؛ فقط رو به جلو */
 export type SessionState = 'draft' | 'scheduled' | 'started' | 'ended';
 
+/** ۱.۷.۰: مجوزهای درون‌جلسه (صاحب ⇒ همه؛ پشتیبان ⇒ واگذارشده؛ عضو ⇒ هیچ) */
 export type Permission =
-  | 'session.edit'
-  | 'session.transition'
   | 'membership.approve'
-  | 'membership.roles'
+  | 'membership.manage'
+  | 'attendance.manage'
   | 'queue.manage'
   | 'eval.submit'
-  | 'attendance.view';
+  | 'gallery.manage'
+  | 'comment.moderate'
+  | 'occurrence.manage'
+  | 'session.edit';
 
 export type MidSession = Omit<PublicSession, 'status'> & { status: SessionState };
 
@@ -24,19 +28,20 @@ export interface MidMe {
 
 export interface MySessionItem {
   session: MidSession;
-  roles: SessionRole[];
-  membership: MembershipStatus;
+  /** بالاترین نقش من (owner > supporter > member) */
+  role: SessionRole;
+  /** فقط برای member؛ صاحب/پشتیبان ⇒ null */
+  membership: MembershipStatus | null;
   pendingCount?: number;
 }
 
 export interface SessionMe {
   session: MidSession;
-  membership: { status: MembershipStatus; roles: SessionRole[] } | null;
+  role: SessionRole | null;
+  membership: { status: MembershipStatus } | null;
   permissions: Permission[];
   /** حضور من در این جلسه (یا null) */
   myAttendance: { enteredAt: string } | null;
-  /** وزن‌های فعلی ارزیابی (از high) برای پیش‌نمایش امتیاز */
-  evalWeights: EvaluationWeights;
 }
 
 export interface SessionInput {
@@ -50,7 +55,6 @@ export interface Member {
   id: string;
   userId: string;
   name: string;
-  roles: SessionRole[];
   status: MembershipStatus;
   requestedAt: string;
 }
@@ -88,17 +92,38 @@ export interface QueueState {
 }
 export type QueueAction = 'up' | 'down' | 'skip' | 'remove';
 
+/** M-45: معیار فعال ارزیابی (پویا؛ مدیریت در high) */
+export interface ActiveCriterion {
+  id: string;
+  key: string;
+  title: string;
+  description: string;
+  weight: number;
+  maxScore: number;
+  sortOrder: number;
+}
+export interface ActiveCriteria {
+  version: number;
+  items: ActiveCriterion[];
+}
+export interface CriterionScoreInput {
+  criterionId: string;
+  score: number;
+}
 export interface EvaluationInput {
   queueItemId: string;
-  voice: number;
-  tone: number;
-  tajweed: number;
+  /** نمرهٔ همهٔ معیارهای فعال (۰..maxScore) */
+  scores: CriterionScoreInput[];
   note?: string;
 }
-export interface EvaluationWeights {
-  voice: number;
-  tone: number;
-  tajweed: number;
+/** snapshot معیار روی ارزیابی ثبت‌شده */
+export interface EvaluationCriterionScore {
+  criterionId: string;
+  key: string;
+  title: string;
+  weight: number;
+  maxScore: number;
+  score: number;
 }
 export interface Evaluation {
   id: string;
@@ -107,10 +132,7 @@ export interface Evaluation {
   userId: string;
   userName: string;
   evaluatorName: string;
-  voice: number;
-  tone: number;
-  tajweed: number;
-  weights: EvaluationWeights;
+  criteria: EvaluationCriterionScore[];
   /** ۰..۱۰۰ */
   score: number;
   points: number;
@@ -148,7 +170,6 @@ export interface MidApi {
     request(t: string, sessionId: string): Promise<Member>;
     list(t: string, sessionId: string, status?: MembershipStatus): Promise<Member[]>;
     decide(t: string, sessionId: string, memberId: string, action: 'approve' | 'reject'): Promise<Member>;
-    setRoles(t: string, sessionId: string, memberId: string, roles: SessionRole[]): Promise<Member>;
   };
   attendance: {
     checkIn(t: string, sessionId: string): Promise<AttendanceResult>;
@@ -162,6 +183,8 @@ export interface MidApi {
     act(t: string, sessionId: string, itemId: string, action: QueueAction): Promise<QueueState>;
   };
   evaluations: {
+    /** M-45 */
+    criteria(t: string): Promise<ActiveCriteria>;
     submit(t: string, sessionId: string, input: EvaluationInput): Promise<Evaluation>;
     list(t: string, sessionId: string): Promise<Page<Evaluation>>;
   };

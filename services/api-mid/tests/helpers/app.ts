@@ -10,6 +10,7 @@ import { Clock } from '../../src/common/clock';
 import { uuidv7 } from '../../src/common/ids';
 import { type Env, loadEnv } from '../../src/config/env';
 import { LiveService } from '../../src/live/live.service';
+import { legacyCriterionId } from '../../src/domain/refs';
 
 export class TestClock extends Clock {
   private t = Date.now();
@@ -21,7 +22,7 @@ export class TestClock extends Clock {
   }
 }
 
-const TABLES = ['sessions', 'session_members', 'session_member_roles', 'attendance_entries', 'queue_items', 'evaluations', 'point_ledger', 'user_points', 'badge_awards', 'settings_cache', 'user_directory', 'idempotency_keys', 'rate_limit_counters', 'outbox_events', 'inbox_events', 'session_invites', 'session_occurrences', 'badges_catalog'];
+const TABLES = ['sessions', 'session_members', 'session_supporters', 'teacher_supporters', 'galleries', 'gallery_items', 'comments', 'attendance_entries', 'queue_items', 'evaluations', 'point_ledger', 'user_points', 'badge_awards', 'settings_cache', 'user_directory', 'idempotency_keys', 'rate_limit_counters', 'outbox_events', 'inbox_events', 'session_invites', 'session_occurrences', 'badges_catalog'];
 
 /** سرور JWKS جعلی (نقش api-low) + امضای توکن */
 export interface FakeLow {
@@ -218,17 +219,40 @@ export async function mkSession(t: TestApp, manager: User, status: 'draft' | 'sc
   return id;
 }
 
-/** کاربر عضو تأییدشدهٔ جلسه با نقش‌های داده‌شده (توسط مدیر) */
+/** مجوزهای معادل نقش‌های قدیمی (همان نگاشت مهاجرت ۱.۷.۰) برای تست‌ها */
+export const ROLE_PERMS: Record<string, string[]> = {
+  teacher: ['attendance.manage', 'queue.manage', 'eval.submit', 'occurrence.manage'],
+  session_supporter: ['membership.approve', 'membership.manage', 'attendance.manage', 'queue.manage', 'eval.submit', 'occurrence.manage'],
+  session_manager: ['membership.approve', 'membership.manage', 'attendance.manage', 'queue.manage', 'eval.submit', 'gallery.manage', 'comment.moderate', 'occurrence.manage', 'session.edit']
+};
+
+/** پشتیبان per جلسه با مجوزهای داده‌شده (توسط صاحب، M-65) */
+export async function addSupporter(t: TestApp, sessionId: string, owner: User, user: User, permissions: string[]): Promise<void> {
+  const r = await api(t).post(`/sessions/${sessionId}/supporters`, owner, { user: { userId: user.id }, permissions });
+  if (r.status !== 200) throw new Error(`supporter failed ${r.status} ${JSON.stringify(r.body)}`);
+}
+
+/**
+ * کاربر عضو تأییدشدهٔ جلسه (توسط صاحب). ۱.۷.۰: نقش کادر قدیمی (teacher/session_supporter/session_manager) ⇒ پشتیبان per جلسه
+ * با مجوزهای معادل (عضو نمی‌شود؛ شناسهٔ برگشتی رشتهٔ خالی).
+ */
 export async function join(t: TestApp, sessionId: string, manager: User, user: User, roles: string[] = []): Promise<string> {
   const a = api(t);
+  const staff = roles.filter((r) => r in ROLE_PERMS);
+  if (staff.length) {
+    await addSupporter(t, sessionId, manager, user, [...new Set(staff.flatMap((r) => ROLE_PERMS[r]!))]);
+    return '';
+  }
   const r = await a.post(`/sessions/${sessionId}/members`, user);
   if (r.status !== 200) throw new Error(`member request failed ${r.status} ${JSON.stringify(r.body)}`);
   const memberId = r.body.data.id as string;
-  const d = await a.patch(`/sessions/${sessionId}/members/${memberId}`, manager, { action: 'approve' });
-  if (d.status !== 200) throw new Error(`approve failed ${d.status}`);
-  if (roles.length) {
-    const s = await a.put(`/sessions/${sessionId}/members/${memberId}/roles`, manager, { roles });
-    if (s.status !== 200) throw new Error(`roles failed ${s.status}`);
+  if (r.body.data.status !== 'approved') {
+    const d = await a.patch(`/sessions/${sessionId}/members/${memberId}`, manager, { action: 'approve' });
+    if (d.status !== 200) throw new Error(`approve failed ${d.status}`);
   }
   return memberId;
 }
+
+/** نمره‌های معیارهای پیش‌فرض (صوت/لحن/تجوید، سقف ۱۰) به شکل `scores[]` قرارداد ۱.۷.۰ */
+export const sc = (v: { voice?: number; tone?: number; tajweed?: number }) =>
+  (['voice', 'tone', 'tajweed'] as const).filter((k) => v[k] !== undefined).map((k) => ({ criterionId: legacyCriterionId(k), score: v[k]! }));

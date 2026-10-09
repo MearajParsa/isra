@@ -151,13 +151,13 @@ export class PermissionAdminService {
     await this.rbac.write(async (m) => {
       const now = this.clock.now();
       try {
-        await m.query('INSERT INTO system_modules (module_key, title, description, is_system, sort_order, created_at, updated_at) VALUES (?, ?, ?, 0, ?, ?, ?)', [body.key, body.title, body.description, body.sortOrder, now, now]);
+        await m.query('INSERT INTO system_modules (module_key, title, description, is_system, sort_order, tier, created_at, updated_at) VALUES (?, ?, ?, 0, ?, ?, ?, ?)', [body.key, body.title, body.description, body.sortOrder, body.tier, now, now]);
       } catch (e) {
         if (isDupKey(e)) throw keyTaken('ماژول');
         throw e;
       }
       await this.rbac.bump(m);
-      await this.log(m, actorId, 'module.create', `ماژول «${body.title}» ساخته شد.`, { key: body.key }, { type: 'module', id: body.key, label: body.title });
+      await this.log(m, actorId, 'module.create', `ماژول «${body.title}» ساخته شد.`, { key: body.key, tier: body.tier }, { type: 'module', id: body.key, label: body.title });
     });
     return this.registry.module(body.key);
   }

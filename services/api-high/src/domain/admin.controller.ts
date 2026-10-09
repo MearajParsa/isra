@@ -130,10 +130,6 @@ export class AdminController {
   decide(@Req() r: IsraRequest, @In() { params, body }: { params: Id & { memberId: string }; body: B<'AdminDecideBody'> }) {
     return this.sessions.decide(me(r).userId, params.id, params.memberId, body.action);
   }
-  @Route('H-68')
-  memberRoles(@Req() r: IsraRequest, @In() { params, body }: { params: Id & { memberId: string }; body: B<'AdminSetMemberRolesBody'> }) {
-    return this.sessions.setRoles(me(r).userId, params.id, params.memberId, body.roles);
-  }
   @Route('H-69')
   async removeMember(@Req() r: IsraRequest, @In() { params }: { params: Id & { memberId: string } }) {
     await this.sessions.removeMember(me(r).userId, params.id, params.memberId);
@@ -158,8 +154,8 @@ export class AdminController {
     return this.sessions.addMembers({ id: me(r).userId, perms: me(r).perms }, params.id, body, { low: okey(r, 'H-73', 'low'), mid: okey(r, 'H-73', 'mid') });
   }
   @Route('H-74')
-  transferManager(@Req() r: IsraRequest, @In() { params, body }: { params: Id; body: B<'TransferManagerBody'> }) {
-    return this.sessions.transferManager(me(r).userId, params.id, body);
+  transferOwner(@Req() r: IsraRequest, @In() { params, body }: { params: Id; body: B<'TransferOwnerBody'> }) {
+    return this.sessions.transferOwner(me(r).userId, params.id, body);
   }
   @Route('H-53')
   decideBulk(@Req() r: IsraRequest, @In() { params, body }: { params: Id; body: B<'AdminDecideBulkBody'> }) {

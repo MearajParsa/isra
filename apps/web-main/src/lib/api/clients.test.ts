@@ -63,7 +63,7 @@ describe('هدرها و پروتکل', () => {
     await mid.sessions.create('T', { title: 'abc', description: 'x'.repeat(10), schedule: { type: 'once', startsAt: 'a', endsAt: 'b' }, location: { label: 'xx' } });
     await mid.sessions.create('T', { title: 'abc', description: 'x'.repeat(10), schedule: { type: 'once', startsAt: 'a', endsAt: 'b' }, location: { label: 'xx' } });
     await mid.sessions.transition('T', 's1', 'started');
-    await mid.evaluations.submit('T', 's1', { queueItemId: 'q', voice: 1, tone: 2, tajweed: 3 });
+    await mid.evaluations.submit('T', 's1', { queueItemId: 'q', scores: [{ criterionId: 'c1', score: 3 }] });
     await mid.queue.next('T', 's1');
     const keys = calls.map((c) => c.headers['Idempotency-Key']);
     expect(keys.slice(0, 4).every((k) => typeof k === 'string' && k.length >= 8)).toBe(true);
@@ -112,7 +112,6 @@ describe('نگاشت به endpointهای قرارداد (مسیر + متد)', ()
     ['M-10', () => mid.members.request('T', 's1')],
     ['M-11', () => mid.members.list('T', 's1')],
     ['M-12', () => mid.members.decide('T', 's1', 'm1', 'approve')],
-    ['M-13', () => mid.members.setRoles('T', 's1', 'm1', ['teacher'])],
     ['M-20', () => mid.attendance.checkIn('T', 's1')],
     ['M-21', () => mid.attendance.list('T', 's1')],
     ['M-30', () => mid.queue.join('T', 's1')],
@@ -120,8 +119,9 @@ describe('نگاشت به endpointهای قرارداد (مسیر + متد)', ()
     ['M-32', () => mid.queue.state('T', 's1')],
     ['M-33', () => mid.queue.next('T', 's1')],
     ['M-34', () => mid.queue.act('T', 's1', 'i1', 'up')],
-    ['M-40', () => mid.evaluations.submit('T', 's1', { queueItemId: 'q', voice: 1, tone: 2, tajweed: 3 })],
-    ['M-41', () => mid.evaluations.list('T', 's1')]
+    ['M-40', () => mid.evaluations.submit('T', 's1', { queueItemId: 'q', scores: [{ criterionId: 'c1', score: 3 }] })],
+    ['M-41', () => mid.evaluations.list('T', 's1')],
+    ['M-45', () => mid.evaluations.criteria('T')]
   ];
 
   it.each(cases)('%s', async (id, fn) => {

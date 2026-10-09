@@ -6,9 +6,11 @@ import { ENDPOINTS, type EndpointDef, PointsSummary, internal, mid } from '@isra
 import { bufToUuid, uuidToBuf, uuidv7 } from '../src/common/ids';
 import { dataSourceOptions } from '../src/db/data-source';
 import { OccurrencesPointsV161728600000001 } from '../src/db/migrations/1728600000001-OccurrencesPointsV16';
+import { TeacherContentV171728700000000 } from '../src/db/migrations/1728700000000-TeacherContentV17';
 import { BadgesService } from '../src/domain/badges.service';
 import { attendanceRef, legacyBadgeId } from '../src/domain/refs';
 import { type TestApp, type User, api, creator, join, mkSession, mkUser, resetDb, sessionBody, startApp, testEnv } from './helpers/app';
+import { sc } from './helpers/app';
 
 const LOW = 'test-pair-low-mid-0123456789abcdef01';
 const HIGH = 'test-pair-mid-high-0123456789abcdef0';
@@ -144,7 +146,7 @@ describe('نوبت برگزاری (occurrence)', () => {
     expect(p2.body.data.items).toHaveLength(1);
     expect(p1.body.data.total).toBe(3);
     const roster = await a.get(`/sessions/${r.id}/roster?pageSize=100`, r.teacher);
-    expect(roster.body.meta.total).toBe(8); // مدیر + ۲ معلم + ۵ شاگرد
+    expect(roster.body.meta.total).toBe(5); // ۱.۷.۰: فقط اعضا (صاحب/پشتیبان‌ها جدا)
     for (const it of roster.body.data) expect(def('M-18').response.safeParse(it).success).toBe(true);
     const present = await a.get(`/sessions/${r.id}/roster?present=true`, r.teacher);
     expect(present.body.data.map((x: any) => x.userId).sort()).toEqual(r.students.slice(0, 3).map((s) => s.id).sort());
@@ -249,13 +251,13 @@ describe('حضور توسط کادر و لغو (دفتر قطعی)', () => {
 });
 
 describe('صف توسط کادر (M-35)', () => {
-  it('NOT_STUDENT / NOT_APPROVED / NOT_PRESENT / markPresent / ALREADY_IN_QUEUE / 403', async () => {
+  it('غیرعضو / NOT_APPROVED / NOT_PRESENT / markPresent / ALREADY_IN_QUEUE / 403', async () => {
     const r = await room(2);
     const [s1, s2] = r.students as [User, User];
     const pending = await mkUser(t, 'در انتظار');
     await a.post(`/sessions/${r.id}/members`, pending);
     const reason = async (body: object, u: User = r.teacher) => (await a.post(`/sessions/${r.id}/queue/enqueue`, u, body)).body.error?.details?.reason;
-    expect(await reason({ userId: r.teacher2.id })).toBe('NOT_STUDENT');
+    expect((await a.post(`/sessions/${r.id}/queue/enqueue`, r.teacher, { userId: r.teacher2.id })).status).toBe(404); // پشتیبان عضو نیست
     expect(await reason({ userId: pending.id })).toBe('NOT_APPROVED');
     expect((await a.post(`/sessions/${r.id}/queue/enqueue`, r.teacher, { userId: randomUUID() })).status).toBe(404);
     expect(await reason({ userId: s1.id })).toBe('NOT_PRESENT');
@@ -277,7 +279,7 @@ describe('ارزیابی: ویرایش/باطل با دفتر', () => {
     await a.post(`/sessions/${r.id}/attendance`, s);
     await a.post(`/sessions/${r.id}/queue`, s);
     const item = (await a.post(`/sessions/${r.id}/queue/next`, r.teacher)).body.data.current.id as string;
-    const ev = await a.post(`/sessions/${r.id}/evaluations`, r.teacher, { queueItemId: item, voice: 8, tone: 6, tajweed: 7 }); // 71 ⇒ 7
+    const ev = await a.post(`/sessions/${r.id}/evaluations`, r.teacher, { queueItemId: item, scores: sc({ voice: 8, tone: 6, tajweed: 7 }) }); // 71 ⇒ 7
     expect(ev.status).toBe(200);
     return { ...r, s, item, evalId: ev.body.data.id as string };
   }
@@ -285,17 +287,17 @@ describe('ارزیابی: ویرایش/باطل با دفتر', () => {
   it('ویرایش فقط ارزیاب اصلی تا ۲۴ ساعت؛ evaluation_adjust با تفاضل؛ وزن ذخیره‌شده', async () => {
     const r = await evaluated();
     expect(await total(r.s)).toBe(12);
-    expect((await a.patch(`/sessions/${r.id}/evaluations/${r.evalId}`, r.teacher2, { voice: 10 })).status).toBe(403);
-    const p = await a.patch(`/sessions/${r.id}/evaluations/${r.evalId}`, r.teacher, { voice: 10, tone: 10, tajweed: 10, note: 'بازبینی' });
+    expect((await a.patch(`/sessions/${r.id}/evaluations/${r.evalId}`, r.teacher2, { scores: sc({ voice: 10 }) })).status).toBe(403);
+    const p = await a.patch(`/sessions/${r.id}/evaluations/${r.evalId}`, r.teacher, { scores: sc({ voice: 10, tone: 10, tajweed: 10 }), note: 'بازبینی' });
     expect(p.status).toBe(200);
     expect(p.body.data).toMatchObject({ score: 100, points: 10, note: 'بازبینی', status: 'active' });
     expect(p.body.data.updatedAt).toBeTruthy();
     expect(await total(r.s)).toBe(15);
-    expect((await a.patch(`/sessions/${r.id}/evaluations/${r.evalId}`, r.teacher, { voice: 0, tone: 0, tajweed: 0 })).body.data.points).toBe(0);
+    expect((await a.patch(`/sessions/${r.id}/evaluations/${r.evalId}`, r.teacher, { scores: sc({ voice: 0, tone: 0, tajweed: 0 }) })).body.data.points).toBe(0);
     expect(await total(r.s)).toBe(5);
     expect((await ledger(r.s)).filter((l) => l.reason === 'evaluation_adjust').map((l) => l.points).sort((x, y) => x - y)).toEqual([-10, 3]);
     await t.ds.query('UPDATE evaluations SET created_at = DATE_SUB(created_at, INTERVAL 25 HOUR) WHERE id = ?', [bin(r.evalId)]);
-    expect((await a.patch(`/sessions/${r.id}/evaluations/${r.evalId}`, r.teacher, { voice: 5 })).status).toBe(403);
+    expect((await a.patch(`/sessions/${r.id}/evaluations/${r.evalId}`, r.teacher, { scores: sc({ voice: 5 }) })).status).toBe(403);
   });
 
   it('باطل (ارزیاب یا مدیر): evaluation_void؛ idempotent؛ EVALUATION_VOIDED؛ فهرست پیش‌فرض بدون باطل‌شده', async () => {
@@ -308,7 +310,7 @@ describe('ارزیابی: ویرایش/باطل با دفتر', () => {
     expect(await total(r.s)).toBe(5);
     expect((await a.post(`/sessions/${r.id}/evaluations/${r.evalId}/void`, r.teacher, { reason: 'تکرار' })).status).toBe(200);
     expect((await ledger(r.s)).filter((l) => l.reason === 'evaluation_void').map((l) => l.points)).toEqual([-7]);
-    expect((await a.patch(`/sessions/${r.id}/evaluations/${r.evalId}`, r.teacher, { voice: 1 })).body.error.details.reason).toBe('EVALUATION_VOIDED');
+    expect((await a.patch(`/sessions/${r.id}/evaluations/${r.evalId}`, r.teacher, { scores: sc({ voice: 1 }) })).body.error.details.reason).toBe('EVALUATION_VOIDED');
     expect((await a.get(`/sessions/${r.id}/evaluations`, r.teacher)).body.meta.total).toBe(0);
     expect((await a.get(`/sessions/${r.id}/evaluations?includeVoid=true`, r.teacher)).body.meta.total).toBe(1);
     expect((await a.get(`/sessions/${r.id}/evaluations?includeVoid=true`, r.s)).body.meta.total).toBe(0);
@@ -324,13 +326,13 @@ describe('ارزیابی: ویرایش/باطل با دفتر', () => {
     }
     const item = (await a.post(`/sessions/${r.id}/queue/next`, r.teacher)).body.data.current.id as string;
     expect((await ad.del(`/admin/sessions/${r.id}/members/${r.memberIds[0]}`)).status).toBe(200);
-    const res = await a.post(`/sessions/${r.id}/evaluations`, r.teacher, { queueItemId: item, voice: 5, tone: 5, tajweed: 5 });
+    const res = await a.post(`/sessions/${r.id}/evaluations`, r.teacher, { queueItemId: item, scores: sc({ voice: 5, tone: 5, tajweed: 5 }) });
     // حذف عضو، آیتم current را هم حذف می‌کند ⇒ 404؛ در غیر این صورت NOT_APPROVED
     expect([404, 409]).toContain(res.status);
     const item2 = (await a.post(`/sessions/${r.id}/queue/next`, r.teacher)).body.data.current.id as string;
     const occ = (await a.get(`/sessions/${r.id}/me`, r.teacher)).body.data.occurrence.id as string;
     await a.post(`/sessions/${r.id}/occurrences/${occ}/close`, r.teacher);
-    const c = await a.post(`/sessions/${r.id}/evaluations`, r.teacher, { queueItemId: item2, voice: 5, tone: 5, tajweed: 5 });
+    const c = await a.post(`/sessions/${r.id}/evaluations`, r.teacher, { queueItemId: item2, scores: sc({ voice: 5, tone: 5, tajweed: 5 }) });
     expect(c.body.error.details.reason).toBe('OCCURRENCE_CLOSED');
   });
 });
@@ -435,8 +437,8 @@ describe('MID_ADMIN (۱.۶.۰)', () => {
     expect((await ad.patch(`/admin/sessions/${r.id}/queue/${waitingId}`, { actorId: r.manager.id, action: 'up', expectPosition: 2 })).body.error.details.reason).toBe('QUEUE_STATE_CHANGED');
     expect((await ad.patch(`/admin/sessions/${r.id}/queue/${waitingId}`, { actorId: r.manager.id, action: 'skip', expectPosition: 1 })).status).toBe(200);
     // ارزیابی و اصلاح ادمین (بدون محدودیت ارزیاب)
-    const ev = (await a.post(`/sessions/${r.id}/evaluations`, r.teacher, { queueItemId: n1.body.data.current.id, voice: 5, tone: 5, tajweed: 5 })).body.data;
-    const ep = await ad.patch(`/admin/sessions/${r.id}/evaluations/${ev.id}`, { actorId: r.manager.id, reason: 'اصلاح نمره', voice: 10 });
+    const ev = (await a.post(`/sessions/${r.id}/evaluations`, r.teacher, { queueItemId: n1.body.data.current.id, scores: sc({ voice: 5, tone: 5, tajweed: 5 }) })).body.data;
+    const ep = await ad.patch(`/admin/sessions/${r.id}/evaluations/${ev.id}`, { actorId: r.manager.id, reason: 'اصلاح نمره', scores: sc({ voice: 10 }) });
     expect(ep.status).toBe(200);
     expect(internal.MidAdminEvaluation.safeParse(ep.body.data).success).toBe(true);
     expect(ep.body.data.score).toBe(70);
@@ -504,7 +506,9 @@ describe('مهاجرت دادهٔ ۱.۶.۰ روی دادهٔ موجود', () => 
     await ds.initialize();
     const qr = ds.createQueryRunner();
     const mig = new OccurrencesPointsV161728600000001();
+    const v17 = new TeacherContentV171728700000000();
     try {
+      await v17.down(qr);
       await mig.down(qr);
       const sched = JSON.stringify({ type: 'once', startsAt: '2030-01-04T18:00:00+03:30', endsAt: '2030-01-04T20:00:00+03:30' });
       const mkS = async (status: string) => {
@@ -532,6 +536,7 @@ describe('مهاجرت دادهٔ ۱.۶.۰ روی دادهٔ موجود', () => 
       await ds.query("INSERT INTO point_ledger (id, user_id, points, reason, ref_id, created_at) VALUES (?, ?, 5, 'evaluation', ?, NOW(3))", [bin(uuidv7()), bin(u1), bin(ev)]);
 
       await mig.up(qr);
+      await v17.up(qr);
 
       const occ = (await ds.query('SELECT session_id, seq, status, closed_at FROM session_occurrences')) as { session_id: Buffer; seq: number; status: string; closed_at: Date | null }[];
       const bySession = new Map(occ.map((o) => [bufToUuid(o.session_id), o]));
@@ -562,6 +567,7 @@ describe('مهاجرت دادهٔ ۱.۶.۰ روی دادهٔ موجود', () => 
       expect(p.badges.find((b: any) => b.key === 'badge_50').awardedAt).toBeTruthy();
 
       // down/up دوباره روی همین داده (سازگار با یکتایی قدیم)
+      await v17.down(qr);
       await mig.down(qr);
       const old = (await ds.query('SELECT badge_key FROM badge_awards')) as { badge_key: string }[];
       expect(old.map((x) => x.badge_key)).toEqual(['badge_50']);
@@ -571,6 +577,7 @@ describe('مهاجرت دادهٔ ۱.۶.۰ روی دادهٔ موجود', () => 
       await ds.query("INSERT INTO session_occurrences (id, session_id, seq, status, opened_at) VALUES (?, ?, 2, 'closed', NOW(3))", [bin(o2), bin(ended)]);
       await ds.query('INSERT INTO attendance_entries (id, session_id, occurrence_id, user_id, entered_at) VALUES (?, ?, ?, ?, NOW(3))', [bin(uuidv7()), bin(ended), bin(o2), bin(u1)]);
       await expect(mig.down(qr)).rejects.toThrow(/down ممکن نیست/);
+      await v17.up(qr);
     } finally {
       await qr.release();
       await ds.destroy();

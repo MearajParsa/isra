@@ -6,6 +6,8 @@ export interface AuthedUser {
   userId: string;
   roles: string[];
   perms: string[];
+  /** ۱.۷.۰: احراز با URL امضاشدهٔ رسانه (نه JWT) */
+  signed?: boolean;
 }
 
 export interface RequestContext {

@@ -127,7 +127,8 @@ export interface SetMyPasswordInput {
 
 // ───────── جلسه‌ها ─────────
 export type SessionState = 'draft' | 'scheduled' | 'started' | 'ended';
-export type SessionRole = 'session_manager' | 'session_supporter' | 'teacher' | 'quran_student';
+/** ۱.۷.۰ (docs-v2/31 §۲) */
+export type SessionRole = 'owner' | 'supporter' | 'member';
 export type MembershipStatus = 'pending' | 'approved' | 'rejected';
 
 export type SessionSchedule =
@@ -155,7 +156,9 @@ export interface AdminSession {
   location: SessionLocation;
   status: SessionState;
   createdBy: { id: string; name: string };
-  counts: { members: number; pending: number; attendance: number; evaluations: number };
+  /** ۱.۷.۰: استاد صاحب جلسه */
+  owner: { id: string; name: string };
+  counts: { members: number; pending: number; attendance: number; evaluations: number; supporters?: number; occurrences?: number };
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
@@ -180,13 +183,11 @@ export interface AdminMember {
   id: string;
   userId: string;
   name: string;
-  roles: SessionRole[];
   status: MembershipStatus;
   requestedAt: string;
   phone: string | null;
   decidedAt: string | null;
 }
-export type MemberAssignableRole = 'session_supporter' | 'teacher' | 'quran_student';
 export interface AttendanceEntry {
   userId: string;
   name: string;
@@ -210,6 +211,14 @@ export interface AdminQueue {
   myPosition: number | null;
   waitingCount: number;
 }
+export interface EvaluationCriterionScore {
+  criterionId: string;
+  key: string;
+  title: string;
+  weight: number;
+  maxScore: number;
+  score: number;
+}
 export interface Evaluation {
   id: string;
   sessionId: string;
@@ -217,10 +226,8 @@ export interface Evaluation {
   userId: string;
   userName: string;
   evaluatorName: string;
-  voice: number;
-  tone: number;
-  tajweed: number;
-  weights: { voice: number; tone: number; tajweed: number };
+  /** ۱.۷.۰: snapshot معیارهای پویا در لحظهٔ ثبت */
+  criteria: EvaluationCriterionScore[];
   score: number;
   points: number;
   note: string;
@@ -288,22 +295,15 @@ export interface AuditQuery {
   pageSize?: number;
 }
 
-export interface EvalWeights {
-  voice: number;
-  tone: number;
-  tajweed: number;
-}
 export type FlagKey = 'maintenance_mode' | 'registration_open';
 export interface SystemSettings {
   version: number;
-  evalWeights: EvalWeights;
-  /** ۴ عدد اکیداً صعودی */
-  badgeThresholds: [number, number, number, number];
   flags: Record<FlagKey, boolean>;
   updatedAt: string;
   updatedBy: string;
 }
-export type SettingsInput = Pick<SystemSettings, 'version' | 'evalWeights' | 'badgeThresholds' | 'flags'>;
+/** ۱.۷.۰: evalWeights/badgeThresholds حذف شدند */
+export type SettingsInput = Pick<SystemSettings, 'version' | 'flags'>;
 
 export interface Overview {
   users: { total: number; admins: number };
@@ -368,7 +368,6 @@ export interface AdminApi {
     deleteSession(t: string, id: string, su: StepUp): Promise<void>;
     sessionMembers(t: string, id: string, q?: { status?: MembershipStatus; page?: number; pageSize?: number }, s?: Sig): Promise<Page<AdminMember>>;
     decideMember(t: string, id: string, memberId: string, action: 'approve' | 'reject', su: StepUp): Promise<AdminMember>;
-    setMemberRoles(t: string, id: string, memberId: string, roles: MemberAssignableRole[], su: StepUp): Promise<AdminMember>;
     removeMember(t: string, id: string, memberId: string, su: StepUp): Promise<void>;
     sessionAttendance(t: string, id: string, s?: Sig): Promise<{ items: AttendanceEntry[]; total: number }>;
     sessionQueue(t: string, id: string, s?: Sig): Promise<AdminQueue>;

@@ -12,8 +12,6 @@ type Update = z.infer<typeof high.UpdateSettingsBody>;
 
 interface Row {
   version: number;
-  eval_weights: unknown;
-  badge_thresholds: unknown;
   flags: unknown;
   updated_by: string;
   updated_at: Date;
@@ -28,12 +26,10 @@ export class SettingsService {
   ) {}
 
   private async read(q: Q) {
-    const rows = (await q.query("SELECT version, eval_weights, badge_thresholds, flags, updated_by, updated_at FROM system_settings WHERE setting_key = 'global'")) as Row[];
+    const rows = (await q.query("SELECT version, flags, updated_by, updated_at FROM system_settings WHERE setting_key = 'global'")) as Row[];
     const r = rows[0]!;
     return {
       version: r.version,
-      evalWeights: parseJson<{ voice: number; tone: number; tajweed: number }>(r.eval_weights),
-      badgeThresholds: parseJson<[number, number, number, number]>(r.badge_thresholds),
       flags: parseJson<{ maintenance_mode: boolean; registration_open: boolean }>(r.flags),
       updatedAt: r.updated_at.toISOString(),
       updatedBy: r.updated_by
@@ -46,7 +42,7 @@ export class SettingsService {
 
   /**
    * بروزرسانی با optimistic concurrency: `version` قدیمی ⇒ CONFLICT(VERSION_MISMATCH).
-   * D2: وزن جدید فقط روی ارزیابی‌های بعدی (mid وزن لحظهٔ ثبت را ذخیره می‌کند). رویداد برای mid (وزن/آستانه) و low (پرچم‌ها).
+   * ۱.۷.۰: فقط پرچم‌ها (وزن‌ها ⇒ معیارهای ارزیابی H-100..H-103؛ آستانه‌ها ⇒ نشان‌ها H-32..H-37). رویداد برای low و mid.
    */
   async update(actorId: string, b: Update) {
     return withRetry(() =>
@@ -54,9 +50,7 @@ export class SettingsService {
         const cur = await this.read(m);
         const actor = await this.audit.actorOf(actorId, m);
         const now = this.clock.now();
-        const upd = (await m.query("UPDATE system_settings SET version = version + 1, eval_weights = ?, badge_thresholds = ?, flags = ?, updated_by = ?, updated_at = ? WHERE setting_key = 'global' AND version = ?", [
-          JSON.stringify(b.evalWeights),
-          JSON.stringify(b.badgeThresholds ?? cur.badgeThresholds), // منسوخ (۱.۶.۰): نبود ⇒ مقدار فعلی (fallback mid تا رسیدن کاتالوگ)
+        const upd = (await m.query("UPDATE system_settings SET version = version + 1, flags = ?, updated_by = ?, updated_at = ? WHERE setting_key = 'global' AND version = ?", [
           JSON.stringify(b.flags),
           actor.name,
           now,
@@ -64,13 +58,13 @@ export class SettingsService {
         ])) as { affectedRows?: number };
         if (!upd.affectedRows) throw conflict('VERSION_MISMATCH', 'تنظیمات در این فاصله توسط کس دیگری تغییر کرده است؛ صفحه را تازه کنید.', { currentVersion: cur.version });
         const next = await this.read(m);
-        await emit(m, now, 'system.settings.changed', { version: next.version, evalWeights: next.evalWeights, badgeThresholds: next.badgeThresholds, flags: next.flags });
+        await emit(m, now, 'system.settings.changed', { version: next.version, flags: next.flags });
         await this.audit.write(m, {
           actor,
           action: 'settings.updated',
           target: { type: 'settings', id: 'global', label: 'تنظیمات سراسری' },
           summary: 'تنظیمات سراسری به‌روزرسانی شد.',
-          meta: { version: next.version, before: { evalWeights: cur.evalWeights, badgeThresholds: cur.badgeThresholds, flags: cur.flags }, after: { evalWeights: next.evalWeights, badgeThresholds: next.badgeThresholds, flags: next.flags } }
+          meta: { version: next.version, before: { flags: cur.flags }, after: { flags: next.flags } }
         });
         return next;
       })

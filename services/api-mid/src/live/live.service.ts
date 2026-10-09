@@ -16,7 +16,7 @@ const room = (sessionId: string) => `s:${sessionId}`;
 const userRoom = (userId: string) => `u:${userId}`;
 
 /**
- * Socket.IO روی api-mid (قفل): توکن در handshake با JWKS اعتبارسنجی می‌شود؛ `session.join` فقط برای عضو تأییدشده.
+ * Socket.IO روی api-mid (قفل): توکن در handshake با JWKS اعتبارسنجی می‌شود؛ `session.join` فقط برای عضو تأییدشده یا کادر (صاحب/پشتیبان).
  * رویدادها فقط «سیگنال» هستند (D3) و پس از commit دیتابیس منتشر می‌شوند؛ کلاینت داده را با REST می‌گیرد.
  * محدودیت (بدون Redis/broker): فقط socketهای متصل به همین instance اطلاع می‌گیرند ⇒ برای realtime یک instance
  * (یا sticky) کافی است؛ کلاینت پس از reconnect حتماً REST را دوباره می‌خواند.
@@ -78,7 +78,7 @@ export class LiveService implements OnApplicationShutdown {
       const parsed = mid.SessionJoinMessage.safeParse(raw);
       if (!parsed.success || ++joins > 30) return reply({ ok: false, error: 'VALIDATION_FAILED' });
       this.access
-        .isApprovedMember(parsed.data.sessionId, socket.data.userId as string)
+        .canJoinRoom(parsed.data.sessionId, socket.data.userId as string)
         .then(async (ok) => {
           if (!ok) return reply({ ok: false, error: 'AUTH_FORBIDDEN' });
           await socket.join(room(parsed.data.sessionId));
@@ -115,6 +115,14 @@ export class LiveService implements OnApplicationShutdown {
       const full = uid === turnedUserId || staff.has(uid);
       s.emit('live', { type: 'queue.turned', sessionId, payload: full ? payload : rest });
     }
+  }
+
+  /**
+   * ۱.۷.۰: سیگنال فقط به socketهای این کاربران (اتاق شخصی `u:{id}`) — مثلاً کامنت تلاوت در حالت reciter_only.
+   */
+  emitToUsers(sessionId: string, userIds: readonly string[], type: LiveType, payload?: Record<string, unknown>): void {
+    if (!this.io || !userIds.length) return;
+    this.io.to(userIds.map(userRoom)).emit('live', { type, sessionId, ...(payload ? { payload } : {}) });
   }
 
   /** اخراج همهٔ socketهای این کاربران از اتاق جلسه (حذف/رد/ترک) */

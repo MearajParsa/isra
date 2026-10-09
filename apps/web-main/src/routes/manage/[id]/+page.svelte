@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { midApi } from '$lib/api';
-  import type { Member, SessionRole, SessionMe, SessionState } from '$lib/api/mid-types';
+  import type { Member, SessionMe, SessionState } from '$lib/api/mid-types';
   import { auth } from '$lib/auth/auth.svelte';
   import { toasts } from '$lib/stores/toast.svelte';
   import { errorMessage } from '$lib/utils/errors';
@@ -32,7 +32,10 @@
   const perms = $derived(me.data?.permissions ?? []);
   const can = (p: string) => perms.includes(p as never);
   const session = $derived(me.data?.session);
-  const isStaff = $derived(perms.length > 0);
+  /** ۱.۷.۰: صاحب یا پشتیبان جلسه */
+  const isStaff = $derived(me.data?.role === 'owner' || me.data?.role === 'supporter');
+  /** M-11: membership.manage یا membership.approve */
+  const canMembers = $derived(can('membership.approve') || can('membership.manage'));
 
   const loadMe = () => me.load(() => auth.withAuth((t) => midApi.sessions.me(t, id)));
   const loadMembers = (silent = false) => members.load(() => auth.withAuth((t) => midApi.members.list(t, id)), silent);
@@ -41,7 +44,7 @@
     void loadMe();
   });
   $effect(() => {
-    if (can('membership.approve')) void loadMembers();
+    if (canMembers) void loadMembers();
   });
 
   const pending = $derived((members.data ?? []).filter((m) => m.status === 'pending'));
@@ -88,22 +91,9 @@
       busyMember = null;
     }
   }
-  async function setRoles(m: Member, roles: SessionRole[]) {
-    busyMember = m.id;
-    try {
-      await auth.withAuth((t) => midApi.members.setRoles(t, id, m.id, roles));
-      toasts.success('نقش‌ها به‌روز شد.');
-      await loadMembers(true);
-    } catch (e) {
-      toasts.error(errorMessage(e));
-    } finally {
-      busyMember = null;
-    }
-  }
-
   const tabs = $derived([
     { id: 'overview', label: 'نمای کلی' },
-    ...(can('membership.approve') ? [{ id: 'members', label: 'اعضا', count: pending.length }] : [])
+    ...(canMembers ? [{ id: 'members', label: 'اعضا', count: pending.length }] : [])
   ]);
 </script>
 
@@ -127,7 +117,7 @@
   </div>
   <span class="sr-only" role="status">در حال بارگذاری…</span>
 {:else if !isStaff}
-  <EmptyState icon="lock" title="دسترسی به پنل این جلسه ندارید" message="فقط مدیر، پشتیبان و معلم جلسه به این بخش دسترسی دارند.">
+  <EmptyState icon="lock" title="دسترسی به پنل این جلسه ندارید" message="فقط استاد و پشتیبان‌های جلسه به این بخش دسترسی دارند.">
     {#snippet action()}<Button href="/manage">بازگشت</Button>{/snippet}
   </EmptyState>
 {:else}
@@ -142,15 +132,15 @@
       <div class="stack">
         <section class="card" aria-label="مراحل جلسه">
           <LifecycleStepper status={session.status} />
-          {#if can('session.transition') && nextStep}
+          {#if can('session.edit') && nextStep}
             <div class="act">
               <p class="muted small">مرحلهٔ بعد: <strong>{nextStep.label}</strong> — فقط رو به جلو.</p>
               <Button variant={nextStep.destructive ? 'danger' : 'primary'} onclick={askTransition}>{nextStep.label}</Button>
             </div>
           {:else if session.status === 'ended'}
             <p class="muted small act">جلسه پایان یافته و دیگر تغییر نمی‌کند.</p>
-          {:else if !can('session.transition')}
-            <p class="muted small act">فقط مدیر جلسه می‌تواند وضعیت را تغییر دهد.</p>
+          {:else if !can('session.edit')}
+            <p class="muted small act">فقط استاد جلسه یا پشتیبانِ دارای مجوز ویرایش می‌تواند وضعیت را تغییر دهد.</p>
           {/if}
         </section>
 
@@ -196,7 +186,7 @@
         {:else}
           <ul class="list">
             {#each pending as m (m.id)}
-              <MemberRow member={m} canApprove={can('membership.approve')} canRoles={false} busy={busyMember === m.id} ondecide={decide} onroles={setRoles} />
+              <MemberRow member={m} canApprove={can('membership.approve')} busy={busyMember === m.id} ondecide={decide} />
             {/each}
           </ul>
         {/if}
@@ -207,10 +197,9 @@
         {:else}
           <ul class="list">
             {#each approved as m (m.id)}
-              <MemberRow member={m} canApprove={false} canRoles={can('membership.roles')} busy={busyMember === m.id} ondecide={decide} onroles={setRoles} />
+              <MemberRow member={m} canApprove={false} busy={busyMember === m.id} ondecide={decide} />
             {/each}
           </ul>
-          {#if !can('membership.roles')}<p class="muted small note">فقط مدیر جلسه نقش‌ها را تغییر می‌دهد.</p>{/if}
         {/if}
       {:else if members.status === 'error'}
         <EmptyState icon="alert" tone="error" compact title="فهرست اعضا بارگذاری نشد" message={members.error ?? ''}>
@@ -273,8 +262,5 @@
   .list {
     display: grid;
     gap: var(--space-sm);
-  }
-  .note {
-    margin-top: var(--space-md);
   }
 </style>

@@ -1,11 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import type { z } from 'zod';
+import type { high } from '@isra/api-types';
 import { Clock } from '../common/clock';
 import { bufToUuid, isUuid, uuidToBuf, uuidv7 } from '../common/ids';
 import { parseDay, startOfDayUtc } from '../common/tehran';
 import { type Q, displayName, parseJson } from './db';
 
-export type AuditTargetType = 'user' | 'role' | 'settings' | 'session' | 'permission' | 'module' | 'badge' | 'announcement';
+/** از قرارداد (۱.۷.۰: + criterion، supporter، gallery، comment) */
+export type AuditTargetType = z.infer<typeof high.AuditTargetType>;
 
 export interface AuditFilters {
   /** نوع دقیق اقدام؛ اگر به `.` ختم شود پیشوند است (مثلاً `user.`) */

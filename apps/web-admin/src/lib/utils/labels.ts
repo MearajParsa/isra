@@ -2,7 +2,7 @@ import type { MembershipStatus, SessionRole, SessionState, UserStatus } from '$l
 
 export const USER_STATUS: Record<UserStatus, string> = { active: 'فعال', disabled: 'غیرفعال', deleted: 'حذف‌شده' };
 export const SESSION_STATE: Record<SessionState, string> = { draft: 'پیش‌نویس', scheduled: 'پیش‌رو', started: 'در حال برگزاری', ended: 'پایان‌یافته' };
-export const SESSION_ROLE: Record<SessionRole, string> = { session_manager: 'مدیر جلسه', session_supporter: 'پشتیبان', teacher: 'استاد', quran_student: 'قرآن‌آموز' };
+export const SESSION_ROLE: Record<SessionRole, string> = { owner: 'استاد صاحب جلسه', supporter: 'پشتیبان', member: 'قرآن‌آموز' };
 export const MEMBERSHIP: Record<MembershipStatus, string> = { pending: 'در انتظار', approved: 'تأییدشده', rejected: 'ردشده' };
 export const SCHEDULE_TYPE: Record<string, string> = { once: 'یک‌باره', recurring: 'تکرارشونده', range: 'بازهٔ محدود' };
 

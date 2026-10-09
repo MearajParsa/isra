@@ -2,13 +2,15 @@
   interface Props {
     label: string;
     weight: number;
+    /** سقف نمرهٔ معیار (۱.۷.۰: پویا) */
+    max?: number;
     value?: number;
     error?: string | null;
     disabled?: boolean;
   }
-  let { label, weight, value = $bindable(5), error = null, disabled = false }: Props = $props();
+  let { label, weight, max = 10, value = $bindable(5), error = null, disabled = false }: Props = $props();
   const uid = $props.id();
-  const pct = $derived((value / 10) * 100);
+  const pct = $derived(max > 0 ? (value / max) * 100 : 0);
 </script>
 
 <div class="row" class:invalid={!!error}>
@@ -20,14 +22,14 @@
     id={`s-${uid}`}
     type="range"
     min="0"
-    max="10"
+    {max}
     step="1"
     bind:value
     {disabled}
     style:--pct="{pct}%"
     aria-invalid={!!error}
   />
-  <div class="ticks" aria-hidden="true"><span>۰</span><span>۱۰</span></div>
+  <div class="ticks" aria-hidden="true"><span>۰</span><span>{max.toLocaleString('fa-IR')}</span></div>
   {#if error}<p class="err" role="alert">{error}</p>{/if}
 </div>
 

@@ -30,6 +30,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const res = http.getResponse<Response>();
     const req = http.getRequest<IsraRequest>();
     const requestId = req.ctx?.requestId ?? 'unknown';
+    // پاسخ stream (رسانه) پیش‌تر شروع شده ⇒ فقط قطع اتصال
+    if (res.headersSent) {
+      res.destroy();
+      return;
+    }
 
     let code: ErrorCode = 'INTERNAL_ERROR';
     let message: string = ERROR_CATALOG.INTERNAL_ERROR.messageFa;
@@ -85,6 +90,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const retry = typeof details?.retryAfterSec === 'number' ? (details.retryAfterSec as number) : undefined;
     if (retry !== undefined) res.setHeader(HEADERS.retryAfter, String(Math.max(1, Math.ceil(retry))));
     res.setHeader('Cache-Control', 'no-store');
+    // بدنهٔ خوانده‌نشده (مثلاً بارگذاری ردشده پیش از stream) ⇒ اتصال بسته شود تا بقیهٔ بایت‌ها درخواست بعدی تلقی نشوند
+    if ((Number(req.headers?.['content-length'] ?? 0) > 0 || req.headers?.['transfer-encoding']) && !req.readableEnded) res.setHeader('Connection', 'close');
     res.status(status).json({ success: false, error: { code, message, ...(details ? { details } : {}) }, meta: { requestId } });
   }
 }

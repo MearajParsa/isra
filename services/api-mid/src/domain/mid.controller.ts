@@ -1,10 +1,10 @@
 import { Controller, Req } from '@nestjs/common';
 import type { z } from 'zod';
 import type { SessionInput, mid } from '@isra/api-types';
-import { canCreateSession } from '../auth/jwt-verifier';
 import { In, Route } from '../common/ep';
 import type { IsraRequest } from '../common/request-context';
 import { AttendanceService } from './attendance.service';
+import { CatalogService } from './catalog.service';
 import { EvaluationsService } from './evaluations.service';
 import { InvitesService } from './invites.service';
 import { MembersService, memberDto } from './members.service';
@@ -27,12 +27,13 @@ export class MidController {
     private readonly queue: QueueService,
     private readonly evals: EvaluationsService,
     private readonly points: PointsService,
-    private readonly invites: InvitesService
+    private readonly invites: InvitesService,
+    private readonly catalog: CatalogService
   ) {}
 
   @Route('M-00')
-  caps(@Req() r: IsraRequest) {
-    return this.sessions.caps(uid(r), canCreateSession(r.user!));
+  async caps(@Req() r: IsraRequest) {
+    return this.sessions.caps(uid(r), await this.catalog.hasSystemPermission('session.create', r.user!));
   }
 
   @Route('M-01')
@@ -85,11 +86,6 @@ export class MidController {
     return memberDto(await this.members.decide(uid(r), params.id, params.memberId, body.action));
   }
 
-  @Route('M-13')
-  setRoles(@Req() r: IsraRequest, @In() { params, body }: { params: { id: string; memberId: string }; body: z.infer<typeof mid.SetRolesBody> }) {
-    return this.members.setRoles(uid(r), params.id, params.memberId, body.roles);
-  }
-
   @Route('M-14')
   addMembers(@Req() r: IsraRequest, @In() { params, body }: Id & { body: z.infer<typeof mid.AddMembersBody> }) {
     return this.members.add(uid(r), params.id, body);
@@ -99,11 +95,6 @@ export class MidController {
   async removeMember(@Req() r: IsraRequest, @In() { params }: Mem) {
     await this.members.remove(uid(r), params.id, params.memberId);
     return {};
-  }
-
-  @Route('M-16')
-  manager(@Req() r: IsraRequest, @In() { params, body }: Mem & { body: z.infer<typeof mid.ManagerBody> }) {
-    return this.members.setManager(uid(r), params.id, params.memberId, body.manager, body.stepDown);
   }
 
   @Route('M-17')

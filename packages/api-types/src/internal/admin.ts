@@ -1,11 +1,34 @@
 import { z } from 'zod';
 import { IranMobile, IsoDateTime, PersonName, Uuid } from '../core/primitives';
 import { SessionInput } from '../domain/session';
-import { AttendanceEntry, Evaluation, QueueState, AddMemberOutcome, StaffAssignableRole, SessionRole, MarkAttendanceResult, RevokeAttendanceResult, QueueActBody } from '../mid/schemas';
 import {
+  AttendanceEntry,
+  Evaluation,
+  EvaluationScores,
+  QueueState,
+  AddMemberOutcome,
+  SessionRole,
+  MarkAttendanceResult,
+  RevokeAttendanceResult,
+  QueueActBody,
+  Comment,
+  Gallery,
+  GalleryItem,
+  ModerateCommentBody,
+  SessionSupporter,
+  SupporterPermissions,
+  SupportersQuery,
+  TeacherSupporter,
+  UpdateGalleryBody,
+  UploadItemQuery,
+  GalleryItemsQuery
+} from '../mid/schemas';
+import {
+  AdminCommentsQuery,
+  AdminCreateGalleryBody,
+  AdminGalleriesQuery,
   AdminMember,
   AdminSession,
-  AdminSetMemberRolesBody,
   AnonPhone,
   IsoDate,
   UserStatus,
@@ -63,7 +86,6 @@ export const MID_ADMIN = {
   transition: '/admin/sessions/:id/transition',
   members: '/admin/sessions/:id/members',
   member: '/admin/sessions/:id/members/:memberId',
-  memberRoles: '/admin/sessions/:id/members/:memberId/roles',
   attendance: '/admin/sessions/:id/attendance',
   queue: '/admin/sessions/:id/queue',
   evaluations: '/admin/sessions/:id/evaluations',
@@ -74,7 +96,6 @@ export const MID_ADMIN = {
   /** ۱.۶.۰ (docs-v2/30) */
   membersAdd: '/admin/sessions/:id/members/add',
   membersDecide: '/admin/sessions/:id/members/decide',
-  manager: '/admin/sessions/:id/manager',
   occurrences: '/admin/sessions/:id/occurrences',
   attendanceMark: '/admin/sessions/:id/attendance/mark',
   attendanceRevoke: '/admin/sessions/:id/attendance/:userId/revoke',
@@ -86,7 +107,24 @@ export const MID_ADMIN = {
   userMemberships: '/admin/users/:id/memberships',
   userPoints: '/admin/users/:id/points',
   pointsAdjust: '/admin/users/:id/points/adjust',
-  badgeHolders: '/admin/badges/holders'
+  badgeHolders: '/admin/badges/holders',
+  /**
+   * ۱.۷.۰ (docs-v2/31). حذف‌شده: `memberRoles` (H-68) و `manager` (⇒ `owner`).
+   * DELETEها شناسهٔ ادمین را در query می‌فرستند (`?actorId=`؛ MidAdminActorQuery).
+   */
+  owner: '/admin/sessions/:id/owner',
+  sessionOwners: '/admin/session-owners',
+  teacherSupporters: '/admin/users/:id/supporters',
+  teacherSupporter: '/admin/users/:id/supporters/:supporterId',
+  supporters: '/admin/sessions/:id/supporters',
+  supporter: '/admin/sessions/:id/supporters/:userId',
+  galleries: '/admin/sessions/:id/galleries',
+  gallery: '/admin/sessions/:id/galleries/:galleryId',
+  galleryItems: '/admin/sessions/:id/galleries/:galleryId/items',
+  galleryItem: '/admin/sessions/:id/galleries/:galleryId/items/:itemId',
+  galleryItemContent: '/admin/sessions/:id/galleries/:galleryId/items/:itemId/content',
+  comments: '/admin/sessions/:id/comments',
+  comment: '/admin/sessions/:id/comments/:commentId'
 } as const;
 
 // ───────────────────────── low (مالک حساب) ─────────────────────────
@@ -154,7 +192,7 @@ export const LowAdminUsersReportQuery = z.object({ from: IsoDate, to: IsoDate, i
 // ───────────────────────── mid (مالک جلسه) ─────────────────────────
 /** GET MID_ADMIN.sessions — خروجی: لیست AdminSession با meta صفحه‌بندی. فیلترها همان AdminSessionsQuery + page/pageSize */
 export const MidAdminSession = AdminSession;
-/** POST MID_ADMIN.sessions — ساخت جلسه برای creatorId (draft)؛ سازنده session_manager. */
+/** POST MID_ADMIN.sessions — ساخت جلسه برای creatorId (draft)؛ ۱.۷.۰: سازنده owner جلسه. */
 export const MidAdminCreateSession = z.object({ creatorId: Uuid, session: SessionInput }).strict();
 /** PATCH MID_ADMIN.session — بدنه = SessionInput؛ فقط draft/scheduled (وگرنه 409 SESSION_LOCKED) */
 export const MidAdminPatchSession = SessionInput;
@@ -165,7 +203,7 @@ export const MidAdminTransition = TransitionBody;
 export const MidAdminMember = AdminMember;
 /** PATCH MID_ADMIN.member — { action: approve|reject } */
 export const MidAdminDecide = z.object({ action: z.enum(['approve', 'reject']) }).strict();
-/** DELETE MID_ADMIN.member — حذف عضو؛ مدیر جلسه قابل‌حذف نیست (409 CONFLICT). ۱.۶.۰: پاسخ = MidAdminRemoveMemberResult */
+/** DELETE MID_ADMIN.member — حذف عضو (۱.۷.۰: فقط اعضا؛ صاحب/پشتیبان از مسیرهای خودشان). پاسخ = MidAdminRemoveMemberResult */
 export const MidAdminRemoveMemberResult = z.object({ userId: Uuid });
 export const MidAdminAttendance = z.object({ items: z.array(AttendanceEntry), total: Count });
 /** صف با نمای کامل (userId/name همهٔ ردیف‌ها پر است؛ ادمین استثنای حریم خصوصی D4 است) */
@@ -218,7 +256,6 @@ export const MidAdminAddMembers = z
         z
           .object({
             userId: Uuid,
-            roles: z.array(StaffAssignableRole).min(1).max(3),
             firstName: z.string().max(40).optional().meta({ description: 'برای ساخت ردیف دایرکتوری اگر رویداد user.registered هنوز نرسیده' }),
             lastName: z.string().max(40).optional()
           })
@@ -226,7 +263,6 @@ export const MidAdminAddMembers = z
       )
       .min(1)
       .max(200),
-    onExisting: z.enum(['skip', 'merge', 'replace']).default('skip'),
     notify: z.boolean().default(true)
   })
   .strict();
@@ -237,23 +273,19 @@ export const MidAdminDecideBulk = z.object({ ...Actor, memberIds: z.array(Uuid).
 export const MidAdminDecideBulkResult = z.object({
   items: z.array(z.object({ memberId: Uuid, outcome: z.enum(['approved', 'rejected', 'skipped', 'full', 'not_found']) }))
 });
-/** mid: PUT MID_ADMIN.memberRoles — ۱.۶.۰ بدنه = AdminSetMemberRolesBody + actorId اختیاری */
-export const MidAdminSetRoles = AdminSetMemberRolesBody.extend({ actorId: Uuid.optional() }).strict();
-/** mid: PUT MID_ADMIN.manager */
-export const MidAdminManager = z
+/** mid: PUT MID_ADMIN.owner (۱.۷.۰؛ جایگزین manager) — بدنه = TransferOwnerBody + actorId (+ نام برای ردیف دایرکتوری) */
+export const MidAdminOwner = z
   .object({
     ...Actor,
     userId: Uuid,
-    previous: z.enum(['demote', 'remove', 'keep']).default('demote'),
-    previousRoles: z.array(StaffAssignableRole).min(1).max(3).default(['quran_student']),
-    transferCreator: z.boolean().default(false),
+    previousOwner: z.enum(['supporter', 'remove']).default('supporter'),
     notify: z.boolean().default(true),
     firstName: z.string().max(40).optional(),
     lastName: z.string().max(40).optional()
   })
   .strict();
-/** پاسخ PUT MID_ADMIN.manager */
-export const MidAdminManagerResult = AdminSession;
+/** پاسخ PUT MID_ADMIN.owner */
+export const MidAdminOwnerResult = AdminSession;
 export const MidAdminOccurrence = Occurrence;
 export const MidAdminMarkAttendance = z.object({ ...Actor, userIds: z.array(Uuid).min(1).max(100), occurrenceId: Uuid.optional(), reason: Reason }).strict();
 export const MidAdminMarkAttendanceResult = MarkAttendanceResult;
@@ -262,14 +294,14 @@ export const MidAdminRevokeAttendanceResult = RevokeAttendanceResult;
 export const MidAdminQueueNext = z.object({ ...Actor, expectCurrentItemId: Uuid.nullable().optional() }).strict();
 export const MidAdminQueueAct = QueueActBody.extend({ ...Actor, expectPosition: z.number().int().min(1).optional() }).strict();
 export const MidAdminEvaluationPatch = z
-  .object({ ...Actor, reason: Reason, voice: z.number().int().min(0).max(10).optional(), tone: z.number().int().min(0).max(10).optional(), tajweed: z.number().int().min(0).max(10).optional(), note: z.string().trim().max(300).optional() })
+  .object({ ...Actor, reason: Reason, scores: EvaluationScores.optional(), note: z.string().trim().max(300).optional() })
   .strict()
-  .refine((v) => v.voice !== undefined || v.tone !== undefined || v.tajweed !== undefined || v.note !== undefined, { message: 'دست‌کم یک فیلد ارزیابی لازم است.' });
+  .refine((v) => v.scores !== undefined || v.note !== undefined, { message: 'دست‌کم یک فیلد ارزیابی لازم است.' });
 export const MidAdminEvaluationVoid = z.object({ ...Actor, reason: Reason }).strict();
 export const MidAdminEvaluation = Evaluation;
 /** mid: POST MID_ADMIN.notify — پیام به اعضای جلسه (mid رویداد دسته‌ای inbox.messages.created می‌سازد) */
 export const MidAdminNotify = z
-  .object({ ...Actor, broadcastId: Uuid, roles: z.array(SessionRole).min(1).max(4).optional(), title: z.string().min(2).max(120), body: z.string().min(2).max(500), ref: z.string().regex(/^(session:[A-Za-z0-9_-]{1,64}|points|badge:[A-Za-z0-9_-]{1,64}|announcement:[A-Za-z0-9_-]{1,64})$/).max(200).nullable() })
+  .object({ ...Actor, broadcastId: Uuid, roles: z.array(SessionRole).min(1).max(3).optional().meta({ description: '۱.۷.۰: owner|supporter|member' }), title: z.string().min(2).max(120), body: z.string().min(2).max(500), ref: z.string().regex(/^(session:[A-Za-z0-9_-]{1,64}|points|badge:[A-Za-z0-9_-]{1,64}|announcement:[A-Za-z0-9_-]{1,64})$/).max(200).nullable() })
   .strict();
 export const MidAdminNotifyResult = z.object({ recipients: Count });
 export const MidAdminUserMembershipsQuery = UserMembershipsQuery;
@@ -288,3 +320,39 @@ export const MidLowPointsLedgerQuery = MidAdminUserPointsQuery;
 
 /** mid: GET MID_ADMIN.badgeHolders ⇒ تعداد دارندگان هر نشان */
 export const MidAdminBadgeHolders = z.object({ items: z.array(z.object({ badgeId: Uuid, holders: Count })) });
+
+// ───────────────────────── ۱.۷.۰ (docs-v2/31) ─────────────────────────
+/** DELETEهای ۱.۷.۰ در MID_ADMIN: شناسهٔ ادمین در query */
+export const MidAdminActorQuery = z.object({ actorId: Uuid });
+/** GET MID_ADMIN.sessionOwners?page&pageSize ⇒ صاحبان جلسه (برای مهاجرت high: اعطای نقش teacher) */
+export const MidAdminSessionOwnersQuery = z.object({ page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(100) });
+export const MidAdminSessionOwner = z.object({ userId: Uuid, sessions: Count });
+/** GET MID_ADMIN.teacherSupporters / supporters?page&pageSize ⇒ لیست TeacherSupporter / SessionSupporter با meta */
+export const MidAdminSupportersQuery = SupportersQuery;
+export const MidAdminTeacherSupporter = TeacherSupporter;
+export const MidAdminSessionSupporter = SessionSupporter;
+/** PUT MID_ADMIN.teacherSupporter / supporter — upsert؛ نام برای ردیف دایرکتوری اگر user.registered هنوز نرسیده */
+export const MidAdminSupporterPut = z
+  .object({ ...Actor, permissions: SupporterPermissions, firstName: z.string().max(40).optional(), lastName: z.string().max(40).optional() })
+  .strict();
+/** GET MID_ADMIN.galleries?occurrenceId&page&pageSize ⇒ لیست Gallery (همهٔ سطوح نمایش) */
+export const MidAdminGalleriesQuery = AdminGalleriesQuery;
+export const MidAdminGallery = Gallery;
+/** POST MID_ADMIN.galleries */
+export const MidAdminCreateGallery = AdminCreateGalleryBody.extend(Actor).strict();
+/** PATCH MID_ADMIN.gallery */
+export const MidAdminPatchGallery = z.intersection(UpdateGalleryBody, z.object(Actor));
+/** GET MID_ADMIN.galleryItems?page&pageSize ⇒ لیست GalleryItem */
+export const MidAdminGalleryItemsQuery = GalleryItemsQuery;
+export const MidAdminGalleryItem = GalleryItem;
+/**
+ * POST MID_ADMIN.galleryItems?actorId&title — بدنهٔ **خام** stream‌شده از high (Content-Type و Content-Length اصلی؛ بدون بافر کامل).
+ * قواعد نوع/حجم/سهمیه/EXIF همان M-75.
+ */
+export const MidAdminUploadQuery = UploadItemQuery.extend(Actor);
+/** GET MID_ADMIN.galleryItemContent — پاسخ باینری؛ هدر Range از high عبور می‌کند (206)، ETag/Content-Type برمی‌گردد */
+/** GET MID_ADMIN.comments?occurrenceId&queueItemId&authorId&hidden&page&pageSize ⇒ لیست Comment (شامل پنهان‌ها؛ mine=false) */
+export const MidAdminCommentsQuery = AdminCommentsQuery;
+export const MidAdminComment = Comment;
+/** PATCH MID_ADMIN.comment */
+export const MidAdminModerateComment = ModerateCommentBody.extend(Actor).strict();

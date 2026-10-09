@@ -1,22 +1,11 @@
+import { randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { ATTENDANCE_POINTS, canTransition, computeScore, evalPoints, permissionsFor } from '../src/domain/rules';
+import { ATTENDANCE_POINTS, canTransition, computeScore, evalPoints } from '../src/domain/rules';
 import { type Schedule, nextStartMs, nextStartsAt, toTehranIso } from '../src/domain/schedule';
 import { loadEnv } from '../src/config/env';
-
-describe('مجوزها (قفل #15)', () => {
-  it('manager به‌تنهایی eval.submit ندارد؛ با teacher/supporter دارد', () => {
-    expect(permissionsFor(['session_manager'])).not.toContain('eval.submit');
-    expect(permissionsFor(['session_manager', 'teacher'])).toContain('eval.submit');
-    expect(permissionsFor(['session_manager', 'session_supporter'])).toContain('eval.submit');
-  });
-  it('جدول مجوزها', () => {
-    expect(permissionsFor(['quran_student'])).toEqual([]);
-    expect(permissionsFor(['teacher']).sort()).toEqual(['attendance.manage', 'attendance.view', 'eval.submit', 'occurrence.manage', 'queue.manage']);
-    expect(permissionsFor(['session_supporter'])).toContain('membership.approve');
-    expect(permissionsFor(['teacher'])).not.toContain('membership.approve');
-    expect(permissionsFor(['session_manager'])).toEqual(expect.arrayContaining(['session.edit', 'session.transition', 'membership.roles']));
-  });
-});
+/** مقدار تصادفی در زمان اجرا (هیچ secret واقعی یا ثابت در مخزن نیست؛ gitleaks) */
+const rnd = (): string => randomBytes(24).toString('base64url');
+const S1 = rnd(), S2 = rnd(), S3 = rnd();
 
 describe('چرخهٔ حیات', () => {
   it('فقط یک قدم رو به جلو', () => {
@@ -31,13 +20,14 @@ describe('چرخهٔ حیات', () => {
 });
 
 describe('امتیاز', () => {
-  it('وزن پیش‌فرض ۴۰/۳۰/۳۰', () => {
-    expect(computeScore({ voice: 10, tone: 10, tajweed: 10 })).toBe(100);
-    expect(computeScore({ voice: 0, tone: 0, tajweed: 0 })).toBe(0);
-    expect(computeScore({ voice: 8, tone: 6, tajweed: 7 })).toBe(4 * 8 + 3 * 6 + 3 * 7);
+  const c = (w: number, s: number, m = 10) => ({ weight: w, maxScore: m, score: s });
+  it('وزن ۴۰/۳۰/۳۰', () => {
+    expect(computeScore([c(40, 10), c(30, 10), c(30, 10)])).toBe(100);
+    expect(computeScore([c(40, 0), c(30, 0), c(30, 0)])).toBe(0);
+    expect(computeScore([c(40, 8), c(30, 6), c(30, 7)])).toBe(4 * 8 + 3 * 6 + 3 * 7);
   });
-  it('وزن سفارشی (فقط صوت)', () => {
-    expect(computeScore({ voice: 9, tone: 1, tajweed: 1 }, { voice: 100, tone: 0, tajweed: 0 })).toBe(90);
+  it('تک معیار', () => {
+    expect(computeScore([c(100, 9)])).toBe(90);
   });
   it('امتیاز ارزیابی = round(score/10)؛ حضور +۵', () => {
     expect(evalPoints(100)).toBe(10);
@@ -86,11 +76,11 @@ describe('env (fail-fast)', () => {
   });
   it('production: INTERNAL_URL_LOW و CORS الزامی', () => {
     expect(() =>
-      loadEnv({ NODE_ENV: 'production', DB_HOST: 'h', DB_USER: 'u', DB_PASSWORD: 'p', LOW_JWKS_URL: 'https://api.israapp.ir/c/.well-known/jwks.json', INTERNAL_SECRET_LOW: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6', INTERNAL_SECRET_HIGH: 'f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1' })
+      loadEnv({ NODE_ENV: 'production', DB_HOST: 'h', DB_USER: 'u', DB_PASSWORD: 'p', LOW_JWKS_URL: 'https://api.israapp.ir/c/.well-known/jwks.json', INTERNAL_SECRET_LOW: S1, INTERNAL_SECRET_HIGH: S2 })
     ).toThrow(/INTERNAL_URL_LOW|CORS_ORIGINS/);
   });
   it('production: secret نمونه/ضعیف، تکراری و URL غیر https رد می‌شود', () => {
-    const base = { NODE_ENV: 'production', DB_HOST: 'localhost', DB_USER: 'u', DB_PASSWORD: 'p', LOW_JWKS_URL: 'https://api.israapp.ir/c/.well-known/jwks.json', INTERNAL_URL_LOW: 'https://api.israapp.ir/c', CORS_ORIGINS: 'https://israapp.ir', INTERNAL_SECRET_LOW: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6', INTERNAL_SECRET_HIGH: 'f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1' };
+    const base = { NODE_ENV: 'production', DB_HOST: 'localhost', DB_USER: 'u', DB_PASSWORD: 'p', LOW_JWKS_URL: 'https://api.israapp.ir/c/.well-known/jwks.json', INTERNAL_URL_LOW: 'https://api.israapp.ir/c', CORS_ORIGINS: 'https://israapp.ir', INTERNAL_SECRET_LOW: S1, INTERNAL_SECRET_HIGH: S2, MEDIA_URL_SECRET: S3 };
     expect(loadEnv(base).NODE_ENV).toBe('production');
     expect(() => loadEnv({ ...base, INTERNAL_SECRET_LOW: 'dev-pair-low-mid-0123456789abcdef0123' })).toThrow(/INTERNAL_SECRET_LOW/);
     expect(() => loadEnv({ ...base, INTERNAL_SECRET_HIGH: base.INTERNAL_SECRET_LOW })).toThrow(/مستقل/);
@@ -98,6 +88,6 @@ describe('env (fail-fast)', () => {
     expect(() => loadEnv({ ...base, DB_HOST: 'db.example.com' })).toThrow(/DB_SSL/);
   });
   it('NODE_ENV پیش‌فرض production است (fail-closed)', () => {
-    expect(() => loadEnv({ DB_HOST: 'h', DB_USER: 'u', DB_PASSWORD: 'p', LOW_JWKS_URL: 'http://localhost/jwks', INTERNAL_SECRET_LOW: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6', INTERNAL_SECRET_HIGH: 'f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1' })).toThrow(/CORS_ORIGINS|INTERNAL_URL_LOW/);
+    expect(() => loadEnv({ DB_HOST: 'h', DB_USER: 'u', DB_PASSWORD: 'p', LOW_JWKS_URL: 'http://localhost/jwks', INTERNAL_SECRET_LOW: S1, INTERNAL_SECRET_HIGH: S2 })).toThrow(/CORS_ORIGINS|INTERNAL_URL_LOW/);
   });
 });

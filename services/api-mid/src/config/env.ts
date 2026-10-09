@@ -1,3 +1,4 @@
+import { isAbsolute } from 'node:path';
 import { z } from 'zod';
 import { isWeakSecret } from './secrets';
 
@@ -53,7 +54,22 @@ export const EnvSchema = z
     SCHEDULER_ENABLED: bool.default(true).describe('به‌روزرسانی دوره‌ای next_starts_at جلسات تکرارشونده'),
 
     SOCKET_ENABLED: bool.default(true),
-    SOCKET_PATH: z.string().default('/o/v1/socket.io')
+    SOCKET_PATH: z.string().default('/o/v1/socket.io'),
+
+    /** ۱.۷.۰ (docs-v2/31 §۴، قفل #16): مسیر مطلق رسانه بیرون از پوشهٔ اپ؛ نبود ⇒ بارگذاری/سرو 503 (در production هشدار) */
+    MEDIA_DIR: z
+      .string()
+      .trim()
+      .transform((v) => v || undefined)
+      .optional()
+      .refine((v) => v === undefined || isAbsolute(v), 'باید مسیر مطلق باشد (بیرون از پوشهٔ اپ، مثل /home/<user>/isra-media).'),
+    MEDIA_SESSION_QUOTA_MB: z.coerce.number().int().min(1).max(1_048_576).default(2048),
+    /** کلید HMAC نشانی‌های امضاشدهٔ رسانه (M-77)؛ ≥ ۳۲ بایت تصادفی؛ مستقل از high */
+    MEDIA_URL_SECRET: z
+      .string()
+      .transform((v) => v || undefined)
+      .optional()
+      .refine((v) => v === undefined || v.length >= 32, 'دست‌کم ۳۲ نویسهٔ تصادفی.')
   })
   .superRefine((e, ctx) => {
     const prod = e.NODE_ENV === 'production';
@@ -67,6 +83,9 @@ export const EnvSchema = z
     need(prod && !hostLoop && !e.DB_SSL, 'DB_SSL', 'برای DB_HOST غیر loopback در production باید true باشد.');
     need(e.INTERNAL_SECRET_LOW === e.INTERNAL_SECRET_HIGH, 'INTERNAL_SECRET_HIGH', 'secret هر جفت‌سرویس باید مستقل باشد.');
     for (const k of ['INTERNAL_SECRET_LOW', 'INTERNAL_SECRET_HIGH'] as const) need(prod && isWeakSecret(e[k]), k, 'در production مقدار نمونه/ضعیف مجاز نیست؛ ۳۲+ نویسهٔ تصادفی بسازید.');
+    need(prod && !e.MEDIA_URL_SECRET, 'MEDIA_URL_SECRET', 'در production الزامی است (۳۲+ بایت تصادفی، مستقل از high).');
+    need(prod && !!e.MEDIA_URL_SECRET && isWeakSecret(e.MEDIA_URL_SECRET), 'MEDIA_URL_SECRET', 'در production مقدار نمونه/ضعیف مجاز نیست.');
+    need(!!e.MEDIA_URL_SECRET && [e.INTERNAL_SECRET_LOW, e.INTERNAL_SECRET_HIGH].includes(e.MEDIA_URL_SECRET), 'MEDIA_URL_SECRET', 'باید از secretهای internal مستقل باشد.');
     need(prod && e.SWAGGER_ENABLED, 'SWAGGER_ENABLED', 'در production خاموش بماند.');
   });
 

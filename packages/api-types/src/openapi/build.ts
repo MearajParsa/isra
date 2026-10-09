@@ -117,15 +117,24 @@ function operation(e: EndpointDef, refsOut: Set<string>): Json {
     });
   if (e.stepUp)
     params.push({ name: HEADERS.stepUp, in: 'header', required: true, description: 'توکن step-up (۵ دقیقه) از L-07', schema: { type: 'string' } });
+  if (e.rangeRequests)
+    params.push({ name: 'Range', in: 'header', required: false, description: 'یک بازهٔ بایت (`bytes=start-end`) ⇒ 206 Partial Content', schema: { type: 'string', pattern: '^bytes=\\d*-\\d*$' } });
   if (params.length) op.parameters = params;
 
   if (e.body) op.requestBody = { required: true, content: { 'application/json': { schema: toSchema(e.body, 'input') } } };
+  else if (e.rawBody)
+    op.requestBody = {
+      required: true,
+      description: `بدنهٔ خام باینری (نه JSON/multipart)؛ حداکثر ${e.rawBody.maxBytes} بایت؛ نوع با magic bytes بررسی می‌شود`,
+      content: Object.fromEntries(e.rawBody.contentTypes.map((t) => [t, { schema: { type: 'string', format: 'binary' } }]))
+    };
 
   // امنیت
   const sec: Json[] = [];
   if (e.auth === 'bearer') sec.push(e.stepUp ? { bearerAuth: [], stepUp: [] } : { bearerAuth: [] });
   else if (e.auth === 'refreshCookie') sec.push({ refreshCookie: [] }, {});
   else if (e.auth === 'bearerOrCookie') sec.push({ bearerAuth: [] }, { refreshCookie: [] });
+  else if (e.auth === 'bearerOrSignedUrl') sec.push({ bearerAuth: [] }, { signedUrl: [] });
   op.security = e.auth === 'none' ? [] : sec;
 
   // پاسخ ۲۰۰
@@ -145,13 +154,25 @@ function operation(e: EndpointDef, refsOut: Set<string>): Json {
     okHeaders[HEADERS.rateLimitLimit] = { schema: { type: 'integer' } };
     okHeaders[HEADERS.rateLimitRemaining] = { schema: { type: 'integer' } };
   }
+  const binary = !!e.contentType && !e.contentType.startsWith('text/') && !e.contentType.includes('json');
+  if (e.rangeRequests) okHeaders['Accept-Ranges'] = { description: 'bytes', schema: { type: 'string', const: 'bytes' } };
   const responses: Json = {
     '200': {
       description: 'موفق',
       headers: okHeaders,
-      content: { [e.contentType ?? 'application/json']: { schema: e.contentType?.startsWith('image/') ? { type: 'string', format: 'binary' } : dataSchema } }
+      content: { [e.contentType ?? 'application/json']: { schema: binary ? { type: 'string', format: 'binary' } : dataSchema } }
     }
   };
+  if (e.rangeRequests)
+    responses['206'] = {
+      description: 'بخشی از محتوا (Range)',
+      headers: {
+        [HEADERS.requestId]: { $ref: '#/components/headers/RequestId' },
+        'Content-Range': { description: 'bytes start-end/total', schema: { type: 'string' } },
+        'Accept-Ranges': { schema: { type: 'string', const: 'bytes' } }
+      },
+      content: { [e.contentType ?? 'application/octet-stream']: { schema: { type: 'string', format: 'binary' } } }
+    };
   if (typeof cache === 'object' && cache.etag) responses['304'] = { description: 'تغییری نکرده (If-None-Match)' };
 
   // پاسخ‌های خطا (دسته‌بندی بر اساس status)
@@ -159,9 +180,10 @@ function operation(e: EndpointDef, refsOut: Set<string>): Json {
   if (e.body || e.query || e.params) codes.add('VALIDATION_FAILED');
   if (e.auth !== 'none') codes.add(e.auth === 'refreshCookie' ? 'AUTH_REFRESH_INVALID' : 'AUTH_REQUIRED');
   if (e.stepUp) codes.add('AUTH_STEP_UP_REQUIRED');
-  if (e.permission) codes.add('AUTH_FORBIDDEN');
+  if (e.permission || e.permissionAny) codes.add('AUTH_FORBIDDEN');
   if (e.rateLimit) codes.add('RATE_LIMITED');
-  if (e.body) codes.add('PAYLOAD_TOO_LARGE');
+  if (e.body || e.rawBody) codes.add('PAYLOAD_TOO_LARGE');
+  if (e.rawBody) codes.add('UNSUPPORTED_MEDIA_TYPE');
   codes.add('INTERNAL_ERROR');
   if (!e.raw) codes.add('SERVICE_UNAVAILABLE');
   const byStatus = new Map<number, ErrorCode[]>();
@@ -187,6 +209,9 @@ function operation(e: EndpointDef, refsOut: Set<string>): Json {
   op['x-isra-since'] = e.since;
   op['x-isra-slo-p95-ms'] = e.sloP95Ms;
   if (e.permission) op['x-isra-permission'] = e.permission;
+  if (e.permissionAny?.length) op['x-isra-permission-any'] = [...e.permissionAny];
+  if (e.rawBody) op['x-isra-max-body-bytes'] = e.rawBody.maxBytes;
+  if (e.rangeRequests) op['x-isra-range'] = true;
   if (e.stepUp) op['x-isra-step-up'] = true;
   if (e.rateLimit) op['x-isra-rate-limit'] = [e.rateLimit].flat().map(rlText);
   if (e.idempotency) op['x-isra-idempotency'] = e.idempotency;
@@ -207,7 +232,8 @@ const REALTIME = {
     { event: 'queue.updated', payload: 'LiveEvent' },
     { event: 'queue.turned', payload: 'LiveEvent', note: 'payload.userId = نفر نوبت‌رسیده' },
     { event: 'eval.updated', payload: 'LiveEvent' },
-    { event: 'session.state', payload: 'LiveEvent', note: 'payload.status' }
+    { event: 'session.state', payload: 'LiveEvent', note: 'payload.status' },
+    { event: 'comment.created', payload: 'LiveEvent', note: '۱.۷.۰: فقط به سوکت‌هایی که اجازهٔ دیدن دارند (reciter_only ⇒ اتاق شخصی `u:{id}`)؛ payload.commentId' }
   ],
   semantics: 'رویداد فقط سیگنال است؛ کلاینت داده را با REST دوباره می‌گیرد (D3). حداکثر اندازهٔ پیام ۲KB.',
   schemas: { LiveEvent: '#/components/schemas/LiveEvent', SessionJoinMessage: '#/components/schemas/SessionJoinMessage' }
@@ -244,7 +270,7 @@ export function buildOpenApi(service: ServiceKey): OpenApiDoc {
         '- قالب پاسخ: `{ success, data, meta.requestId }`؛ خطا: `{ success:false, error:{code,message,details}, meta }`. `message` فارسی، `code` پایدار.',
         '- زمان‌ها ISO-8601 با offset؛ منطق کسب‌وکار `Asia/Tehran`؛ هفته شنبه–جمعه.',
         '- امنیت: JWT RS256 (TTL access/refresh از پیکربندی سرور؛ پیش‌فرض ۱۵ دقیقه / ۱۴ روز)، refresh با rotation؛ اقدام حساس ⇒ `X-Step-Up-Token`.',
-        '- محدودیت‌ها: بدنهٔ JSON حداکثر ۱۶KB؛ `pageSize` ≤ سقف هر endpoint؛ بدنه‌های `strict` (فیلد ناشناخته ⇒ `VALIDATION_FAILED`).',
+        '- محدودیت‌ها: بدنهٔ JSON حداکثر ۱۶KB (بارگذاری خام فایل: سقف per endpoint در `x-isra-max-body-bytes`)؛ `pageSize` ≤ سقف هر endpoint؛ بدنه‌های `strict` (فیلد ناشناخته ⇒ `VALIDATION_FAILED`).',
         '- نسخه‌بندی: تغییر ناسازگار فقط با نسخهٔ جدید مسیر (`v2`)؛ سیاست deprecation: هدرهای `Deprecation` و `Sunset` (حداقل ۱۸۰ روز).',
         ...(service === 'mid' ? ['', '**Realtime (Socket.IO):** ببینید `x-isra-realtime`.'] : [])
       ].join('\n'),
@@ -262,6 +288,7 @@ export function buildOpenApi(service: ServiceKey): OpenApiDoc {
       securitySchemes: {
         bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT', description: 'access token RS256؛ تأیید محلی با JWKS از api-low' },
         refreshCookie: { type: 'apiKey', in: 'cookie', name: 'isra_rt', description: 'فقط وب‌اپ: HttpOnly; Secure; SameSite=Lax؛ CSRF: Origin allowlist + هدر X-Isra-Client' },
+        signedUrl: { type: 'apiKey', in: 'query', name: 'sig', description: 'URL امضاشدهٔ کوتاه‌عمر (۱۰ دقیقه) که سرور در فیلد `url` آیتم رسانه برمی‌گرداند؛ همراه `exp` و `u`. مقید به مسیر و کاربر؛ قابل جعل/تمدید نیست.' },
         stepUp: { type: 'apiKey', in: 'header', name: HEADERS.stepUp, description: 'توکن کوتاه‌عمر تأیید مجدد هویت (۵ دقیقه)' }
       },
       headers: { RequestId: { description: 'شناسهٔ همبستگی؛ در لاگ‌ها و گزارش خطا استفاده می‌شود', schema: { type: 'string' } } },

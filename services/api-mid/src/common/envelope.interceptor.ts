@@ -25,6 +25,8 @@ export class EnvelopeInterceptor implements NestInterceptor {
     const id = this.reflector.get<string>(EP_KEY, ctx.getHandler());
     if (!id) return next.handle();
     const def = endpoint(id);
+    // پاسخ stream‌شدهٔ رسانه (Range/ETag/Cache-Control را خود سرویس می‌نویسد)
+    if (def.raw && def.rangeRequests) return next.handle();
     const http = ctx.switchToHttp();
     const req = http.getRequest<IsraRequest>();
     const res = http.getResponse<Response>();

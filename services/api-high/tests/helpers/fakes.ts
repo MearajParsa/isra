@@ -153,7 +153,8 @@ export function installFakeMid(t: TestApp) {
       location: { label: 'مسجد محل' },
       status: 'draft',
       createdBy: { id: uuidv7(), name: 'سازنده' },
-      counts: { members: 0, pending: 0, attendance: 0, evaluations: 0 },
+      owner: { id: uuidv7(), name: 'استاد' },
+      counts: { members: 0, pending: 0, attendance: 0, evaluations: 0, supporters: 0, occurrences: 0 },
       createdAt: iso(),
       updatedAt: iso(),
       deletedAt: null,
@@ -201,17 +202,10 @@ export function installFakeMid(t: TestApp) {
     m.status = c.body.action === 'approve' ? 'approved' : 'rejected';
     return okReply(m);
   });
-  A.on('PUT', `${MID}/sessions/:id/members/:memberId/roles`, (c, p) => {
-    const m = (members.get(p.id!) ?? []).find((x) => x.id === p.memberId);
-    if (!m) return nf();
-    m.roles = c.body.roles.length ? c.body.roles : ['quran_student'];
-    return okReply(m);
-  });
   A.on('DELETE', `${MID}/sessions/:id/members/:memberId`, (_c, p) => {
     const list = members.get(p.id!) ?? [];
     const m = list.find((x) => x.id === p.memberId);
     if (!m) return nf();
-    if (m.roles.includes('session_manager')) return failReply(409, 'CONFLICT', 'مدیر قابل‌حذف نیست.');
     members.set(p.id!, list.filter((x) => x !== m));
     return okReply(m);
   });
@@ -230,11 +224,11 @@ export function installFakeMid(t: TestApp) {
     const key = c.headers['idempotency-key'] as string | undefined;
     if (key && addSeen.has(key)) return addSeen.get(key);
     const list = members.get(p.id!) ?? [];
-    const items = (c.body.items as { userId: string; roles: string[]; firstName?: string }[]).map((it) => {
+    const items = (c.body.items as { userId: string; firstName?: string }[]).map((it) => {
       const ex = list.find((m) => m.userId === it.userId);
       if (ex && ex.status === 'approved') return { userId: it.userId, outcome: 'unchanged', member: ex };
-      const m = ex ?? { id: uuidv7(), userId: it.userId, name: `${it.firstName ?? 'عضو'}`, roles: it.roles, status: 'approved', requestedAt: iso(), phone: null, decidedAt: iso() };
-      Object.assign(m, { status: 'approved', roles: it.roles });
+      const m = ex ?? { id: uuidv7(), userId: it.userId, name: `${it.firstName ?? 'عضو'}`, status: 'approved', requestedAt: iso(), phone: null, decidedAt: iso() };
+      Object.assign(m, { status: 'approved' });
       if (!ex) list.push(m);
       return { userId: it.userId, outcome: ex ? 'approved' : 'added', member: m };
     });
@@ -248,7 +242,12 @@ export function installFakeMid(t: TestApp) {
     const list = members.get(p.id!) ?? [];
     return okReply({ items: (c.body.memberIds as string[]).map((id) => ({ memberId: id, outcome: list.some((m) => m.id === id) ? (c.body.action === 'approve' ? 'approved' : 'rejected') : 'not_found' })) });
   });
-  A.on('PUT', `${MID}/sessions/:id/manager`, (_c, p) => (sessions.get(p.id!) ? okReply(sessions.get(p.id!)) : nf()));
+  A.on('PUT', `${MID}/sessions/:id/owner`, (c, p) => {
+    const s = sessions.get(p.id!);
+    if (!s) return nf();
+    s.owner = { id: c.body.userId, name: c.body.firstName ?? 'استاد' };
+    return okReply(s);
+  });
   A.on('GET', `${MID}/sessions/:id/occurrences`, (c, p) =>
     sessions.get(p.id!) ? okReply([{ id: uuidv7(), seq: 1, status: 'live', openedAt: iso(), closedAt: null, counts: { attendance: 2, evaluations: 1 } }], { page: Number(c.query.page ?? 1), pageSize: Number(c.query.pageSize ?? 20), total: 1 }) : nf()
   );
@@ -265,10 +264,11 @@ export function installFakeMid(t: TestApp) {
     userId: uuidv7(),
     userName: 'قرآن‌آموز',
     evaluatorName: 'معلم',
-    voice: 8,
-    tone: 7,
-    tajweed: 9,
-    weights: { voice: 40, tone: 30, tajweed: 30 },
+    criteria: [
+      { criterionId: '00000000-0000-7000-8000-000000000001', key: 'voice', title: 'صوت', weight: 40, maxScore: 10, score: 8 },
+      { criterionId: '00000000-0000-7000-8000-000000000002', key: 'tone', title: 'لحن', weight: 30, maxScore: 10, score: 7 },
+      { criterionId: '00000000-0000-7000-8000-000000000003', key: 'tajweed', title: 'تجوید', weight: 30, maxScore: 10, score: 9 }
+    ],
     score: 81,
     points: 8,
     note: '',
@@ -278,7 +278,7 @@ export function installFakeMid(t: TestApp) {
     updatedAt: null,
     ...over
   });
-  A.on('PATCH', `${MID}/sessions/:id/evaluations/:evalId`, (c, p) => (sessions.get(p.id!) ? okReply(evaluation(p.id!, p.evalId!, { voice: c.body.voice ?? 8, updatedAt: iso() })) : nf()));
+  A.on('PATCH', `${MID}/sessions/:id/evaluations/:evalId`, (c, p) => (sessions.get(p.id!) ? okReply(evaluation(p.id!, p.evalId!, { note: c.body.note ?? '', updatedAt: iso() })) : nf()));
   A.on('POST', `${MID}/sessions/:id/evaluations/:evalId/void`, (_c, p) => (sessions.get(p.id!) ? okReply(evaluation(p.id!, p.evalId!, { status: 'void' })) : nf()));
   A.on('POST', `${MID}/sessions/:id/notify`, (_c, p) => (sessions.get(p.id!) ? okReply({ recipients: (members.get(p.id!) ?? []).length }) : nf()));
   A.on('GET', `${MID}/users/:id/memberships`, (c) => okReply([], { page: Number(c.query.page ?? 1), pageSize: Number(c.query.pageSize ?? 20), total: 0 }));
@@ -296,7 +296,7 @@ export function installFakeMid(t: TestApp) {
   A.on('GET', `${MID}/badges/holders`, () => okReply({ items: [...holders].map(([badgeId, n]) => ({ badgeId, holders: n })) }));
 
   const addMember = (sessionId: string, over: Record<string, unknown> = {}) => {
-    const m = { id: uuidv7(), userId: uuidv7(), name: 'عضو', roles: ['quran_student'], status: 'pending', requestedAt: iso(), phone: null, decidedAt: null, ...over };
+    const m = { id: uuidv7(), userId: uuidv7(), name: 'عضو', status: 'pending', requestedAt: iso(), phone: null, decidedAt: null, ...over };
     members.set(sessionId, [...(members.get(sessionId) ?? []), m]);
     return m;
   };

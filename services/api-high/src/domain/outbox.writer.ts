@@ -9,13 +9,17 @@ import type { Q } from './db';
  *  - system.permission.changed ⇒ low (پذیرش no-op؛ سازگاری)
  *  - badge.catalog.changed ⇒ mid (اعطا/پس‌گیری) + low (L-32/L-33)
  *  - inbox.broadcast.created ⇒ فقط low
+ *  - ۱.۷.۰: tier.baseline.changed ⇒ low + mid (مجوز مهمان/قرآن‌آموز)؛ evaluation.criteria.changed ⇒ mid
+ *  - ۱.۷.۰: system.settings.changed دیگر وزن/آستانه ندارد (فقط پرچم‌ها) ولی mid هنوز `version`/پرچم‌ها را می‌گیرد
  */
 export const EVENT_ROUTES: Readonly<Record<string, readonly Peer[]>> = {
   'system.role.changed': ['low'],
   'system.settings.changed': ['low', 'mid'],
   'system.permission.changed': ['low'],
   'badge.catalog.changed': ['mid', 'low'],
-  'inbox.broadcast.created': ['low']
+  'inbox.broadcast.created': ['low'],
+  'tier.baseline.changed': ['low', 'mid'],
+  'evaluation.criteria.changed': ['mid']
 };
 
 export const routeOf = (type: string): readonly Peer[] => EVENT_ROUTES[type] ?? [];

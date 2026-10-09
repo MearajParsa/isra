@@ -80,10 +80,10 @@ export class QueueService {
     };
   }
 
-  /** M-32: هر عضو تأییدشده؛ کادر (queue.manage) نام‌ها را کامل می‌بیند */
+  /** M-32: عضو تأییدشده یا کادر (صاحب/پشتیبان)؛ دارندهٔ queue.manage نام‌ها را کامل می‌بیند */
   async view(userId: string, sessionId: string, occurrenceId?: string) {
-    const { membership, permissions } = await this.access.load(this.ds, sessionId, userId);
-    if (membership?.status !== 'approved') throw new AppError('AUTH_FORBIDDEN');
+    const { role, permissions } = await this.access.load(this.ds, sessionId, userId);
+    if (!role) throw new AppError('AUTH_FORBIDDEN');
     return this.state(this.ds, await this.occurrences.resolve(this.ds, sessionId, occurrenceId), userId, permissions.includes('queue.manage'));
   }
 
@@ -118,12 +118,12 @@ export class QueueService {
   private present = async (m: Q, occ: OccRow, userId: string): Promise<boolean> =>
     ((await m.query('SELECT 1 AS x FROM attendance_entries WHERE occurrence_id = ? AND user_id = ?', [uuidToBuf(occ.id), uuidToBuf(userId)])) as unknown[]).length > 0;
 
-  /** M-30: قرآن‌آموزِ حاضر در نوبت باز */
+  /** M-30: عضو تأییدشدهٔ حاضر در نوبت باز */
   async join(userId: string, sessionId: string) {
     const occ = await withRetry(() =>
       this.ds.transaction(async (m) => {
         const { session, membership } = await this.access.load(m, sessionId, userId, undefined, true);
-        if (membership?.status !== 'approved' || !membership.roles.includes('quran_student')) throw new AppError('AUTH_FORBIDDEN', { message: 'فقط قرآن‌آموز عضو جلسه می‌تواند وارد صف شود.' });
+        if (membership?.status !== 'approved') throw new AppError('AUTH_FORBIDDEN', { message: 'فقط قرآن‌آموز عضو جلسه می‌تواند وارد صف شود.' });
         const occ = await this.liveForWrite(m, session);
         if (!(await this.present(m, occ, userId))) throw conflict('NOT_PRESENT', 'ابتدا حضور خود را ثبت کنید.');
         await this.insertWaiting(m, occ, userId);
@@ -155,7 +155,6 @@ export class QueueService {
         const target = await this.access.membership(m, sessionId, targetId);
         if (!target) throw new AppError('NOT_FOUND', { message: 'این کاربر عضو جلسه نیست.' });
         if (target.status !== 'approved') throw conflict('NOT_APPROVED', 'عضویت این کاربر تأیید نشده است.');
-        if (!target.roles.includes('quran_student')) throw conflict('NOT_STUDENT', 'فقط قرآن‌آموز در صف قرار می‌گیرد.');
         if (!(await this.present(m, occ, targetId))) {
           if (!markPresent) throw conflict('NOT_PRESENT', 'این قرآن‌آموز در این نوبت حاضر نیست.');
           if (!permissions.includes('attendance.manage')) throw new AppError('AUTH_FORBIDDEN', { message: 'مجوز ثبت حضور ندارید.' });
@@ -182,7 +181,8 @@ export class QueueService {
     await m.query("UPDATE queue_items SET status = 'done', position = NULL, finished_at = ? WHERE occurrence_id = ? AND status = 'current'", [now, oid]);
     const first = (await m.query("SELECT id, user_id FROM queue_items WHERE occurrence_id = ? AND status = 'waiting' ORDER BY position ASC, id ASC LIMIT 1", [oid])) as { id: Buffer; user_id: Buffer }[];
     if (first[0]) {
-      await m.query("UPDATE queue_items SET status = 'current', position = NULL WHERE id = ?", [first[0].id]);
+      // ۱.۷.۰: started_at = شروع تلاوت (مبنای at_sec کامنت‌های حین تلاوت؛ محاسبهٔ سرور)
+      await m.query("UPDATE queue_items SET status = 'current', position = NULL, started_at = ? WHERE id = ?", [now, first[0].id]);
       await emitInbox(m, now, bufToUuid(first[0].user_id), 'turn', 'نوبت شماست', `نوبت شما در «${session.title}» رسید.`, `session:${session.id}`);
     }
     // queue.turned: LiveService userId را فقط به کادر و خود نفر می‌دهد (حریم D4، docs-v2/30 §۱.۵)

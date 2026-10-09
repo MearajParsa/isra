@@ -16,7 +16,7 @@
 | L-07 | POST | `/c/v1/auth/step-up/otp/verify` | — | — | تأیید OTP و صدور توکن step-up (۵ دقیقه) |
 | H-00 | GET | `/s/v1/system/me` | — | — | هویت سیستمی من (نقش‌ها و مجوزها) |
 | H-01 | GET | `/s/v1/system/overview` | — | — | نمای کلی سیستم |
-| H-10 | GET | `/s/v1/system/roles` | — | — | فهرست نقش‌ها (سیستمی و پویا) با مجوز، ماژول و قواعد step-up |
+| H-10 | GET | `/s/v1/system/roles` | — | — | فهرست نقش‌ها (ثابت و پویا، هر سه سطح) با مجوز، ماژول و قواعد step-up |
 | H-11 | GET | `/s/v1/system/permissions` | — | — | فهرست مجوزها (رجیستری پویا؛ هر مجوز در یک ماژول) |
 | H-12 | PUT | `/s/v1/system/roles/{key}/permissions` | system.permission.edit | قابل | ویرایش مجوزهای صریح یک نقش |
 | H-20 | GET | `/s/v1/system/users` | system.users.view | — | جست‌وجوی کاربران |
@@ -48,8 +48,7 @@
 | H-65 | DELETE | `/s/v1/system/sessions/{id}` | system.sessions.manage | قابل | حذف جلسه (حذف نرم؛ از همهٔ فهرست‌های کاربران پنهان می‌شود) |
 | H-66 | GET | `/s/v1/system/sessions/{id}/members` | system.sessions.view | — | اعضا و درخواست‌های عضویت جلسه |
 | H-67 | PATCH | `/s/v1/system/sessions/{id}/members/{memberId}` | system.sessions.manage | قابل | تأیید/رد عضویت |
-| H-68 | PUT | `/s/v1/system/sessions/{id}/members/{memberId}/roles` | system.sessions.manage | قابل | تعیین نقش‌های درون‌جلسهٔ عضو (شامل هم‌مدیر) |
-| H-69 | DELETE | `/s/v1/system/sessions/{id}/members/{memberId}` | system.sessions.manage | قابل | حذف عضو از جلسه (مدیر ⇒ ابتدا با H-74 منتقل کنید) |
+| H-69 | DELETE | `/s/v1/system/sessions/{id}/members/{memberId}` | system.sessions.manage | قابل | حذف عضو از جلسه |
 | H-70 | GET | `/s/v1/system/sessions/{id}/attendance` | system.sessions.view | — | حاضرین یک نوبت (پیش‌فرض: نوبت باز یا آخرین) |
 | H-71 | GET | `/s/v1/system/sessions/{id}/queue` | system.sessions.view | — | صف نوبت جلسه (نمای کامل؛ پیش‌فرض نوبت باز یا آخرین) |
 | H-72 | GET | `/s/v1/system/sessions/{id}/evaluations` | system.sessions.view | — | ارزیابی‌های جلسه (همهٔ نوبت‌ها یا یک نوبت) |
@@ -74,8 +73,8 @@
 | H-92 | GET | `/s/v1/system/rbac/matrix` | system.users.view | — | ماتریس کامل نقش × مجوز × ماژول (یک درخواست برای UI) |
 | H-93 | GET | `/s/v1/system/rbac/effective/{id}` | system.users.view | — | دسترسی مؤثر یک کاربر (با منبع هر مجوز و وضعیت step-up) |
 | H-94 | GET | `/s/v1/system/me/access` | — | — | دسترسی مؤثر من (مجوز، منبع و نیاز به step-up) |
-| H-73 | POST | `/s/v1/system/sessions/{id}/members` | system.sessions.manage | قابل | افزودن مستقیم اعضا (با شناسه یا شماره) با نقش — تا ۲۰۰ نفر |
-| H-74 | PUT | `/s/v1/system/sessions/{id}/manager` | system.sessions.manage | قابل | تعیین/انتقال مدیر جلسه |
+| H-73 | POST | `/s/v1/system/sessions/{id}/members` | system.sessions.manage | قابل | افزودن مستقیم اعضا (با شناسه یا شماره) — تا ۲۰۰ نفر |
+| H-74 | PUT | `/s/v1/system/sessions/{id}/owner` | system.sessions.manage | قابل | تغییر استاد صاحب جلسه |
 | H-53 | POST | `/s/v1/system/sessions/{id}/members/decide` | system.sessions.manage | قابل | تأیید/رد گروهی درخواست‌های عضویت |
 | H-75 | GET | `/s/v1/system/sessions/{id}/occurrences` | system.sessions.view | — | نوبت‌های برگزاری جلسه |
 | H-76 | POST | `/s/v1/system/sessions/{id}/attendance` | system.sessions.moderate | قابل | ثبت حضور توسط ادمین (اصلاح؛ نوبت باز یا بسته) |
@@ -84,7 +83,7 @@
 | H-79 | PATCH | `/s/v1/system/sessions/{id}/queue/{itemId}` | system.sessions.moderate | قابل | صف: بالا/پایین/انتها/حذف (ادمین) |
 | H-95 | POST | `/s/v1/system/sessions/{id}/evaluations/{evalId}/void` | system.sessions.manage | قابل | باطل‌کردن ارزیابی (کسر امتیاز) |
 | H-96 | PATCH | `/s/v1/system/sessions/{id}/evaluations/{evalId}` | system.sessions.manage | قابل | اصلاح نمره‌های ارزیابی |
-| H-52 | GET | `/s/v1/system/users/{id}/memberships` | system.sessions.view | — | جلسه‌ها و نقش‌های یک کاربر |
+| H-52 | GET | `/s/v1/system/users/{id}/memberships` | system.sessions.view | — | جلسه‌ها و نقش‌های یک کاربر (صاحب/پشتیبان/عضو) |
 | H-97 | GET | `/s/v1/system/users/{id}/points` | system.users.view | — | امتیاز، نشان‌ها و دفتر امتیاز یک کاربر |
 | H-98 | POST | `/s/v1/system/users/{id}/points/adjust` | system.points.manage | قابل | اصلاح دستی امتیاز (مثبت/منفی) |
 | H-32 | GET | `/s/v1/system/badges` | — | — | فهرست نشان‌ها (همه، شامل غیرفعال) |
@@ -99,7 +98,28 @@
 | H-43 | GET | `/s/v1/system/users/export` | system.data.export | قابل | خروجی CSV کاربران (با فیلترهای H-20) |
 | H-44 | GET | `/s/v1/system/sessions/{id}/export` | system.data.export | قابل | خروجی CSV اعضا/حضور/ارزیابی یک جلسه |
 | H-45 | GET | `/s/v1/system/audit/export` | system.data.export | قابل | خروجی CSV گزارش اقدام‌ها (با فیلترهای H-40) |
-| H-48 | GET | `/s/v1/system/session-roles` | — | — | ماتریس نقش‌های جلسه ← مجوزهای درون‌جلسه (فقط‌خواندنی) |
+| H-48 | GET | `/s/v1/system/session-roles` | — | — | کاتالوگ مجوزهای قابل‌واگذاری به پشتیبان (فقط‌خواندنی) |
+| H-100 | GET | `/s/v1/system/evaluation-criteria` | system.evaluation.manage | — | همهٔ معیارهای ارزیابی (فعال و غیرفعال) |
+| H-101 | POST | `/s/v1/system/evaluation-criteria` | system.evaluation.manage | قابل | ساخت معیار ارزیابی |
+| H-102 | PATCH | `/s/v1/system/evaluation-criteria/{id}` | system.evaluation.manage | قابل | ویرایش معیار ارزیابی (عنوان، وزن، سقف نمره، فعال/غیرفعال، ترتیب) |
+| H-103 | DELETE | `/s/v1/system/evaluation-criteria/{id}` | system.evaluation.manage | قابل | حذف معیار ارزیابی (استفاده‌شده ⇒ فقط غیرفعال‌کردن) |
+| H-104 | GET | `/s/v1/system/users/{id}/supporters` | system.sessions.view | — | پشتیبان‌های ثابت یک استاد |
+| H-105 | PUT | `/s/v1/system/users/{id}/supporters/{supporterId}` | system.sessions.manage | قابل | افزودن/تغییر پشتیبان ثابت یک استاد |
+| H-106 | DELETE | `/s/v1/system/users/{id}/supporters/{supporterId}` | system.sessions.manage | قابل | حذف پشتیبان ثابت یک استاد |
+| H-107 | GET | `/s/v1/system/sessions/{id}/supporters` | system.sessions.view | — | پشتیبان‌های مؤثر جلسه (ثابت استاد ∪ per جلسه) |
+| H-108 | PUT | `/s/v1/system/sessions/{id}/supporters/{userId}` | system.sessions.manage | قابل | افزودن/تغییر پشتیبان per جلسه |
+| H-109 | DELETE | `/s/v1/system/sessions/{id}/supporters/{userId}` | system.sessions.manage | قابل | حذف پشتیبان per جلسه |
+| H-110 | GET | `/s/v1/system/sessions/{id}/galleries` | system.sessions.view | — | گالری‌های جلسه (همهٔ سطوح نمایش؛ `occurrenceId?`) |
+| H-111 | POST | `/s/v1/system/sessions/{id}/galleries` | system.content.moderate | قابل | ساخت گالری برای یک نوبت |
+| H-112 | PATCH | `/s/v1/system/sessions/{id}/galleries/{galleryId}` | system.content.moderate | قابل | ویرایش گالری (عنوان/سطح نمایش/ترتیب) |
+| H-113 | DELETE | `/s/v1/system/sessions/{id}/galleries/{galleryId}` | system.content.moderate | قابل | حذف گالری |
+| H-114 | GET | `/s/v1/system/sessions/{id}/galleries/{galleryId}/items` | system.sessions.view | — | آیتم‌های گالری |
+| H-115 | POST | `/s/v1/system/sessions/{id}/galleries/{galleryId}/items` | system.content.moderate | قابل | بارگذاری فایل در گالری (بدنهٔ خام؛ stream به mid) |
+| H-116 | DELETE | `/s/v1/system/sessions/{id}/galleries/{galleryId}/items/{itemId}` | system.content.moderate | قابل | حذف آیتم گالری |
+| H-117 | GET | `/s/v1/system/sessions/{id}/galleries/{galleryId}/items/{itemId}/content` | system.sessions.view | — | محتوای فایل آیتم گالری (stream از mid؛ Range) |
+| H-118 | GET | `/s/v1/system/sessions/{id}/comments` | system.sessions.view | — | کامنت‌های جلسه (`occurrenceId?`، `queueItemId?`، `authorId?`؛ شامل پنهان‌ها) |
+| H-119 | PATCH | `/s/v1/system/sessions/{id}/comments/{commentId}` | system.content.moderate | قابل | پنهان/آشکار کردن کامنت |
+| H-120 | DELETE | `/s/v1/system/sessions/{id}/comments/{commentId}` | system.content.moderate | قابل | حذف کامنت |
 
 ## جزئیات
 #### L-01 — POST `/c/v1/auth/otp/request`
@@ -143,7 +163,7 @@
 - data: `StepUpResult`
 
 #### H-00 — GET `/s/v1/system/me`
-هویت سیستمی من (نقش‌ها و مجوزها) — کاربر بدون نقش سیستم ⇒ AUTH_FORBIDDEN؛ UI «دسترسی ندارید» نشان می‌دهد.
+هویت سیستمی من (نقش‌ها و مجوزها) — ۱.۷.۰: ورود به پنل نیازمند دست‌کم یک نقش tier=high **یا** یک مجوز `system.*` است (وگرنه AUTH_FORBIDDEN؛ UI «دسترسی ندارید»). `tiers` سطوح نقش‌های کاربر.
 - مجوز: فقط ورود؛ step-up: ندارد؛ idempotency: —؛ rate-limit: —؛ خطاها: AUTH_FORBIDDEN
 - data: `SystemMe`
 
@@ -153,19 +173,19 @@
 - data: `Overview`
 
 #### H-10 — GET `/s/v1/system/roles`
-فهرست نقش‌ها (سیستمی و پویا) با مجوز، ماژول و قواعد step-up
+فهرست نقش‌ها (ثابت و پویا، هر سه سطح) با مجوز، ماژول و قواعد step-up — ۱.۷.۰: فیلتر `tier`. نقش‌های ثابت: developer و super_admin (high)، teacher (mid)، guest و quran_student (low؛ ضمنی).
 - مجوز: فقط ورود؛ step-up: ندارد؛ idempotency: —؛ rate-limit: —؛ خطاها: AUTH_FORBIDDEN
-- query: `{ page?: number; pageSize?: number }`
+- query: `{ page?: number; pageSize?: number; tier?: Tier }`
 - data: `SystemRole[]`
 
 #### H-11 — GET `/s/v1/system/permissions`
-فهرست مجوزها (رجیستری پویا؛ هر مجوز در یک ماژول)
+فهرست مجوزها (رجیستری پویا؛ هر مجوز در یک ماژول) — سطح هر مجوز = سطح ماژولش (ModuleInfo.tier).
 - مجوز: فقط ورود؛ step-up: ندارد؛ idempotency: —؛ rate-limit: —؛ خطاها: AUTH_FORBIDDEN
 - query: `{ page?: number; pageSize?: number }`
 - data: `PermissionInfo[]`
 
 #### H-12 — PUT `/s/v1/system/roles/{key}/permissions`
-ویرایش مجوزهای صریح یک نقش — نقش `developer` ثابت است ⇒ AUTH_FORBIDDEN؛ حذف مجوز قفل‌شده ⇒ CONFLICT(LOCKED_PERMISSION)؛ افزودن مجوزی که خودِ کاربر ندارد ⇒ AUTH_FORBIDDEN (ضد ارتقای دسترسی؛ developer معاف). مجوز ناموجود ⇒ NOT_FOUND. رویداد outbox: `system.permission.changed`.
+ویرایش مجوزهای صریح یک نقش — نقش `developer` ثابت است ⇒ AUTH_FORBIDDEN؛ حذف مجوز قفل‌شده ⇒ CONFLICT(LOCKED_PERMISSION)؛ افزودن مجوزی که خودِ کاربر ندارد ⇒ AUTH_FORBIDDEN (ضد ارتقای دسترسی؛ developer معاف). مجوز ناموجود ⇒ NOT_FOUND. رویداد outbox: `system.permission.changed`. ۱.۷.۰: نقش tier=high ⇒ همین مجوز؛ نقش tier=mid ⇒ `system.roles.mid.manage`؛ tier=low (شامل guest/quran_student) ⇒ `system.roles.low.manage`. developer ثابت؛ ضد ارتقا (E2) بدون تغییر.
 - مجوز: system.permission.edit؛ step-up: قابل (طبق سیاست)؛ idempotency: natural؛ rate-limit: 30/60s؛ خطاها: VALIDATION_FAILED, AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, NOT_FOUND, CONFLICT
 - body: `SetRolePermissionsBody`
 - data: `SystemRole`
@@ -199,7 +219,7 @@
 - data: `SystemSettings`
 
 #### H-31 — PUT `/s/v1/system/settings`
-به‌روزرسانی تنظیمات سراسری (optimistic concurrency) — `version` قدیمی ⇒ CONFLICT(VERSION_MISMATCH). وزن جدید فقط روی ارزیابی‌های بعدی اثر دارد (D2). رویداد outbox: `system.settings.changed`.
+به‌روزرسانی تنظیمات سراسری (optimistic concurrency) — `version` قدیمی ⇒ CONFLICT(VERSION_MISMATCH). ۱.۷.۰: فقط پرچم‌ها (وزن‌های ارزیابی ⇒ H-100..H-103). رویداد outbox: `system.settings.changed`.
 - مجوز: system.settings.edit؛ step-up: قابل (طبق سیاست)؛ idempotency: natural؛ rate-limit: 30/60s؛ خطاها: VALIDATION_FAILED, AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, CONFLICT
 - body: `UpdateSettingsBody`
 - data: `SystemSettings`
@@ -291,7 +311,7 @@ revoke یک نشست کاربر
 #### H-60 — GET `/s/v1/system/sessions`
 فهرست همهٔ جلسه‌ها با فیلتر
 - مجوز: system.sessions.view؛ step-up: ندارد؛ idempotency: —؛ rate-limit: 60/60s؛ خطاها: AUTH_FORBIDDEN, SERVICE_UNAVAILABLE
-- query: `{ page?: number; pageSize?: number; q?: string; status?: SessionState; creatorId?: string; from?: string; to?: string; includeDeleted?: "true" | "false"; sort?: "newest" | "oldest" | "title" | "nextStart" }`
+- query: `{ page?: number; pageSize?: number; q?: string; status?: SessionState; creatorId?: string; ownerId?: string; from?: string; to?: string; includeDeleted?: "true" | "false"; sort?: "newest" | "oldest" | "title" | "nextStart" }`
 - data: `AdminSession[]`
 
 #### H-61 — GET `/s/v1/system/sessions/{id}`
@@ -325,7 +345,7 @@ revoke یک نشست کاربر
 #### H-66 — GET `/s/v1/system/sessions/{id}/members`
 اعضا و درخواست‌های عضویت جلسه
 - مجوز: system.sessions.view؛ step-up: ندارد؛ idempotency: —؛ rate-limit: —؛ خطاها: AUTH_FORBIDDEN, NOT_FOUND, SERVICE_UNAVAILABLE
-- query: `{ page?: number; pageSize?: number; status?: "pending" | "approved" | "rejected"; role?: SessionRole; q?: string; userId?: string }`
+- query: `{ page?: number; pageSize?: number; status?: "pending" | "approved" | "rejected"; q?: string; userId?: string }`
 - data: `AdminMember[]`
 
 #### H-67 — PATCH `/s/v1/system/sessions/{id}/members/{memberId}`
@@ -334,14 +354,8 @@ revoke یک نشست کاربر
 - body: `AdminDecideBody`
 - data: `AdminMember`
 
-#### H-68 — PUT `/s/v1/system/sessions/{id}/members/{memberId}/roles`
-تعیین نقش‌های درون‌جلسهٔ عضو (شامل هم‌مدیر) — ۱.۶.۰: session_manager هم مجاز (هم‌مدیر)؛ برداشتن نقش آخرین مدیر ⇒ CONFLICT(LAST_HOLDER). عضو باید approved باشد (NOT_APPROVED).
-- مجوز: system.sessions.manage؛ step-up: قابل (طبق سیاست)؛ idempotency: natural؛ rate-limit: 30/60s؛ خطاها: VALIDATION_FAILED, AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, NOT_FOUND, CONFLICT, SERVICE_UNAVAILABLE
-- body: `AdminSetMemberRolesBody`
-- data: `AdminMember`
-
 #### H-69 — DELETE `/s/v1/system/sessions/{id}/members/{memberId}`
-حذف عضو از جلسه (مدیر ⇒ ابتدا با H-74 منتقل کنید) — مدیر ⇒ CONFLICT(SESSION_MANAGER_PROTECTED). صف فعال حذف؛ حضور/ارزیابی/امتیاز می‌ماند.
+حذف عضو از جلسه — ۱.۷.۰: فقط اعضا (صاحب عضو نیست؛ پشتیبان از H-109). صف فعال حذف؛ حضور/ارزیابی/امتیاز می‌ماند.
 - مجوز: system.sessions.manage؛ step-up: قابل (طبق سیاست)؛ idempotency: natural؛ rate-limit: 30/60s؛ خطاها: AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, NOT_FOUND, CONFLICT, SERVICE_UNAVAILABLE
 - data: `{  }`
 
@@ -394,7 +408,7 @@ revoke یک نشست کاربر
 - data: `LeaderboardResponse`
 
 #### H-13 — POST `/s/v1/system/roles`
-ساخت نقش پویا — کلید یکتا ⇒ CONFLICT(KEY_TAKEN)؛ مجوز/ماژول ناموجود ⇒ NOT_FOUND؛ مجوزی که سازنده ندارد ⇒ AUTH_FORBIDDEN (developer معاف). Idempotency-Key پشتیبانی می‌شود.
+ساخت نقش پویا — کلید یکتا ⇒ CONFLICT(KEY_TAKEN)؛ مجوز/ماژول ناموجود ⇒ NOT_FOUND؛ مجوزی که سازنده ندارد ⇒ AUTH_FORBIDDEN (developer معاف). Idempotency-Key پشتیبانی می‌شود. ۱.۷.۰: نقش tier=high ⇒ همین مجوز؛ نقش tier=mid ⇒ `system.roles.mid.manage`؛ tier=low (شامل guest/quran_student) ⇒ `system.roles.low.manage`. developer ثابت؛ ضد ارتقا (E2) بدون تغییر.
 - مجوز: system.role.manage؛ step-up: قابل (طبق سیاست)؛ idempotency: key؛ rate-limit: 30/60s؛ خطاها: VALIDATION_FAILED, AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, NOT_FOUND, CONFLICT
 - body: `CreateRoleBody`
 - data: `SystemRole`
@@ -405,24 +419,24 @@ revoke یک نشست کاربر
 - data: `SystemRole`
 
 #### H-15 — PATCH `/s/v1/system/roles/{key}`
-ویرایش عنوان/توضیح نقش
+ویرایش عنوان/توضیح نقش — ۱.۷.۰: نقش tier=high ⇒ همین مجوز؛ نقش tier=mid ⇒ `system.roles.mid.manage`؛ tier=low (شامل guest/quran_student) ⇒ `system.roles.low.manage`. developer ثابت؛ ضد ارتقا (E2) بدون تغییر.
 - مجوز: system.role.manage؛ step-up: قابل (طبق سیاست)؛ idempotency: natural؛ rate-limit: 30/60s؛ خطاها: VALIDATION_FAILED, AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, NOT_FOUND
 - body: `UpdateRoleBody`
 - data: `SystemRole`
 
 #### H-16 — DELETE `/s/v1/system/roles/{key}`
-حذف نقش پویا — نقش سیستمی ⇒ CONFLICT(SYSTEM_PROTECTED)؛ دارای دارنده ⇒ CONFLICT(ROLE_IN_USE) (ابتدا نقش را از کاربران بردارید). پاسخ = آخرین وضعیت نقش پیش از حذف.
+حذف نقش پویا — نقش ثابت (developer، super_admin، teacher، guest، quran_student) ⇒ CONFLICT(SYSTEM_PROTECTED)؛ دارای دارنده ⇒ CONFLICT(ROLE_IN_USE) (ابتدا نقش را از کاربران بردارید). پاسخ = آخرین وضعیت نقش پیش از حذف. ۱.۷.۰: نقش tier=high ⇒ همین مجوز؛ نقش tier=mid ⇒ `system.roles.mid.manage`؛ tier=low (شامل guest/quran_student) ⇒ `system.roles.low.manage`. developer ثابت؛ ضد ارتقا (E2) بدون تغییر.
 - مجوز: system.role.manage؛ step-up: قابل (طبق سیاست)؛ idempotency: natural؛ rate-limit: 30/60s؛ خطاها: AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, NOT_FOUND, CONFLICT
 - data: `SystemRole`
 
 #### H-17 — PUT `/s/v1/system/roles/{key}/modules`
-تعیین ماژول‌های کامل نقش — نقش به همهٔ مجوزهای حال و آیندهٔ هر ماژول دسترسی می‌یابد. developer ثابت است. ضد ارتقا: مجوز ماژول که کاربر ندارد ⇒ AUTH_FORBIDDEN. claim دارندگان نقش تازه می‌شود.
+تعیین ماژول‌های کامل نقش — نقش به همهٔ مجوزهای حال و آیندهٔ هر ماژول دسترسی می‌یابد. developer ثابت است. ضد ارتقا: مجوز ماژول که کاربر ندارد ⇒ AUTH_FORBIDDEN. claim دارندگان نقش تازه می‌شود. ۱.۷.۰: نقش tier=high ⇒ همین مجوز؛ نقش tier=mid ⇒ `system.roles.mid.manage`؛ tier=low (شامل guest/quran_student) ⇒ `system.roles.low.manage`. developer ثابت؛ ضد ارتقا (E2) بدون تغییر.
 - مجوز: system.role.manage؛ step-up: قابل (طبق سیاست)؛ idempotency: natural؛ rate-limit: 30/60s؛ خطاها: VALIDATION_FAILED, AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, NOT_FOUND, CONFLICT
 - body: `SetRoleModulesBody`
 - data: `SystemRole`
 
 #### H-18 — PUT `/s/v1/system/roles/{key}/step-up`
-قواعد step-up هر نقش per مجوز — override نقش روی پیش‌فرض مجوز. موثر برای کاربر: اگر هر منبع (نقش/grant) «required» بگوید ⇒ لازم؛ developer همیشه معاف.
+قواعد step-up هر نقش per مجوز — override نقش روی پیش‌فرض مجوز. موثر برای کاربر: اگر هر منبع (نقش/grant) «required» بگوید ⇒ لازم؛ developer همیشه معاف. ۱.۷.۰: نقش tier=high ⇒ همین مجوز؛ نقش tier=mid ⇒ `system.roles.mid.manage`؛ tier=low (شامل guest/quran_student) ⇒ `system.roles.low.manage`. developer ثابت؛ ضد ارتقا (E2) بدون تغییر.
 - مجوز: system.stepup.manage؛ step-up: قابل (طبق سیاست)؛ idempotency: natural؛ rate-limit: 30/60s؛ خطاها: VALIDATION_FAILED, AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, NOT_FOUND, CONFLICT
 - body: `SetRoleStepUpBody`
 - data: `SystemRole`
@@ -445,9 +459,9 @@ revoke یک نشست کاربر
 - data: `PermissionInfo`
 
 #### H-88 — GET `/s/v1/system/modules`
-فهرست ماژول‌ها
+فهرست ماژول‌ها — ۱.۷.۰: فیلتر `tier`.
 - مجوز: فقط ورود؛ step-up: ندارد؛ idempotency: —؛ rate-limit: —؛ خطاها: VALIDATION_FAILED, AUTH_FORBIDDEN
-- query: `{ page?: number; pageSize?: number }`
+- query: `{ page?: number; pageSize?: number; tier?: Tier }`
 - data: `ModuleInfo[]`
 
 #### H-89 — POST `/s/v1/system/modules`
@@ -483,15 +497,15 @@ revoke یک نشست کاربر
 - data: `EffectiveAccess`
 
 #### H-73 — POST `/s/v1/system/sessions/{id}/members`
-افزودن مستقیم اعضا (با شناسه یا شماره) با نقش — تا ۲۰۰ نفر — عضو بلافاصله approved؛ pending/rejected ⇒ approved. شماره در high به کاربر نگاشت می‌شود؛ ثبت‌نام‌نکرده ⇒ not_found یا با createMissing ساخت کاربر (نیازمند system.users.manage هم). کاربر غیرفعال/حذف‌شده ⇒ not_active. ظرفیت ⇒ full. نتیجهٔ per آیتم (موفقیت جزئی مجاز). audit `session.members_add` بدون شماره.
+افزودن مستقیم اعضا (با شناسه یا شماره) — تا ۲۰۰ نفر — ۱.۷.۰: فقط عضو (بدون نقش؛ پشتیبان از H-108). عضو بلافاصله approved؛ pending/rejected ⇒ approved. شماره در high به کاربر نگاشت می‌شود؛ ثبت‌نام‌نکرده ⇒ not_found یا با createMissing ساخت کاربر (نیازمند system.users.manage هم). کاربر غیرفعال/حذف‌شده ⇒ not_active. ظرفیت ⇒ full. نتیجهٔ per آیتم (موفقیت جزئی مجاز). audit `session.members_add` بدون شماره.
 - مجوز: system.sessions.manage؛ step-up: قابل (طبق سیاست)؛ idempotency: key؛ rate-limit: 10/60s؛ خطاها: VALIDATION_FAILED, AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, NOT_FOUND, CONFLICT, SERVICE_UNAVAILABLE
 - body: `AdminAddMembersBody`
 - data: `AdminAddMembersResult`
 
-#### H-74 — PUT `/s/v1/system/sessions/{id}/manager`
-تعیین/انتقال مدیر جلسه — کاربر هدف عضو approved می‌شود (اگر نیست) و session_manager می‌گیرد؛ مدیر(ان) قبلی طبق previous. همیشه دست‌کم یک مدیر. کاربر غیرفعال ⇒ CONFLICT(USER_NOT_ACTIVE). audit `session.manager_transfer`.
+#### H-74 — PUT `/s/v1/system/sessions/{id}/owner`
+تغییر استاد صاحب جلسه — ۱.۷.۰: صاحب جدید همهٔ مجوزهای جلسه را می‌گیرد (اگر عضو یا پشتیبان per جلسه بود، آن ردیف برداشته می‌شود)؛ صاحب قبلی طبق `previousOwner`. کاربر غیرفعال ⇒ CONFLICT(USER_NOT_ACTIVE)؛ همان صاحب فعلی ⇒ بدون تغییر. پشتیبان‌های ثابتِ صاحب قبلی دیگر در این جلسه مؤثر نیستند و پشتیبان‌های ثابت صاحب جدید مؤثر می‌شوند. audit `session.owner_transfer`.
 - مجوز: system.sessions.manage؛ step-up: قابل (طبق سیاست)؛ idempotency: natural؛ rate-limit: 30/60s؛ خطاها: VALIDATION_FAILED, AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, NOT_FOUND, CONFLICT, SERVICE_UNAVAILABLE
-- body: `TransferManagerBody`
+- body: `TransferOwnerBody`
 - data: `AdminSession`
 
 #### H-53 — POST `/s/v1/system/sessions/{id}/members/decide`
@@ -537,13 +551,13 @@ revoke یک نشست کاربر
 - data: `Evaluation`
 
 #### H-96 — PATCH `/s/v1/system/sessions/{id}/evaluations/{evalId}`
-اصلاح نمره‌های ارزیابی — امتیاز با وزن‌های ذخیره‌شده دوباره محاسبه؛ اختلاف در دفتر (evaluation_adjust). باطل‌شده ⇒ EVALUATION_VOIDED. audit `session.evaluation_patch`.
+اصلاح نمره‌های ارزیابی — ۱.۷.۰: `scores` فقط برای معیارهای snapshot همان ارزیابی؛ امتیاز با وزن/سقف ذخیره‌شده دوباره محاسبه؛ اختلاف در دفتر (evaluation_adjust). باطل‌شده ⇒ EVALUATION_VOIDED. audit `session.evaluation_patch`.
 - مجوز: system.sessions.manage؛ step-up: قابل (طبق سیاست)؛ idempotency: natural؛ rate-limit: 30/60s؛ خطاها: VALIDATION_FAILED, AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, NOT_FOUND, CONFLICT, SERVICE_UNAVAILABLE
 - body: `AdminEvaluationPatchBody`
 - data: `Evaluation`
 
 #### H-52 — GET `/s/v1/system/users/{id}/memberships`
-جلسه‌ها و نقش‌های یک کاربر
+جلسه‌ها و نقش‌های یک کاربر (صاحب/پشتیبان/عضو)
 - مجوز: system.sessions.view؛ step-up: ندارد؛ idempotency: —؛ rate-limit: 60/60s؛ خطاها: VALIDATION_FAILED, AUTH_FORBIDDEN, NOT_FOUND, SERVICE_UNAVAILABLE
 - query: `{ page?: number; pageSize?: number; status?: MembershipStatus; role?: SessionRole; includeDeleted?: "true" | "false" }`
 - data: `UserMembership[]`
@@ -630,59 +644,188 @@ revoke یک نشست کاربر
 - data: `void`
 
 #### H-48 — GET `/s/v1/system/session-roles`
-ماتریس نقش‌های جلسه ← مجوزهای درون‌جلسه (فقط‌خواندنی)
+کاتالوگ مجوزهای قابل‌واگذاری به پشتیبان (فقط‌خواندنی) — ۱.۷.۰: جایگزین ماتریس نقش‌های جلسه؛ همان خروجی M-68. صاحب جلسه همهٔ این مجوزها را دارد.
 - مجوز: فقط ورود؛ step-up: ندارد؛ idempotency: —؛ rate-limit: —؛ خطاها: AUTH_FORBIDDEN
-- data: `SessionRolesMatrix`
+- data: `SessionPermissionCatalog`
+
+#### H-100 — GET `/s/v1/system/evaluation-criteria`
+همهٔ معیارهای ارزیابی (فعال و غیرفعال)
+- مجوز: system.evaluation.manage؛ step-up: ندارد؛ idempotency: —؛ rate-limit: —؛ خطاها: AUTH_FORBIDDEN
+- data: `EvaluationCriteriaList`
+
+#### H-101 — POST `/s/v1/system/evaluation-criteria`
+ساخت معیار ارزیابی — کلید تکراری ⇒ CONFLICT(KEY_TAKEN)؛ حداکثر ۱۵ معیار ⇒ CONFLICT(LIMIT_REACHED). فقط روی ارزیابی‌های بعدی اثر دارد. رویداد `evaluation.criteria.changed` (⇒ mid). audit `criterion.create`.
+- مجوز: system.evaluation.manage؛ step-up: قابل (طبق سیاست)؛ idempotency: key؛ rate-limit: 30/60s؛ خطاها: VALIDATION_FAILED, AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, CONFLICT
+- body: `CreateCriterionBody`
+- data: `EvaluationCriterion`
+
+#### H-102 — PATCH `/s/v1/system/evaluation-criteria/{id}`
+ویرایش معیار ارزیابی (عنوان، وزن، سقف نمره، فعال/غیرفعال، ترتیب) — غیرفعال‌کردن آخرین معیار فعال ⇒ CONFLICT(LAST_ACTIVE_CRITERION). ارزیابی‌های ثبت‌شده snapshot خود را نگه می‌دارند. رویداد `evaluation.criteria.changed`. audit `criterion.update`.
+- مجوز: system.evaluation.manage؛ step-up: قابل (طبق سیاست)؛ idempotency: natural؛ rate-limit: 30/60s؛ خطاها: VALIDATION_FAILED, AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, NOT_FOUND, CONFLICT
+- body: `UpdateCriterionBody`
+- data: `EvaluationCriterion`
+
+#### H-103 — DELETE `/s/v1/system/evaluation-criteria/{id}`
+حذف معیار ارزیابی (استفاده‌شده ⇒ فقط غیرفعال‌کردن) — معیار استفاده‌شده در ارزیابی ⇒ CONFLICT(CRITERION_IN_USE) (با H-102 غیرفعال کنید)؛ آخرین معیار فعال ⇒ CONFLICT(LAST_ACTIVE_CRITERION). پاسخ = آخرین وضعیت پیش از حذف. رویداد `evaluation.criteria.changed`. audit `criterion.delete`.
+- مجوز: system.evaluation.manage؛ step-up: قابل (طبق سیاست)؛ idempotency: natural؛ rate-limit: 30/60s؛ خطاها: AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, NOT_FOUND, CONFLICT
+- data: `EvaluationCriterion`
+
+#### H-104 — GET `/s/v1/system/users/{id}/supporters`
+پشتیبان‌های ثابت یک استاد
+- مجوز: system.sessions.view؛ step-up: ندارد؛ idempotency: —؛ rate-limit: —؛ خطاها: AUTH_FORBIDDEN, NOT_FOUND, SERVICE_UNAVAILABLE
+- query: `{ page?: number; pageSize?: number }`
+- data: `TeacherSupporter[]`
+
+#### H-105 — PUT `/s/v1/system/users/{id}/supporters/{supporterId}`
+افزودن/تغییر پشتیبان ثابت یک استاد — upsert: نبود ⇒ ساخت، وجود ⇒ جایگزینی مجوزها. پشتیبان باید کاربر فعال باشد (USER_NOT_ACTIVE)؛ خود استاد ⇒ SELF_PROTECTED. audit `supporter.teacher_set`.
+- مجوز: system.sessions.manage؛ step-up: قابل (طبق سیاست)؛ idempotency: natural؛ rate-limit: 30/60s؛ خطاها: VALIDATION_FAILED, AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, NOT_FOUND, CONFLICT, SERVICE_UNAVAILABLE
+- body: `SupporterPermissionsBody`
+- data: `TeacherSupporter`
+
+#### H-106 — DELETE `/s/v1/system/users/{id}/supporters/{supporterId}`
+حذف پشتیبان ثابت یک استاد — idempotent. audit `supporter.teacher_remove`.
+- مجوز: system.sessions.manage؛ step-up: قابل (طبق سیاست)؛ idempotency: natural؛ rate-limit: 30/60s؛ خطاها: AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, NOT_FOUND, SERVICE_UNAVAILABLE
+- data: `{  }`
+
+#### H-107 — GET `/s/v1/system/sessions/{id}/supporters`
+پشتیبان‌های مؤثر جلسه (ثابت استاد ∪ per جلسه)
+- مجوز: system.sessions.view؛ step-up: ندارد؛ idempotency: —؛ rate-limit: —؛ خطاها: AUTH_FORBIDDEN, NOT_FOUND, SERVICE_UNAVAILABLE
+- query: `{ page?: number; pageSize?: number }`
+- data: `SessionSupporter[]`
+
+#### H-108 — PUT `/s/v1/system/sessions/{id}/supporters/{userId}`
+افزودن/تغییر پشتیبان per جلسه — upsert ردیف per جلسه (مجوزهای ثابت استاد دست نمی‌خورند). کاربر فعال لازم (USER_NOT_ACTIVE)؛ صاحب جلسه ⇒ SELF_PROTECTED. audit `supporter.session_set`.
+- مجوز: system.sessions.manage؛ step-up: قابل (طبق سیاست)؛ idempotency: natural؛ rate-limit: 30/60s؛ خطاها: VALIDATION_FAILED, AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, NOT_FOUND, CONFLICT, SERVICE_UNAVAILABLE
+- body: `SupporterPermissionsBody`
+- data: `SessionSupporter`
+
+#### H-109 — DELETE `/s/v1/system/sessions/{id}/supporters/{userId}`
+حذف پشتیبان per جلسه — پشتیبان ثابت استاد با H-106 حذف می‌شود. idempotent. audit `supporter.session_remove`.
+- مجوز: system.sessions.manage؛ step-up: قابل (طبق سیاست)؛ idempotency: natural؛ rate-limit: 30/60s؛ خطاها: AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, NOT_FOUND, SERVICE_UNAVAILABLE
+- data: `{  }`
+
+#### H-110 — GET `/s/v1/system/sessions/{id}/galleries`
+گالری‌های جلسه (همهٔ سطوح نمایش؛ `occurrenceId?`)
+- مجوز: system.sessions.view؛ step-up: ندارد؛ idempotency: —؛ rate-limit: —؛ خطاها: AUTH_FORBIDDEN, NOT_FOUND, SERVICE_UNAVAILABLE
+- query: `{ page?: number; pageSize?: number; occurrenceId?: string }`
+- data: `Gallery[]`
+
+#### H-111 — POST `/s/v1/system/sessions/{id}/galleries`
+ساخت گالری برای یک نوبت — حداکثر ۲۰ گالری per نوبت (LIMIT_REACHED). audit `gallery.create`. step-up پیش‌فرض این مجوز none است.
+- مجوز: system.content.moderate؛ step-up: قابل (طبق سیاست)؛ idempotency: key؛ rate-limit: 30/60s؛ خطاها: VALIDATION_FAILED, AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, NOT_FOUND, CONFLICT, SERVICE_UNAVAILABLE
+- body: `AdminCreateGalleryBody`
+- data: `Gallery`
+
+#### H-112 — PATCH `/s/v1/system/sessions/{id}/galleries/{galleryId}`
+ویرایش گالری (عنوان/سطح نمایش/ترتیب) — audit `gallery.update`.
+- مجوز: system.content.moderate؛ step-up: قابل (طبق سیاست)؛ idempotency: natural؛ rate-limit: 30/60s؛ خطاها: VALIDATION_FAILED, AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, NOT_FOUND, SERVICE_UNAVAILABLE
+- body: `UpdateGalleryBody`
+- data: `Gallery`
+
+#### H-113 — DELETE `/s/v1/system/sessions/{id}/galleries/{galleryId}`
+حذف گالری — حذف نرم؛ فایل‌ها با job پاک می‌شوند. audit `gallery.delete`.
+- مجوز: system.content.moderate؛ step-up: قابل (طبق سیاست)؛ idempotency: natural؛ rate-limit: 30/60s؛ خطاها: AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, NOT_FOUND, SERVICE_UNAVAILABLE
+- data: `{  }`
+
+#### H-114 — GET `/s/v1/system/sessions/{id}/galleries/{galleryId}/items`
+آیتم‌های گالری
+- مجوز: system.sessions.view؛ step-up: ندارد؛ idempotency: —؛ rate-limit: —؛ خطاها: AUTH_FORBIDDEN, NOT_FOUND, SERVICE_UNAVAILABLE
+- query: `{ page?: number; pageSize?: number }`
+- data: `GalleryItem[]`
+
+#### H-115 — POST `/s/v1/system/sessions/{id}/galleries/{galleryId}/items`
+بارگذاری فایل در گالری (بدنهٔ خام؛ stream به mid) — قواعد M-75 (نوع/حجم/magic bytes/EXIF/سهمیه). high بدنه را بدون بافر کامل به MID_ADMIN.galleryItems stream می‌کند (Content-Type و Content-Length همراه). audit `gallery.upload` (بدون محتوا).
+- مجوز: system.content.moderate؛ step-up: قابل (طبق سیاست)؛ idempotency: key؛ rate-limit: 30/60s؛ خطاها: VALIDATION_FAILED, AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, NOT_FOUND, CONFLICT, PAYLOAD_TOO_LARGE, UNSUPPORTED_MEDIA_TYPE, SERVICE_UNAVAILABLE
+- query: `{ title?: string }`
+- data: `GalleryItem`
+
+#### H-116 — DELETE `/s/v1/system/sessions/{id}/galleries/{galleryId}/items/{itemId}`
+حذف آیتم گالری — audit `gallery.item_delete`.
+- مجوز: system.content.moderate؛ step-up: قابل (طبق سیاست)؛ idempotency: natural؛ rate-limit: 60/60s؛ خطاها: AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, NOT_FOUND, SERVICE_UNAVAILABLE
+- data: `{  }`
+
+#### H-117 — GET `/s/v1/system/sessions/{id}/galleries/{galleryId}/items/{itemId}/content`
+محتوای فایل آیتم گالری (stream از mid؛ Range) — Content-Type = mime آیتم؛ `Range` ⇒ 206 (عبور به mid)؛ `ETag` = sha256؛ `Cache-Control: private, max-age=3600`؛ `X-Content-Type-Options: nosniff`؛ `Content-Disposition: inline`. احراز: Bearer یا URL امضاشده از فیلد `url` آیتم (۱۰ دقیقه، مقید به کاربر)؛ امضای نامعتبر/منقضی ⇒ AUTH_REQUIRED؛ دسترسی کاربرِ امضا هم دوباره بررسی می‌شود.
+- مجوز: system.sessions.view؛ step-up: ندارد؛ idempotency: —؛ rate-limit: 600/60s؛ خطاها: AUTH_FORBIDDEN, NOT_FOUND, SERVICE_UNAVAILABLE
+- query: `{ exp?: number; u?: string; sig?: string }`
+- data: `void`
+
+#### H-118 — GET `/s/v1/system/sessions/{id}/comments`
+کامنت‌های جلسه (`occurrenceId?`، `queueItemId?`، `authorId?`؛ شامل پنهان‌ها)
+- مجوز: system.sessions.view؛ step-up: ندارد؛ idempotency: —؛ rate-limit: —؛ خطاها: AUTH_FORBIDDEN, NOT_FOUND, SERVICE_UNAVAILABLE
+- query: `{ page?: number; pageSize?: number; queueItemId?: string; scope?: "all" | "general" | "recitation"; occurrenceId?: string; authorId?: string; hidden?: "true" | "false" }`
+- data: `Comment[]`
+
+#### H-119 — PATCH `/s/v1/system/sessions/{id}/comments/{commentId}`
+پنهان/آشکار کردن کامنت — audit `comment.moderate`. step-up پیش‌فرض این مجوز none است.
+- مجوز: system.content.moderate؛ step-up: قابل (طبق سیاست)؛ idempotency: natural؛ rate-limit: 60/60s؛ خطاها: VALIDATION_FAILED, AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, NOT_FOUND, SERVICE_UNAVAILABLE
+- body: `ModerateCommentBody`
+- data: `Comment`
+
+#### H-120 — DELETE `/s/v1/system/sessions/{id}/comments/{commentId}`
+حذف کامنت — حذف نرم؛ idempotent. audit `comment.delete`.
+- مجوز: system.content.moderate؛ step-up: قابل (طبق سیاست)؛ idempotency: natural؛ rate-limit: 60/60s؛ خطاها: AUTH_FORBIDDEN, AUTH_STEP_UP_REQUIRED, NOT_FOUND, SERVICE_UNAVAILABLE
+- data: `{  }`
 
 ## نوع‌ها (TypeScript)
 ```ts
-type AddMemberOutcome = "added" | "approved" | "merged" | "replaced" | "unchanged" | "created_and_added" | "not_found" | "not_active" | "full" | "failed";
-type AdminAddMembersBody = { items: ({ user: { userId?: string; phone?: string }; roles?: ("session_supporter" | "teacher" | "quran_student")[]; firstName?: string; lastName?: string })[]; defaultRoles?: ("session_supporter" | "teacher" | "quran_student")[]; onExisting?: "skip" | "merge" | "replace"; createMissing?: boolean; notify?: boolean };
+type AddMemberOutcome = "added" | "approved" | "unchanged" | "created_and_added" | "not_found" | "not_active" | "full" | "failed";
+type AdminAddMembersBody = { items: { user: { userId?: string; phone?: string }; firstName?: string; lastName?: string }[]; createMissing?: boolean; notify?: boolean };
 type AdminAddMembersResult = { items: ({ index: number; userId: string | unknown | null; outcome: AddMemberOutcome; code: string | unknown | null; member: AdminMember | unknown | null })[]; counts: { [key: string]: number } };
 type AdminAttendanceList = { items: AttendanceEntry[]; total: number; occurrenceId?: string | unknown | null };
 type AdminBadge = { id: string; key: string; title: string; description: string; threshold: number; active: boolean; sortOrder: number; image: { hash: string; contentType: "image/png" | "image/webp" | "image/jpeg"; bytes: number; width: number; height: number } | unknown | null; holders: number; createdAt: string /*ISO datetime*/; updatedAt: string /*ISO datetime*/ };
+type AdminCreateGalleryBody = { title: string; kind: GalleryKind; visibility?: GalleryVisibility; sortOrder?: number; occurrenceId: string };
 type AdminCreateSessionBody = { creatorId?: string; session: SessionInput };
 type AdminDecideBody = { action: "approve" | "reject" };
 type AdminDecideBulkBody = { memberIds: string[]; action: "approve" | "reject" };
 type AdminDecideBulkResult = { items: ({ memberId: string; outcome: "approved" | "rejected" | "skipped" | "full" | "not_found" })[] };
-type AdminEvaluationPatchBody = { voice?: number; tone?: number; tajweed?: number; note?: string; reason: string };
+type AdminEvaluationPatchBody = { scores?: { criterionId: string; score: number }[]; note?: string; reason: string };
 type AdminEvaluations = { items: Evaluation[]; total: number };
 type AdminMarkAttendanceBody = { userIds: string[]; occurrenceId?: string; reason: string };
-type AdminMember = { id: string; userId: string; name: string; roles: SessionRole[]; status: MembershipStatus; requestedAt: string /*ISO datetime*/; phone: string | unknown | null; decidedAt: string /*ISO datetime*/ | unknown | null };
+type AdminMember = { id: string; userId: string; name: string; status: MembershipStatus; requestedAt: string /*ISO datetime*/; phone: string | unknown | null; decidedAt: string /*ISO datetime*/ | unknown | null };
 type AdminOccurrence = Occurrence;
 type AdminQueue = QueueState;
 type AdminQueueActBody = { action: "up" | "down" | "skip" | "remove"; expectPosition?: number };
 type AdminQueueNextBody = { expectCurrentItemId?: string | unknown | null };
 type AdminRevokeAttendanceBody = { occurrenceId?: string; reason: string };
-type AdminSession = { id: string; title: string; description: string; schedule: SessionSchedule; nextStartsAt: string /*ISO datetime*/ | unknown | null; location: { label: string; routeUrl?: string | unknown | null }; status: SessionState; joinPolicy?: JoinPolicy; capacity?: number | unknown | null; memberCount?: number; visibility?: SessionVisibility; createdBy: { id: string; name: string }; counts: { members: number; pending: number; attendance: number; evaluations: number; managers?: number; occurrences?: number }; createdAt: string /*ISO datetime*/; updatedAt: string /*ISO datetime*/; deletedAt: string /*ISO datetime*/ | unknown | null };
-type AdminSetMemberRolesBody = { roles: SessionRole[] };
+type AdminSession = { id: string; title: string; description: string; schedule: SessionSchedule; nextStartsAt: string /*ISO datetime*/ | unknown | null; location: { label: string; routeUrl?: string | unknown | null }; status: SessionState; joinPolicy?: JoinPolicy; capacity?: number | unknown | null; memberCount?: number; visibility?: SessionVisibility; commentsEnabled?: boolean; commentVisibility?: CommentVisibility; createdBy: { id: string; name: string }; owner: { id: string; name: string }; counts: { members: number; pending: number; attendance: number; evaluations: number; supporters?: number; occurrences?: number }; createdAt: string /*ISO datetime*/; updatedAt: string /*ISO datetime*/; deletedAt: string /*ISO datetime*/ | unknown | null };
 type AdminUserPoints = { summary: PointsSummary; ledger: { items: PointsLedgerItem[]; page: number; pageSize: number; total: number } };
 type AdminVoidEvaluationBody = { reason: string };
 type Announcement = { id: string; audience: AnnouncementAudience; title: string; body: string; ref: string | unknown | null; status: "queued" | "sending" | "done" | "failed"; recipients: number | unknown | null; delivered: number | unknown | null; read: number | unknown | null; createdBy: { id: string; name: string }; createdAt: string /*ISO datetime*/ };
 type AnnouncementAudience = { type: "all" } | { type: "users"; userIds: string[] } | { type: "role"; role: SystemRoleKey } | { type: "session"; sessionId: string; roles?: SessionRole[] };
 type AttendanceEntry = { userId: string; name: string; enteredAt: string /*ISO datetime*/; source?: "self" | "staff" | "admin"; occurrenceId?: string | unknown | null };
 type AuditEntry = { id: string; at: string /*ISO datetime*/; actor: { id: string; name: string }; action: string; target?: { type: AuditTargetType; id: string; label: string }; summary: string; meta: { [key: string]: unknown } };
-type AuditTargetType = "user" | "role" | "settings" | "session" | "permission" | "module" | "badge" | "announcement";
+type AuditTargetType = "user" | "role" | "settings" | "session" | "permission" | "module" | "badge" | "announcement" | "criterion" | "supporter" | "gallery" | "comment";
 type AuthResult = { accessToken: string; tokenType: "Bearer"; accessExpiresIn: number; refreshToken?: string; sessionId: string; user: AuthUser };
 type AuthUser = { id: string; phone: string; isNewUser: boolean; profileComplete: boolean; hasPassword: boolean };
 type BadgeImageBody = { contentType: "image/png" | "image/webp" | "image/jpeg"; dataBase64: string };
 type BadgeView = { id: string; key: string; title: string; description: string; threshold: number; image: { hash: string } | unknown | null; awardedAt: string /*ISO datetime*/ | unknown | null };
+type Comment = { id: string; sessionId: string; occurrenceId: string; queueItemId: string | unknown | null; reciter: { id: string; name: string } | unknown | null; author: { id: string; name: string }; body: string; atSec: number | unknown | null; hidden: boolean; mine: boolean; createdAt: string /*ISO datetime*/ };
+type CommentVisibility = "public" | "reciter_only";
 type CreateAnnouncementBody = { audience: AnnouncementAudience; title: string; body: string; ref?: string };
 type CreateBadgeBody = { key: string; title: string; description?: string; threshold: number; active?: boolean; sortOrder?: number };
-type CreateModuleBody = { key: ModuleKey; title: string; description?: string; sortOrder?: number };
+type CreateCriterionBody = { key: string; title: string; description?: string; weight: number; maxScore?: number; active?: boolean; sortOrder?: number };
+type CreateModuleBody = { key: ModuleKey; title: string; description?: string; tier?: Tier; sortOrder?: number };
 type CreatePermissionBody = { key: PermissionKey; title: string; description?: string; moduleKey: ModuleKey; grantable?: boolean; stepUp?: StepUpMode };
-type CreateRoleBody = { key: SystemRoleKey; title: string; description?: string; permissions?: PermissionKey[]; modules?: ModuleKey[] };
+type CreateRoleBody = { key: SystemRoleKey; title: string; description?: string; tier?: Tier; permissions?: PermissionKey[]; modules?: ModuleKey[] };
 type CreateUserBody = { phone: string; firstName: string; lastName: string; password?: string; roles?: SystemRoleKey[]; grants?: Grant[] };
-type EffectiveAccess = { userId: string; roles: SystemRoleKey[]; grants: Grant[]; stepUpExempt: boolean; permissions: ({ key: PermissionKey; stepUp: StepUpMode; sources: ({ type: "role" | "module" | "grant"; ref: string; stepUp: StepUpMode })[] })[] };
-type Evaluation = { id: string; sessionId: string; queueItemId: string; userId: string; userName: string; evaluatorName: string; voice: number; tone: number; tajweed: number; weights: EvaluationWeights; score: number; points: number; note: string; createdAt: string /*ISO datetime*/; occurrenceId?: string | unknown | null; status?: "active" | "void"; updatedAt?: string /*ISO datetime*/ | unknown | null };
-type EvaluationWeights = { voice: number; tone: number; tajweed: number };
+type EffectiveAccess = { userId: string; roles: SystemRoleKey[]; tiers: Tier[]; grants: Grant[]; stepUpExempt: boolean; permissions: ({ key: PermissionKey; stepUp: StepUpMode; sources: ({ type: "role" | "module" | "grant" | "baseline"; ref: string; stepUp: StepUpMode })[] })[] };
+type Evaluation = { id: string; sessionId: string; queueItemId: string; userId: string; userName: string; evaluatorName: string; criteria: EvaluationCriterionScore[]; score: number; points: number; note: string; createdAt: string /*ISO datetime*/; occurrenceId?: string | unknown | null; status?: "active" | "void"; updatedAt?: string /*ISO datetime*/ | unknown | null };
+type EvaluationCriteriaList = { version: number; items: EvaluationCriterion[] };
+type EvaluationCriterion = { id: string; key: string; title: string; description: string; weight: number; maxScore: number; active: boolean; sortOrder: number; used: boolean; createdAt: string /*ISO datetime*/; updatedAt: string /*ISO datetime*/ };
+type EvaluationCriterionScore = { criterionId: string; key: string; title: string; weight: number; maxScore: number; score: number };
+type Gallery = { id: string; sessionId: string; occurrenceId: string; title: string; kind: GalleryKind; visibility: GalleryVisibility; sortOrder: number; itemCount: number; totalBytes: number; createdBy: { id: string; name: string }; createdAt: string /*ISO datetime*/ };
+type GalleryItem = { id: string; galleryId: string; mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/mp4" | "audio/ogg" | "audio/webm" | "audio/aac"; bytes: number; sha256: string; width: number | unknown | null; height: number | unknown | null; durationSec: number | unknown | null; title: string; uploadedBy: { id: string; name: string }; createdAt: string /*ISO datetime*/; url: string };
+type GalleryKind = "image" | "audio";
+type GalleryVisibility = "public" | "members" | "staff";
 type Grant = PermissionKey;
 type JoinPolicy = "request" | "open" | "invite_only";
 type LeaderboardItem = { userId: string; name: string; points: number; badges: number };
 type LeaderboardResponse = { items: LeaderboardItem[] };
 type MarkAttendanceResult = { occurrenceId: string; items: ({ userId: string; outcome: "marked" | "already" | "not_member"; pointsAwarded: 0 | 5 })[] };
 type MembershipStatus = "pending" | "approved" | "rejected";
-type ModuleInfo = { key: ModuleKey; title: string; description: string; isSystem: boolean; sortOrder: number; permissionCount: number };
+type ModerateCommentBody = { hidden: boolean };
+type ModuleInfo = { key: ModuleKey; title: string; description: string; tier?: Tier; isSystem: boolean; sortOrder: number; permissionCount: number };
 type ModuleKey = string;
 type MyAccount = { id: string; phone: string; firstName: string; lastName: string; hasPassword: boolean; mustChangePassword: boolean };
 type Occurrence = { id: string; seq: number; status: "live" | "closed"; openedAt: string /*ISO datetime*/; closedAt: string /*ISO datetime*/ | unknown | null; counts: { attendance: number; evaluations: number } };
@@ -707,12 +850,13 @@ type RefreshResult = { accessToken: string; tokenType: "Bearer"; accessExpiresIn
 type RegistrationsSeries = { interval: "day" | "week" | "month"; items: { bucket: string; count: number }[] };
 type ReportOverview = { range: { from: string; to: string }; users: { total: number; registered: number; byStatus: { active: number; disabled: number; deleted: number }; byRole: { developer: number; super_admin: number; none: number }; withPassword: number | unknown | null }; sessions: { total: number; created: number; byStatus: { draft: number; scheduled: number; started: number; ended: number } }; participation: { attendance: number; evaluations: number; avgScore: number | unknown | null; pointsAwarded: number }; messaging: { otpRequested: number; otpVerified: number } | unknown | null; clients: { client: string; activeSessions: number }[] };
 type RevokeAttendanceResult = { occurrenceId: string; revoked: boolean; pointsReversed: number };
-type SessionInput = { title: string; description: string; schedule: SessionSchedule; location: { label: string; routeUrl?: string | unknown | null }; joinPolicy?: JoinPolicy; visibility?: SessionVisibility; capacity?: number | unknown | null };
-type SessionPermission = "session.edit" | "session.transition" | "membership.approve" | "membership.roles" | "queue.manage" | "eval.submit" | "attendance.view" | "attendance.manage" | "occurrence.manage";
-type SessionRole = "session_manager" | "session_supporter" | "teacher" | "quran_student";
-type SessionRolesMatrix = { roles: { key: SessionRole; title: string; permissions: SessionPermission[] }[]; permissions: { key: SessionPermission; title: string }[] };
+type SessionInput = { title: string; description: string; schedule: SessionSchedule; location: { label: string; routeUrl?: string | unknown | null }; joinPolicy?: JoinPolicy; visibility?: SessionVisibility; capacity?: number | unknown | null; commentsEnabled?: boolean; commentVisibility?: CommentVisibility };
+type SessionPermission = "membership.approve" | "membership.manage" | "attendance.manage" | "queue.manage" | "eval.submit" | "gallery.manage" | "comment.moderate" | "occurrence.manage" | "session.edit";
+type SessionPermissionCatalog = { permissions: { key: SessionPermission; title: string }[] };
+type SessionRole = "owner" | "supporter" | "member";
 type SessionSchedule = { type: "once"; startsAt: string /*ISO datetime*/; endsAt: string /*ISO datetime*/ } | { type: "recurring"; weekdays: number[]; timeOfDay: string; durationMin: number } | { type: "range"; rangeFrom: string /*ISO datetime*/; rangeTo: string /*ISO datetime*/; weekdays: number[]; timeOfDay: string; durationMin: number };
 type SessionState = "draft" | "scheduled" | "started" | "ended";
+type SessionSupporter = { userId: string; name: string; permissions: SessionPermission[]; sources: { teacher: SessionPermission[] | unknown | null; session: SessionPermission[] | unknown | null }; createdAt: string /*ISO datetime*/ };
 type SessionVisibility = "public" | "unlisted";
 type SessionsSeries = { interval: "day" | "week" | "month"; items: { bucket: string; created: number; held: number; attendance: number }[] };
 type SetMyPasswordBody = { newPassword: string; currentPassword?: string };
@@ -725,24 +869,28 @@ type SetUserStatusBody = { status: "active" | "disabled" };
 type StepUpMode = "required" | "none";
 type StepUpResult = { stepUpToken: string; expiresInSec: number };
 type StepUpVerifyBody = { challengeId: string; code: string };
-type SystemEvalWeights = { voice: number; tone: number; tajweed: number };
-type SystemMe = { user: { id: string; name: string; phone: string }; roles: SystemRoleKey[]; permissions: PermissionKey[]; stepUpExempt: boolean; stepUp: { [key: string]: StepUpMode } };
-type SystemRole = { key: SystemRoleKey; title: string; description: string; undeletable: boolean; permissions: PermissionKey[]; modules: ModuleKey[]; effectivePermissions: PermissionKey[]; lockedPermissions: PermissionKey[]; stepUpRules: { [key: string]: StepUpMode }; holders: number };
+type SupporterPermissionsBody = { permissions: SessionPermission[] };
+type SystemMe = { user: { id: string; name: string; phone: string }; roles: SystemRoleKey[]; tiers: Tier[]; permissions: PermissionKey[]; stepUpExempt: boolean; stepUp: { [key: string]: StepUpMode } };
+type SystemRole = { key: SystemRoleKey; title: string; description: string; tier?: Tier; undeletable: boolean; implicit?: boolean; permissions: PermissionKey[]; modules: ModuleKey[]; effectivePermissions: PermissionKey[]; lockedPermissions: PermissionKey[]; stepUpRules: { [key: string]: StepUpMode }; holders: number };
 type SystemRoleKey = string;
-type SystemSettings = { version: number; evalWeights: SystemEvalWeights; badgeThresholds: unknown[]; flags: { maintenance_mode: boolean; registration_open: boolean }; updatedAt: string /*ISO datetime*/; updatedBy: string };
+type SystemSettings = { version: number; flags: { maintenance_mode: boolean; registration_open: boolean }; updatedAt: string /*ISO datetime*/; updatedBy: string };
 type SystemUser = { id: string; name: string; phone: string | string; status: UserStatus; roles: SystemRoleKey[]; grants: Grant[]; createdAt: string /*ISO datetime*/ };
 type SystemUserDetail = { id: string; name: string; phone: string | string; status: UserStatus; roles: SystemRoleKey[]; grants: Grant[]; createdAt: string /*ISO datetime*/; firstName: string; lastName: string; hasPassword: boolean; mustChangePassword: boolean; lastActiveAt: string /*ISO datetime*/ | unknown | null; activeSessions: number; sessionsByClient: { [key: string]: number }; points: { total: number; badges: number }; sessions: { created: number; memberships: number; attended: number } };
-type TransferManagerBody = { userId: string; previous?: "demote" | "remove" | "keep"; previousRoles?: ("session_supporter" | "teacher" | "quran_student")[]; transferCreator?: boolean; notify?: boolean };
+type TeacherSupporter = { userId: string; name: string; permissions: SessionPermission[]; createdAt: string /*ISO datetime*/ };
+type Tier = "high" | "mid" | "low";
+type TransferOwnerBody = { userId: string; previousOwner?: "supporter" | "remove"; notify?: boolean };
 type TransitionBody = { to: "scheduled" | "started" | "ended" };
 type UpdateBadgeBody = { title?: string; description?: string; threshold?: number; active?: boolean; sortOrder?: number };
+type UpdateCriterionBody = { title?: string; description?: string; weight?: number; maxScore?: number; active?: boolean; sortOrder?: number };
+type UpdateGalleryBody = { title?: string; visibility?: GalleryVisibility; sortOrder?: number };
 type UpdateModuleBody = { title?: string; description?: string; sortOrder?: number };
 type UpdateMyProfileBody = { firstName?: string; lastName?: string };
 type UpdatePermissionBody = { title?: string; description?: string; moduleKey?: ModuleKey; grantable?: boolean; stepUp?: StepUpMode };
 type UpdateRoleBody = { title?: string; description?: string };
-type UpdateSettingsBody = { version: number; evalWeights: SystemEvalWeights; badgeThresholds?: unknown[]; flags: { maintenance_mode: boolean; registration_open: boolean } };
+type UpdateSettingsBody = { version: number; flags: { maintenance_mode: boolean; registration_open: boolean } };
 type UpdateUserBody = { firstName?: string; lastName?: string; phone?: string };
 type UserDeviceSession = { id: string; deviceLabel: string; platform: "web" | "android"; client: string | unknown | null; ipMasked: string; createdAt: string /*ISO datetime*/; lastActiveAt: string /*ISO datetime*/; revokedAt: string /*ISO datetime*/ | unknown | null; current: boolean };
-type UserMembership = { session: { id: string; title: string; status: SessionState; nextStartsAt: string /*ISO datetime*/ | unknown | null; deletedAt: string /*ISO datetime*/ | unknown | null }; memberId: string; roles: SessionRole[]; status: MembershipStatus; requestedAt: string /*ISO datetime*/; decidedAt: string /*ISO datetime*/ | unknown | null; attendanceCount: number; evaluations: { count: number; avgScore: number | unknown | null }; points: number };
+type UserMembership = { session: { id: string; title: string; status: SessionState; nextStartsAt: string /*ISO datetime*/ | unknown | null; deletedAt: string /*ISO datetime*/ | unknown | null }; memberId: string | unknown | null; role: SessionRole; status: MembershipStatus | unknown | null; requestedAt: string /*ISO datetime*/ | unknown | null; decidedAt: string /*ISO datetime*/ | unknown | null; attendanceCount: number; evaluations: { count: number; avgScore: number | unknown | null }; points: number };
 type UserPasswordBody = { action: "set"; password: string } | { action: "clear" };
 type UserStatus = "active" | "disabled" | "deleted";
 ```

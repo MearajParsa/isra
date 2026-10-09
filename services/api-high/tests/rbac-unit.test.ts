@@ -6,7 +6,7 @@ const policy = (defaults: Record<string, 'required' | 'none'>, rules: Record<str
   permDefault: new Map(Object.entries(defaults)),
   roleRules: new Map(Object.entries(rules).map(([k, v]) => [k.replace('|', '\u0000'), v]))
 });
-const access = (roles: string[], src: Record<string, RawSource[]>, grants: string[] = []): UserAccess => ({ roles, grants, permissions: Object.keys(src).sort(), sources: new Map(Object.entries(src)) });
+const access = (roles: string[], src: Record<string, RawSource[]>, grants: string[] = []): UserAccess => ({ roles, grants, permissions: Object.keys(src).sort(), sources: new Map(Object.entries(src)), roleTiers: ['high'], tiers: ['high', 'low'] });
 const role = (r: string): RawSource => ({ type: 'role', ref: r, role: r });
 
 describe('TtlLru', () => {
